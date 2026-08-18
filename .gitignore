@@ -90,3 +90,12 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Design canvases
+# ---------------------------------------------------------------------------
+# The .dc.html artboards and canvas.json under design/ are the source and are
+# tracked. The seeded output is a ~2 MB generated bundle rebuilt on every
+# change — keep it out of the repo.
+design/*.html
+!design/*.dc.html
