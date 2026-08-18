@@ -100,7 +100,7 @@ Beyond that:
 `src-tauri/` is not scaffolded yet. When it lands, these apply:
 
 - **Keep the Rust layer thin.** It exists for what the webview cannot do: OS
-  APIs, filesystem, PTY, windowing, secure storage, native dialogs. Business
+  APIs, filesystem, windowing, secure storage, native dialogs. Business
   logic and UI state belong in `src/`. If a command is doing product logic, it
   is in the wrong place.
 - **Commands are a trust boundary.** Everything crossing from the frontend is

@@ -9,7 +9,7 @@ Android, and iOS from a single codebase.
 
 - **Frontend** — React 19 + TypeScript + Vite, package-managed with pnpm.
 - **Backend** — a thin Rust layer via **Tauri v2**, covering OS APIs,
-  filesystem, PTY, windowing, secure storage, and native dialogs. Thin is the
+  filesystem, windowing, secure storage, and native dialogs. Thin is the
   design goal, not an accident: anything that does not need OS access belongs in
   the frontend.
 - **UI** — Tailwind v4 + shadcn/ui primitives.

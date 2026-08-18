@@ -7,20 +7,27 @@ deliberately rather than by accident.
 
 ## Settled
 
-| Decision        | Choice                                                                                          | Where it lives                         |
-| --------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Package manager | pnpm ≥ 11, lockfile committed                                                                   | `package.json`, `pnpm-lock.yaml`       |
-| Frontend        | React 19 + TypeScript + Vite                                                                    | `package.json`                         |
-| UI layer        | Tailwind v4 + shadcn/ui                                                                         | `components.json`, `src/globals.css`   |
-| Native shell    | **Tauri v2** — thin Rust layer for OS APIs, filesystem, PTY, windowing, secure storage, dialogs | `src-tauri/` (not yet scaffolded)      |
-| TypeScript      | Strict mode, absolute `@/*` imports                                                             | `tsconfig.app.json`                    |
-| Lint / format   | ESLint + Prettier                                                                               | `eslint.config.js`, `.prettierrc.json` |
-| Quality gate    | `pnpm verify`, run locally                                                                      | `CONTRIBUTING.md`                      |
-| Hosted CI       | None for now, by choice                                                                         | [ci-plan.md](ci-plan.md)               |
-| Licence         | Proprietary; may be relicensed later                                                            | `LICENSE`                              |
-| Repository      | Private, `MadBlast0/MadMusic`                                                                   | —                                      |
-| Supply chain    | 7-day quarantine on new package versions                                                        | `pnpm-workspace.yaml`                  |
-| Commits         | Conventional Commits, branch-per-change, squash merge                                           | `CONTRIBUTING.md`                      |
+| Decision        | Choice                                                                                     | Where it lives                         |
+| --------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
+| Package manager | pnpm ≥ 11, lockfile committed                                                              | `package.json`, `pnpm-lock.yaml`       |
+| Frontend        | React 19 + TypeScript + Vite                                                               | `package.json`                         |
+| UI layer        | Tailwind v4 + shadcn/ui                                                                    | `components.json`, `src/globals.css`   |
+| Native shell    | **Tauri v2** — thin Rust layer for OS APIs, filesystem, windowing, secure storage, dialogs | `src-tauri/` (not yet scaffolded)      |
+| TypeScript      | Strict mode, absolute `@/*` imports                                                        | `tsconfig.app.json`                    |
+| Lint / format   | ESLint + Prettier                                                                          | `eslint.config.js`, `.prettierrc.json` |
+| Quality gate    | `pnpm verify`, run locally                                                                 | `CONTRIBUTING.md`                      |
+| Hosted CI       | None for now, by choice                                                                    | [ci-plan.md](ci-plan.md)               |
+| Licence         | Proprietary; may be relicensed later                                                       | `LICENSE`                              |
+| Repository      | Private, `MadBlast0/MadMusic`                                                              | —                                      |
+| Supply chain    | 7-day quarantine on new package versions                                                   | `pnpm-workspace.yaml`                  |
+| Commits         | Conventional Commits, branch-per-change, squash merge                                      | `CONTRIBUTING.md`                      |
+
+## Ruled out
+
+| Not doing                        | Why                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **PTY / pseudo-terminal**        | Appeared in the original stack notes, inherited from the discarded starter template. A music app has no use for an interactive terminal, and it is the largest attack surface a Tauri app can expose — arbitrary command execution by design. If an external binary is ever needed (`ffmpeg`, say), use `tauri-plugin-shell` with a fixed allowlist instead. |
+| **Browser as a shipping target** | The five native platforms are the product. Vite still serves the frontend in development.                                                                                                                                                                                                                                                                    |
 
 ## Open — nothing here is decided
 

@@ -18,7 +18,7 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 - `docs/roadmap.md` recording what is decided and, more importantly, what is
   still open.
 - Tauri v2 recorded as the settled native shell — a thin Rust layer for OS APIs,
-  filesystem, PTY, windowing, secure storage, and dialogs — with the Rust
+  filesystem, windowing, secure storage, and dialogs — with the Rust
   conventions and command trust-boundary rules that go with it.
 - `docs/ci-plan.md` recording the deferred CI and multi-platform release
   pipeline, so switching it on later is a lookup rather than a redesign.
