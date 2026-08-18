@@ -40,6 +40,28 @@ const MAX_DEPTH: usize = 12;
 /// Upper bound on tracks returned from a single scan.
 const MAX_TRACKS: usize = 50_000;
 
+/// Canonicalises a path, then strips Windows' verbatim `\\?\` prefix.
+///
+/// `std::fs::canonicalize` returns verbatim paths on Windows. They compare and
+/// traverse correctly, but they leak into two places that matter: the string
+/// handed to the webview (which shows the user `\\?\C:\Music`), and
+/// `convertFileSrc`, which builds an asset URL that WebView2 will not load.
+/// Canonicalising is still what makes the symlink check sound, so we keep it
+/// and normalise only the presentation.
+fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    let resolved = std::fs::canonicalize(path)?;
+    if cfg!(windows) {
+        let text = resolved.to_string_lossy();
+        if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
+            return Ok(PathBuf::from(format!(r"\\{stripped}")));
+        }
+        if let Some(stripped) = text.strip_prefix(r"\\?\") {
+            return Ok(PathBuf::from(stripped));
+        }
+    }
+    Ok(resolved)
+}
+
 /// Roots the user has granted this session, canonicalised.
 ///
 /// Held in memory only: a granted folder does not survive a restart, so a
@@ -78,24 +100,34 @@ pub struct FolderNode {
 /// nothing else on disk becomes reachable.
 #[tauri::command]
 pub async fn pick_music_folder(app: AppHandle) -> Result<Option<String>, String> {
-    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    // A plain oneshot over a std channel rather than the async one: the dialog
+    // callback fires on whichever thread the platform picker uses, and sending
+    // from there must never depend on an async runtime being present.
+    let (tx, rx) = std::sync::mpsc::channel();
 
     app.dialog().file().pick_folder(move |picked| {
-        // The receiver is dropped only if the app is shutting down; a failed
-        // send there is not an error worth surfacing.
-        let _ = tx.blocking_send(picked);
+        // The receiver is gone only if the app is shutting down; a failed send
+        // there is not an error worth surfacing.
+        let _ = tx.send(picked);
     });
 
-    let Some(picked) = rx.recv().await.ok_or("folder picker closed unexpectedly")? else {
-        return Ok(None); // user cancelled
+    // The dialog is modal to the user but not to us, so this waits off the
+    // main thread until they choose or cancel.
+    let picked = tauri::async_runtime::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| format!("folder picker failed: {e}"))?
+        .map_err(|_| "the folder picker closed unexpectedly")?;
+
+    let Some(picked) = picked else {
+        log::info!("folder picker cancelled");
+        return Ok(None);
     };
 
     let path = picked
         .into_path()
         .map_err(|e| format!("could not resolve the chosen folder: {e}"))?;
 
-    let root = std::fs::canonicalize(&path)
-        .map_err(|e| format!("could not resolve the chosen folder: {e}"))?;
+    let root = canonical(&path).map_err(|e| format!("could not resolve the chosen folder: {e}"))?;
 
     if !root.is_dir() {
         return Err("the chosen path is not a folder".into());
@@ -113,6 +145,7 @@ pub async fn pick_music_folder(app: AppHandle) -> Result<Option<String>, String>
         .map_err(|_| "library state is poisoned")?
         .insert(root.clone());
 
+    log::info!("granted music folder {}", root.display());
     Ok(Some(root.to_string_lossy().into_owned()))
 }
 
@@ -122,7 +155,7 @@ pub async fn pick_music_folder(app: AppHandle) -> Result<Option<String>, String>
 /// cannot use this to enumerate the filesystem.
 #[tauri::command]
 pub async fn scan_folder(app: AppHandle, path: String) -> Result<FolderNode, String> {
-    let root = std::fs::canonicalize(&path).map_err(|_| "that folder is no longer available")?;
+    let root = canonical(Path::new(&path)).map_err(|_| "that folder is no longer available")?;
 
     let granted: State<'_, GrantedRoots> = app.state();
     let is_granted = {
@@ -134,7 +167,14 @@ pub async fn scan_folder(app: AppHandle, path: String) -> Result<FolderNode, Str
     }
 
     let mut budget = MAX_TRACKS;
-    walk(&root, &root, 0, &mut budget)
+    let node = walk(&root, &root, 0, &mut budget)?;
+    log::info!(
+        "scanned {}: {} tracks in {} subfolders",
+        root.display(),
+        MAX_TRACKS - budget,
+        node.folders.len()
+    );
+    Ok(node)
 }
 
 fn walk(root: &Path, dir: &Path, depth: usize, budget: &mut usize) -> Result<FolderNode, String> {
@@ -176,7 +216,7 @@ fn walk(root: &Path, dir: &Path, depth: usize, budget: &mut usize) -> Result<Fol
 
         // Canonicalise before trusting anything about this entry: this is what
         // catches a symlink pointing outside the granted root.
-        let Ok(real) = std::fs::canonicalize(&entry_path) else {
+        let Ok(real) = canonical(&entry_path) else {
             continue;
         };
         if !real.starts_with(root) {
@@ -227,4 +267,112 @@ fn walk(root: &Path, dir: &Path, depth: usize, budget: &mut usize) -> Result<Fol
     node.tracks.sort_by_key(|t| t.title.to_lowercase());
 
     Ok(node)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds a small tree: two tracks at the root, one in a subfolder, plus a
+    /// non-audio file and a folder containing only non-audio.
+    /// Each test gets its own directory: cargo runs them in parallel, and a
+    /// shared path means they delete each other's fixture.
+    fn fixture(name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("madmusic-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("Album One")).unwrap();
+        std::fs::create_dir_all(root.join("Artwork")).unwrap();
+
+        std::fs::write(root.join("first.mp3"), b"x").unwrap();
+        std::fs::write(root.join("second.FLAC"), b"x").unwrap();
+        std::fs::write(root.join("notes.txt"), b"x").unwrap();
+        std::fs::write(root.join("Album One").join("third.m4a"), b"x").unwrap();
+        std::fs::write(root.join("Artwork").join("cover.jpg"), b"x").unwrap();
+        root
+    }
+
+    #[test]
+    fn finds_audio_and_ignores_everything_else() {
+        let root = fixture("scan");
+        let canonical_root = canonical(&root).unwrap();
+        let mut budget = MAX_TRACKS;
+        let node = walk(&canonical_root, &canonical_root, 0, &mut budget).unwrap();
+
+        let titles: Vec<_> = node.tracks.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(titles, vec!["first", "second"], "root-level audio");
+
+        // Uppercase extensions are audio too.
+        assert!(node.tracks.iter().any(|t| t.extension == "flac"));
+
+        // The subfolder with a track is kept; the one with only artwork is not.
+        let names: Vec<_> = node.folders.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["Album One"]);
+        assert_eq!(node.folders[0].tracks.len(), 1);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn does_not_produce_verbatim_paths_on_windows() {
+        let root = fixture("verbatim");
+        let resolved = canonical(&root).unwrap();
+        assert!(
+            !resolved.to_string_lossy().starts_with(r"\\?\"),
+            "verbatim prefix leaked into {}",
+            resolved.display()
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn depth_limit_marks_truncated() {
+        let root = std::env::temp_dir().join(format!("madmusic-deep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let mut deep = root.clone();
+        for i in 0..(MAX_DEPTH + 3) {
+            deep = deep.join(format!("level{i}"));
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("buried.mp3"), b"x").unwrap();
+
+        let canonical_root = canonical(&root).unwrap();
+        let mut budget = MAX_TRACKS;
+        let node = walk(&canonical_root, &canonical_root, 0, &mut budget).unwrap();
+
+        // Nothing beyond the cap is returned, and the walk terminates.
+        assert_eq!(
+            budget, MAX_TRACKS,
+            "no track should be read past the depth cap"
+        );
+        assert!(node.folders.is_empty() || node.tracks.is_empty());
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Scans a real folder from the environment, for diagnosing a library that
+    /// looks empty on someone's machine. Skipped unless MADMUSIC_SCAN_DIR is
+    /// set, so it never depends on a path existing.
+    #[test]
+    fn scans_a_real_folder_when_asked() {
+        let Ok(dir) = std::env::var("MADMUSIC_SCAN_DIR") else {
+            return;
+        };
+        let root = canonical(Path::new(&dir)).expect("folder should resolve");
+        let mut budget = MAX_TRACKS;
+        let node = walk(&root, &root, 0, &mut budget).expect("walk should succeed");
+
+        println!("root      = {}", node.path);
+        println!("tracks    = {}", node.tracks.len());
+        for track in &node.tracks {
+            println!(
+                "  {} [{}] {} bytes",
+                track.title, track.extension, track.size
+            );
+        }
+        println!("subfolders = {}", node.folders.len());
+        for folder in &node.folders {
+            println!("  {} ({} tracks)", folder.name, folder.tracks.len());
+        }
+        println!("total     = {}", MAX_TRACKS - budget);
+    }
 }

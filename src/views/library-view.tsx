@@ -62,7 +62,8 @@ export function LibraryView() {
             Your Library
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add a folder from this device. Its folders become your playlists.
+            Music on this device, shown exactly as it sits on disk. Playlists
+            are separate — you build those yourself from any tracks you like.
           </p>
         </div>
 
@@ -87,6 +88,13 @@ export function LibraryView() {
         </p>
       )}
 
+      {sourceKind === 'browser' && (
+        <p className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
+          Reading folders through the browser. Access lasts for this session
+          only — the desktop app keeps them across restarts.
+        </p>
+      )}
+
       {error && (
         <p
           role="alert"
@@ -103,6 +111,9 @@ export function LibraryView() {
           <p className="max-w-sm text-sm text-muted-foreground">
             Point MadMusic at a folder of music and it appears here exactly as
             it sits on disk — subfolders and all.
+          </p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Supported: MP3, FLAC, M4A, AAC, OGG, Opus, WAV, WMA, AIFF, ALAC.
           </p>
         </div>
       )}
@@ -130,6 +141,14 @@ export function LibraryView() {
             <p className="truncate font-mono text-[11px] text-muted-foreground">
               {root.path}
             </p>
+
+            {countTracks(root) === 0 && (
+              <p className="rounded-md border border-border bg-card p-3 text-sm text-muted-foreground">
+                No audio found in this folder. MadMusic reads MP3, FLAC, M4A,
+                AAC, OGG, Opus, WAV, WMA, AIFF and ALAC — other formats are
+                ignored.
+              </p>
+            )}
 
             {root.truncated && (
               <p className="text-xs text-muted-foreground">

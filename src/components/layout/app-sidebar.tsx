@@ -1,8 +1,17 @@
 import { motion } from 'motion/react';
-import { Disc3, Heart, Home, ListMusic, Plus, Search } from 'lucide-react';
+import {
+  Disc3,
+  FolderClosed,
+  Heart,
+  Home,
+  ListMusic,
+  Plus,
+  Search,
+} from 'lucide-react';
 
 import { AudioBars } from '@/components/player/audio-bars';
 import { AccountMenu } from '@/components/auth/account-menu';
+import { useLibrary } from '@/components/library/library-context';
 import { usePlayer } from '@/components/player/player-context';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { coverGradient, playlists } from '@/lib/mock-data';
@@ -24,6 +33,7 @@ export function AppSidebar({
   onViewChange: (view: View) => void;
 }) {
   const { current, playing } = usePlayer();
+  const { roots } = useLibrary();
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-2 border-r border-sidebar-border bg-sidebar p-3">
@@ -64,6 +74,37 @@ export function AppSidebar({
           );
         })}
       </nav>
+
+      {/* Folders are what is on disk. Playlists are what the listener makes.
+          Keeping them visibly separate stops the library's shape from being
+          mistaken for a curation the user chose. */}
+      {roots.length > 0 && (
+        <>
+          <div className="mt-4 px-3">
+            <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Folders
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1">
+            {roots.map((root) => (
+              <li key={root.path}>
+                <button
+                  type="button"
+                  onClick={() => onViewChange('library')}
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/40"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded bg-sidebar-accent/40">
+                    <FolderClosed className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {root.name}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <div className="mt-4 flex items-center justify-between px-3">
         <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
