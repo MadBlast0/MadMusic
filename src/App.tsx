@@ -1,27 +1,58 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 
-import { ThemeToggle } from '@/components/common/theme-toggle';
-import { Button } from '@/components/ui/button';
+import { AppSidebar, type View } from '@/components/layout/app-sidebar';
+import { NowPlayingBar } from '@/components/player/now-playing-bar';
+import { PlayerProvider } from '@/components/player/player-provider';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Toaster } from '@/components/ui/sonner';
+import { HomeView } from '@/views/home-view';
 
 function App() {
-  const [count, setCount] = useState(0);
+  const [view, setView] = useState<View>('home');
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 text-foreground">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">MadMusic</h1>
-        <p className="text-sm text-muted-foreground">
-          One music library, every device.
-        </p>
-      </div>
+    <PlayerProvider>
+      <div className="flex h-svh flex-col bg-background text-foreground">
+        <div className="flex min-h-0 flex-1">
+          <AppSidebar view={view} onViewChange={setView} />
 
-      <div className="flex items-center gap-3">
-        <Button onClick={() => setCount((c) => c + 1)}>count is {count}</Button>
-        <ThemeToggle />
+          <main className="min-w-0 flex-1">
+            <ScrollArea className="h-full">
+              {/* `mode="wait"` lets the outgoing view finish before the next
+                  one enters, so the two never overlap and shift layout. */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={view}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                >
+                  {view === 'home' && <HomeView />}
+                  {view === 'search' && <Placeholder title="Search" />}
+                  {view === 'library' && <Placeholder title="Your Library" />}
+                </motion.div>
+              </AnimatePresence>
+            </ScrollArea>
+          </main>
+        </div>
+
+        <NowPlayingBar />
       </div>
 
       <Toaster />
+    </PlayerProvider>
+  );
+}
+
+function Placeholder({ title }: { title: string }) {
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Not designed yet — next up.
+      </p>
     </div>
   );
 }
