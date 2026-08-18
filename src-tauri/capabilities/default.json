@@ -3,5 +3,14 @@
   "identifier": "default",
   "description": "What the MadMusic window is allowed to do. Deny-by-default: anything not listed here is unavailable to the frontend even if the plugin is compiled in.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "opener:allow-open-url"]
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "opener:allow-open-url",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close"
+  ]
 }

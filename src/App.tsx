@@ -1,21 +1,62 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { AppSidebar, type View } from '@/components/layout/app-sidebar';
+import { TitleBar } from '@/components/layout/title-bar';
 import { NowPlayingBar } from '@/components/player/now-playing-bar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Toaster } from '@/components/ui/sonner';
+import { cn } from '@/lib/utils';
 import { HomeView } from '@/views/home-view';
 import { LibraryView } from '@/views/library-view';
 
 function App() {
-  const [view, setView] = useState<View>('home');
+  // A cursor into a history list rather than a single value, so Back and
+  // Forward behave the way they do everywhere else: going back then navigating
+  // somewhere new discards the forward entries.
+  const [history, setHistory] = useState<View[]>(['home']);
+  const [cursor, setCursor] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const view = history[cursor];
+
+  const navigate = useCallback(
+    (next: View) => {
+      setHistory((previous) => {
+        if (previous[cursor] === next) return previous;
+        const kept = previous.slice(0, cursor + 1);
+        return [...kept, next];
+      });
+      setCursor((c) => (history[c] === next ? c : c + 1));
+    },
+    [cursor, history],
+  );
 
   return (
     <>
       <div className="flex h-svh flex-col bg-background text-foreground">
+        <TitleBar
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onSearch={() => navigate('search')}
+          onBack={() => setCursor((c) => Math.max(0, c - 1))}
+          onForward={() =>
+            setCursor((c) => Math.min(history.length - 1, c + 1))
+          }
+          canGoBack={cursor > 0}
+          canGoForward={cursor < history.length - 1}
+        />
+
         <div className="flex min-h-0 flex-1">
-          <AppSidebar view={view} onViewChange={setView} />
+          {/* Width, not conditional mounting: the sidebar keeps its scroll
+              position and internal state across a collapse. */}
+          <div
+            className={cn(
+              'overflow-hidden transition-[width] duration-200 ease-out',
+              sidebarOpen ? 'w-64' : 'w-0',
+            )}
+          >
+            <AppSidebar view={view} onViewChange={navigate} />
+          </div>
 
           <main className="min-w-0 flex-1">
             <ScrollArea className="h-full">

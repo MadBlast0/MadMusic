@@ -4,16 +4,22 @@ import { describe, expect, it } from 'vitest';
 import App from '@/App';
 import { renderWithProviders } from '@/test/utils';
 
+/** The sidebar and the title bar both carry navigation, so queries are scoped. */
+const sidebar = () => screen.getByRole('complementary');
+const titleBar = () => screen.getByRole('banner', { name: 'Title bar' });
+
 describe('App shell', () => {
-  it('renders the product name', () => {
+  it('names the app in the title bar', () => {
     renderWithProviders(<App />);
-    expect(screen.getByText('MadMusic')).toBeInTheDocument();
+    expect(within(titleBar()).getByText('MadMusic')).toBeInTheDocument();
   });
 
   it('renders the primary navigation', () => {
     renderWithProviders(<App />);
     for (const label of ['Home', 'Search', 'Your Library']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+      expect(
+        within(sidebar()).getByRole('button', { name: label }),
+      ).toBeInTheDocument();
     }
   });
 
@@ -28,11 +34,67 @@ describe('App shell', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.click(within(sidebar()).getByRole('button', { name: 'Search' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Search' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('title bar', () => {
+  it('starts with back and forward unavailable', () => {
+    renderWithProviders(<App />);
+    expect(
+      within(titleBar()).getByRole('button', { name: 'Back' }),
+    ).toBeDisabled();
+    expect(
+      within(titleBar()).getByRole('button', { name: 'Forward' }),
+    ).toBeDisabled();
+  });
+
+  it('walks history backwards and forwards', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    await user.click(within(sidebar()).getByRole('button', { name: 'Search' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Search' }),
+    ).toBeInTheDocument();
+
+    await user.click(within(titleBar()).getByRole('button', { name: 'Back' }));
+    expect(
+      await screen.findByRole('heading', { name: /recently played/i }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(titleBar()).getByRole('button', { name: 'Forward' }),
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Search' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the window controls outside the native shell', () => {
+    renderWithProviders(<App />);
+    expect(
+      within(titleBar()).queryByRole('button', { name: 'Close' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('collapses and restores the sidebar', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    const toggle = within(titleBar()).getByRole('button', {
+      name: 'Toggle sidebar',
+    });
+
+    await user.click(toggle);
+    expect(sidebar().parentElement).toHaveClass('w-0');
+
+    await user.click(toggle);
+    expect(sidebar().parentElement).toHaveClass('w-64');
   });
 });
 
@@ -73,7 +135,9 @@ describe('library view', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Your Library' }));
+    await user.click(
+      within(sidebar()).getByRole('button', { name: 'Your Library' }),
+    );
 
     expect(
       await screen.findByText(/can.t open local folders/i),
