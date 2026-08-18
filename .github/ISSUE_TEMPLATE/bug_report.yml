@@ -43,8 +43,6 @@ body:
       label: Platform
       multiple: true
       options:
-        - Web (desktop browser)
-        - Web (mobile browser)
         - Windows
         - macOS
         - Linux

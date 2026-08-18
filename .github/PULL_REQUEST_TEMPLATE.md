@@ -26,8 +26,6 @@
 
 <!-- Tick what you actually ran this on. -->
 
-- [ ] Web (desktop browser)
-- [ ] Web (mobile viewport)
 - [ ] Windows
 - [ ] macOS
 - [ ] Linux

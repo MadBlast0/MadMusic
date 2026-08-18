@@ -11,6 +11,9 @@
 /CODE_OF_CONDUCT.md     @MadBlast0
 /CONTRIBUTING.md        @MadBlast0
 
+# The Rust shell — trust boundary, capabilities, and signing config.
+/src-tauri/             @MadBlast0
+
 # Build, tooling, and supply-chain surface.
 /package.json           @MadBlast0
 /pnpm-lock.yaml         @MadBlast0

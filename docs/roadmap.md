@@ -7,16 +7,20 @@ deliberately rather than by accident.
 
 ## Settled
 
-| Decision        | Choice                                                 | Where it lives                    |
-| --------------- | ------------------------------------------------------ | --------------------------------- |
-| Package manager | pnpm ≥ 11, lockfile committed                          | `package.json`, `pnpm-lock.yaml`  |
-| UI stack        | React 19 + TypeScript + Vite + Tailwind v4 + shadcn/ui | `package.json`, `components.json` |
-| Quality gate    | `pnpm verify`, run locally                             | `CONTRIBUTING.md`                 |
-| Hosted CI       | None for now, by choice                                | [ci-plan.md](ci-plan.md)          |
-| Licence         | Proprietary; may be relicensed later                   | `LICENSE`                         |
-| Repository      | Private, `MadBlast0/MadMusic`                          | —                                 |
-| Supply chain    | 7-day quarantine on new package versions               | `pnpm-workspace.yaml`             |
-| Commits         | Conventional Commits, branch-per-change, squash merge  | `CONTRIBUTING.md`                 |
+| Decision        | Choice                                                                                          | Where it lives                         |
+| --------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Package manager | pnpm ≥ 11, lockfile committed                                                                   | `package.json`, `pnpm-lock.yaml`       |
+| Frontend        | React 19 + TypeScript + Vite                                                                    | `package.json`                         |
+| UI layer        | Tailwind v4 + shadcn/ui                                                                         | `components.json`, `src/globals.css`   |
+| Native shell    | **Tauri v2** — thin Rust layer for OS APIs, filesystem, PTY, windowing, secure storage, dialogs | `src-tauri/` (not yet scaffolded)      |
+| TypeScript      | Strict mode, absolute `@/*` imports                                                             | `tsconfig.app.json`                    |
+| Lint / format   | ESLint + Prettier                                                                               | `eslint.config.js`, `.prettierrc.json` |
+| Quality gate    | `pnpm verify`, run locally                                                                      | `CONTRIBUTING.md`                      |
+| Hosted CI       | None for now, by choice                                                                         | [ci-plan.md](ci-plan.md)               |
+| Licence         | Proprietary; may be relicensed later                                                            | `LICENSE`                              |
+| Repository      | Private, `MadBlast0/MadMusic`                                                                   | —                                      |
+| Supply chain    | 7-day quarantine on new package versions                                                        | `pnpm-workspace.yaml`                  |
+| Commits         | Conventional Commits, branch-per-change, squash merge                                           | `CONTRIBUTING.md`                      |
 
 ## Open — nothing here is decided
 
@@ -36,15 +40,20 @@ discussion before any code assumes an answer.
 
 ### Architecture
 
-- **Native shell.** Tauri v2, Electron, Capacitor, React Native, or per-platform
-  natives. This is the highest-leverage open decision — it constrains the audio
-  engine, the filesystem access model, the release pipeline, and the store
-  submission process all at once.
-- How much code is genuinely shared across the six targets, and where the seam
-  sits.
-- Audio playback engine per platform, and how gapless, crossfade, and background
-  playback are handled on each.
-- Local persistence: library index, metadata cache, artwork.
+- **Where the Rust/TypeScript seam sits.** Tauri v2 is settled, but "thin Rust
+  layer" needs a definition that holds under pressure: which work is a command,
+  which is an event, and what is not allowed to cross. Audio decoding and
+  library scanning are the two that will push hardest on "thin".
+- Audio playback engine, and whether it lives in Rust (`rodio`/`symphonia`) or
+  in the webview (Web Audio). Gapless, crossfade, and background playback pull
+  in different directions here, and mobile background audio may force the
+  answer.
+- Local persistence: library index, metadata cache, artwork. SQLite via Rust,
+  or a webview-side store.
+- Tauri capability/permission set — v2 denies by default, so the allowlist is a
+  real security decision, not boilerplate.
+- Mobile parity: Tauri v2 supports Android and iOS, but plugin coverage is
+  thinner there than on desktop. Worth an early spike before v1 scope is fixed.
 - Backend, if any — and whether it is needed for v1.
 - Repository shape: whether this stays a single package or becomes a workspace
   once native shells land (`pnpm-workspace.yaml` is already the place for that).
@@ -60,6 +69,10 @@ discussion before any code assumes an answer.
 
 ## Next step
 
-Decide the product question before the architecture question. The native shell
-choice is downstream of what the app is for, and picking it first is the most
-likely way to end up rebuilding.
+With the stack settled, the open question is the product one: what MadMusic is
+for. Scope has no floor until that is answered, and the audio-engine and
+persistence decisions above are downstream of it.
+
+The one piece of setup that does not need to wait is scaffolding `src-tauri/`
+and getting a window to open on Windows — it validates the toolchain early and
+costs little if scope later shifts.

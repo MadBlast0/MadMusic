@@ -3,9 +3,11 @@
 ## The decision
 
 MadMusic runs **no GitHub Actions**. Hosted runners cost money — macOS runners
-most of all, and a cross-platform music app would want them for both the macOS
-desktop build and the iOS build. At pre-alpha, with a single maintainer and no
-users, a hosted pipeline buys nothing that a local command does not.
+most of all, and Tauri v2 needs them for both the macOS desktop build and the
+iOS build, since the Rust binary is compiled per target. Rust release builds are
+also slow, which makes billed minutes add up faster than a pure-JS project
+would. At pre-alpha, with a single maintainer and no users, a hosted pipeline
+buys nothing that a local command does not.
 
 **`pnpm verify` is the gate.** It runs, in order:
 
@@ -55,31 +57,29 @@ require a PR, disallow direct pushes. Free.
 Weekly, not per-PR. Fails only on high/critical so it stays a signal rather than
 noise. Pairs with the `overrides` pins in `pnpm-workspace.yaml`.
 
-**4. Dependabot (`.github/dependabot.yml`)**
+**4. Release workflows — only once `src-tauri/` exists**
 
-Deliberately **not** enabled yet, despite being free and not consuming Actions
-minutes. Two reasons: it would open PRs faster than a solo maintainer can
-review them, and it fights the deliberate `minimumReleaseAge: 10080` (7-day)
-supply-chain quarantine and the ~3-month maturity rule for majors that
-`CONTRIBUTING.md` sets. If enabled later, group updates and set a monthly
-schedule so it respects that policy rather than working around it.
+Tag-triggered, `workflow_dispatch`-able, and gated behind manual approval.
+Tauri v2 builds the Rust binary per target, so every row below needs a matching
+runner OS — there is no cross-compiling your way out of the macOS ones:
 
-**5. Release workflows — only once the native shells exist**
+| Target  | Runner           | Notes                                                                              |
+| ------- | ---------------- | ---------------------------------------------------------------------------------- |
+| Windows | `windows-latest` | `.msi` (WiX) / `.exe` (NSIS); code-signing cert + password as secrets              |
+| Linux   | `ubuntu-latest`  | `.AppImage` / `.deb`; needs `libwebkit2gtk` + `libayatana-appindicator` apt deps   |
+| macOS   | `macos-latest`   | Universal binary; Developer ID, notarisation, stapling — **expensive minutes**     |
+| Android | `ubuntu-latest`  | `tauri android build`; JDK + NDK + Android SDK; upload keystore as a secret        |
+| iOS     | `macos-latest`   | `tauri ios build`; paid Apple Developer account, provisioning profiles, TestFlight |
 
-Tag-triggered, `workflow_dispatch`-able, and gated behind manual approval:
+Two things that will bite whoever writes these:
 
-| Target  | Runner           | Notes                                                                      |
-| ------- | ---------------- | -------------------------------------------------------------------------- |
-| Windows | `windows-latest` | Code-signing cert as a secret; `.msi`/`.exe`                               |
-| Linux   | `ubuntu-latest`  | `.AppImage` / `.deb`; cheapest of the five                                 |
-| macOS   | `macos-latest`   | Apple Developer ID, notarisation, stapling — **expensive minutes**         |
-| Android | `ubuntu-latest`  | Upload keystore as a secret; `.aab` for Play, `.apk` for sideload          |
-| iOS     | `macos-latest`   | Requires a paid Apple Developer account, provisioning profiles, TestFlight |
-
-Note that the desktop and mobile columns cannot be written until the native
-shell is chosen (Tauri v2, Electron, Capacitor, React Native — all open, see
-[roadmap.md](roadmap.md)). Writing them before that decision would guarantee a
-rewrite, which is the other reason this is deferred.
+- **Cache the Cargo build, not just the pnpm store.** A cold Rust release build
+  dominates the job time on every one of these runners. `Swatinem/rust-cache`
+  keyed per target OS is the difference between a two-minute job and a
+  fifteen-minute one.
+- **`tauri-action` handles the matrix and draft release** for desktop. Android
+  and iOS are separate jobs with their own toolchain setup; do not try to force
+  all five into one matrix.
 
 ## Cost discipline, whenever this is switched on
 
@@ -94,5 +94,8 @@ rewrite, which is the other reason this is deferred.
 
 - `pnpm verify` before every commit.
 - `pnpm audit` after every dependency change.
+- Once `src-tauri/` lands: `cargo fmt --check`, `cargo clippy -- -D warnings`,
+  and `cargo audit` alongside it, folded into `pnpm verify` so there is still
+  exactly one command to remember.
 - If forgetting `verify` becomes a pattern, add a git `pre-push` hook before
   reaching for hosted CI — it is free and catches the same mistake.

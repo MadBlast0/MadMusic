@@ -3,13 +3,21 @@
 **One music library, every device.**
 
 MadMusic is a cross-platform music application targeting Windows, macOS, Linux,
-Android, iOS, and the web from a single codebase.
+Android, and iOS from a single codebase.
 
-> **Status: pre-alpha.** The repository currently holds the shared web
-> foundation (React 19 + TypeScript + Vite + Tailwind v4 + shadcn/ui) and the
-> project's working agreements. Product scope, architecture, and the
-> native-shell strategy have not been decided yet — see
-> [docs/roadmap.md](docs/roadmap.md).
+## Stack
+
+- **Frontend** — React 19 + TypeScript + Vite, package-managed with pnpm.
+- **Backend** — a thin Rust layer via **Tauri v2**, covering OS APIs,
+  filesystem, PTY, windowing, secure storage, and native dialogs. Thin is the
+  design goal, not an accident: anything that does not need OS access belongs in
+  the frontend.
+- **UI** — Tailwind v4 + shadcn/ui primitives.
+- **Tooling** — ESLint + Prettier, strict TypeScript, absolute `@/*` imports.
+
+> **Status: pre-alpha.** The repository holds the frontend foundation and the
+> project's working agreements. The Rust/Tauri shell is **not scaffolded yet**,
+> and product scope is still open — see [docs/roadmap.md](docs/roadmap.md).
 
 > **Private and proprietary.** See [LICENSE](LICENSE). This is not open source
 > today; it may be relicensed later.
@@ -66,12 +74,13 @@ exactly what to switch on and in what order — nothing needs re-deriving.
 ## Layout
 
 ```
-src/
+src/                   frontend (React) — imported as @/*
   components/ui/       shadcn/ui primitives (generated — see components.json)
   components/common/   app-level shared components (theme provider/toggle)
   hooks/               reusable hooks
   lib/                 utilities
   test/                test setup and render helpers
+src-tauri/             Rust shell — not scaffolded yet
 docs/                  planning and engineering notes
 .github/               issue/PR templates, ownership
 ```

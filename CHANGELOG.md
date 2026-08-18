@@ -17,11 +17,16 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
   stands in for a hosted CI pipeline.
 - `docs/roadmap.md` recording what is decided and, more importantly, what is
   still open.
+- Tauri v2 recorded as the settled native shell — a thin Rust layer for OS APIs,
+  filesystem, PTY, windowing, secure storage, and dialogs — with the Rust
+  conventions and command trust-boundary rules that go with it.
 - `docs/ci-plan.md` recording the deferred CI and multi-platform release
   pipeline, so switching it on later is a lookup rather than a redesign.
 
 ### Changed
 
+- Target platforms narrowed to the five native ones; the browser is no longer
+  treated as a shipping target.
 - Project renamed to MadMusic and detached from the third-party starter template
   it was bootstrapped from; all prior branding, authorship, and repository
   references removed.

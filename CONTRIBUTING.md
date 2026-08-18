@@ -80,6 +80,27 @@ Beyond that:
 - **Tests** live beside the code as `*.test.ts(x)` and assert user-visible
   behaviour through Testing Library queries, not implementation details.
 
+## Rust and the Tauri shell
+
+`src-tauri/` is not scaffolded yet. When it lands, these apply:
+
+- **Keep the Rust layer thin.** It exists for what the webview cannot do: OS
+  APIs, filesystem, PTY, windowing, secure storage, native dialogs. Business
+  logic and UI state belong in `src/`. If a command is doing product logic, it
+  is in the wrong place.
+- **Commands are a trust boundary.** Everything crossing from the frontend is
+  untrusted input — validate paths, reject traversal, never interpolate a string
+  into a shell. A command that takes a path and opens it is the most likely
+  place this project gets a CVE.
+- **Capabilities are deny-by-default in Tauri v2.** Grant the narrowest
+  permission that works and comment why in the capability file. Do not widen a
+  scope to make something work without saying so in the PR.
+- **Errors cross the boundary as typed, serialisable values** — not stringified
+  panics. Never `unwrap()` on anything reachable from a command.
+- **`cargo fmt` and `cargo clippy -- -D warnings`** are expected to pass, the
+  same way Prettier and ESLint are on the TypeScript side. Both get folded into
+  `pnpm verify` when the shell lands, so there is still one command to remember.
+
 ## Dependencies
 
 This project runs a deliberately conservative dependency policy, half of it
