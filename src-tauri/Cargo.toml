@@ -1,0 +1,38 @@
+[package]
+name = "madmusic"
+version = "0.1.0"
+description = "MadMusic — one music library, every device"
+authors = ["Mad Blast <81722794+MadBlast0@users.noreply.github.com>"]
+license = "LicenseRef-Proprietary"
+repository = "https://github.com/MadBlast0/MadMusic"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+# The mobile entry point is generated against this name; keep it in sync with
+# the `mobile_entry_point` macro in lib.rs.
+name = "madmusic_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = ["protocol-asset"] }
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+
+[profile.release]
+# Smaller, faster binaries for the platforms this ships to. `panic = "abort"`
+# is deliberate: a panic crossing the FFI boundary into the webview is undefined
+# behaviour, so aborting is the honest outcome.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
