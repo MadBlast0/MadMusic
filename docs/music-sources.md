@@ -123,53 +123,83 @@ being built. The choice is therefore between Monochrome's route and Melofy's.
 | **Ongoing cost**                  | ~$11/mo Tidal, plus ~$5/mo VPS if self-hosting the wrapper                                                                                                | VPS + bandwidth, growing with every user                                                        | **Tidal**            |
 | **Legal exposure**                | Unlicensed. Tied to a real account, so bans are the near-term risk                                                                                        | Unlicensed. Diffuse, harder to attribute                                                        | Draw                 |
 
-### Recommendation: Monochrome's route, with Melofy's metadata
+### Decision (August 2026): Melofy's route, without the server
 
-Take **Tidal via a HiFi-style API for audio**, and **Spotify or MusicBrainz for
-metadata, search and browse**. Neither project does exactly this, and it is
-better than either:
+**MadMusic sources audio the way Melofy does — resolved from YouTube — but runs
+the extraction inside the Rust layer.** No NodeLink, no Node backend, no VPS, no
+hosting bill, and no account pool.
 
-- **Lossless FLAC versus 128 kbps YouTube audio is not a close call** for an app
-  whose entire point is music quality — and it is the one thing that justifies
-  building a native Rust audio pipeline at all. Gapless, bit-perfect output and
-  a real EQ are meaningful on FLAC and largely wasted on YouTube rips.
-- **No bandwidth bill.** The client pulls from Tidal's CDN directly. Melofy's
-  design makes you pay for every second of audio every user listens to — the
-  cost of success is a bigger bill, on a project with no revenue.
-- **It fits the stack we already chose.** A REST call returning a stream URL
-  drops straight into `symphonia`/`rodio` behind a Tauri command. NodeLink would
-  mean running and paying for a Node backend purely to feed a native app that
-  could have fetched the bytes itself.
-- **Spotify metadata is genuinely better** for search and discovery, and
-  metadata carries none of the streaming risk. MusicBrainz is the free fallback
-  if Spotify's API terms or endpoint restrictions get in the way.
+NodeLink and Monochrome's proxy both exist for the same reason: those projects
+are _web_ apps, and browsers cannot hold credentials, bypass CORS, or extract
+stream URLs. A Tauri app is native. The entire backend tier disappears.
 
-### The one hard problem to solve early
+Of the trilemma — free to the user / mainstream catalogue / hi-res lossless —
+v1 takes **free + mainstream**.
 
-**Tidal accounts permit very few concurrent streams.** A single subscription
-behind a public app does not survive contact with real users — which is
-precisely why Monochrome refuses to let self-hosted instances reach their API.
+**What this buys:** zero infrastructure, zero cost to us and to users, the full
+catalogue including live takes, remixes and regional music, and complete
+ownership of the audio pipeline.
 
-Realistic answers, in order of preference:
+**What was traded away**, recorded here so it is not rediscovered later as a
+surprise:
 
-1. **Bring your own account** — the user signs into _their_ Tidal subscription
-   in-app. Scales perfectly, moves exposure to the user, and is the only version
-   with any chance at app-store review. Cost to you: zero.
-2. **A pool of accounts** with rotation and a concurrency cap. Works to a point,
-   costs a subscription per few users, and every account is bannable.
-3. **Your single account** — fine for personal use, dead on arrival publicly.
+- **Hi-res lossless is off the table.** YouTube-derived Opus/AAC runs about
+  128–160 kbps — roughly a tenth of FLAC's bitrate. Gapless and EQ still work,
+  but they buy far less on a lossy source than they would on 24/192.
+- **App-store distribution is at risk.** This breaks YouTube's terms of service;
+  Apple App Store Review §5.2 and Google Play's IP policy both apply.
+- **Permanent maintenance.** YouTube's bot detection (PO tokens, IP checks)
+  breaks extraction periodically. This is a recurring chore for the life of the
+  project, not a one-off integration.
+- **Match accuracy.** Resolving a track to a video sometimes yields a live take,
+  a sped-up edit, or the wrong master.
 
-Option 1 should be the default and the architecture should assume it. Options 2
-and 3 can exist as configuration, not as the design.
+Subscription services (Qobuz, TIDAL) and their official SDKs were considered and
+rejected: they deliver true 24/192 and legitimacy, but require every user to hold
+a paid subscription.
 
-### What this means for the build
+### Pipeline
 
-Put every source behind one **source adapter interface** in Rust — `search`,
-`resolve track`, `get stream URL`, `get metadata`. The Tidal adapter ships
-first; a YouTube/NodeLink adapter, a local-files adapter, or a
+1. **Search and metadata** — YouTube Music via the Innertube API, supplemented by
+   MusicBrainz. No API key required for either. Spotify metadata stays an option
+   later but is not needed to start.
+2. **Resolve** — map the chosen track to a video id.
+3. **Extract** — obtain the audio stream URL in-process.
+4. **Play** — stream into `symphonia`/`rodio` behind a Tauri command.
+
+### Extraction: `rustypipe`, with an escape hatch
+
+[`rustypipe`](https://crates.io/crates/rustypipe) is a Rust client for YouTube's
+Innertube API, inspired by NewPipe, and covers YouTube Music as well as YouTube.
+Chosen over a bundled `yt-dlp` sidecar: no external binary, smallest bundle,
+identical behaviour on all five platforms, and no Python dependency to ship.
+
+**The main technical risk in this plan lives here.** At the time of writing the
+latest release is 0.11.4, published 2025-04-23 — roughly sixteen months old. For
+the one component whose entire job is keeping pace with YouTube's changes,
+staleness is exactly the wrong property.
+
+Mitigations, in order:
+
+- **Verify it still works before writing code against it.** A quick spike that
+  resolves and plays one track answers this in an afternoon.
+- **Keep extraction behind the source-adapter trait** (below). If `rustypipe`
+  rots, swapping to a `yt-dlp` sidecar or another crate touches one module and
+  leaves the player, library and UI untouched.
+- Note that a `yt-dlp` sidecar remains a legitimate fallback and is **not** the
+  PTY that was ruled out — it would be a fixed, allowlisted invocation via
+  `tauri-plugin-shell`, not an interactive terminal.
+
+### The source adapter
+
+Every source sits behind one interface in Rust — roughly `search`,
+`resolve_track`, `stream_url`, and `metadata`. The YouTube adapter ships first.
+A subscription-service adapter, a local-files adapter, or a
 user-supplied-endpoint adapter can be added later without touching the player,
-library, or UI. This costs nothing now and is what keeps the project from being
-rewritten when a source dies.
+the library index, or the UI.
+
+This costs nothing now and is what stops a dead source becoming a rewrite —
+which, given the maintenance risk above, is not a hypothetical concern.
 
 ## Metadata is a separate, easier question
 

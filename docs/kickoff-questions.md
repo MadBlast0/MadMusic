@@ -8,6 +8,25 @@ shrinks. **★ = blocking**, meaning real work can't start without it.
 
 ---
 
+## Answered so far
+
+| #   | Question                 | Answer                                                                                                                               |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Q1  | Anything pushed already? | Yes — history force-pushed clean, old commits replaced                                                                               |
+| Q9  | What MadMusic is         | Streaming player over a **free, mainstream** catalogue. Audio resolved from YouTube and extracted in-app; no server, no subscription |
+| Q11 | Ambition                 | Ship publicly eventually (noting the store-review risk this sourcing carries)                                                        |
+| Q25 | Audio engine             | **Rust** — `symphonia`/`rodio`, own pipeline                                                                                         |
+| Q45 | Extraction method        | Native Rust crate (`rustypipe`), not a `yt-dlp` sidecar                                                                              |
+| Q54 | PTY                      | Removed — template leftover                                                                                                          |
+| —   | Hi-res lossless          | Deliberately traded away for "free + mainstream". See [music-sources.md](music-sources.md)                                           |
+| —   | Self-hosting / VPS       | Ruled out entirely                                                                                                                   |
+
+Superseded by the above: **Q12** (answered — YouTube extraction, knowingly),
+**Q16–Q20** and **Q24** (library-scanning questions; there is no local library to
+scan), **Q51** (native only, confirmed).
+
+---
+
 ## A. Repository and workflow
 
 **Q1 ★** Was anything already pushed to `github.com/MadBlast0/MadMusic`? I

@@ -10,6 +10,11 @@ deliberately rather than by accident.
 | Decision        | Choice                                                                                     | Where it lives                         |
 | --------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
 | Package manager | pnpm ≥ 11, lockfile committed                                                              | `package.json`, `pnpm-lock.yaml`       |
+| Audio source    | YouTube-derived, resolved and extracted **in-app** — no server, no VPS, no subscription    | [music-sources.md](music-sources.md)   |
+| Extraction      | `rustypipe` (Innertube client) compiled in; `yt-dlp` sidecar as fallback                   | [music-sources.md](music-sources.md)   |
+| Metadata        | YouTube Music (Innertube) + MusicBrainz. No API keys needed                                | [music-sources.md](music-sources.md)   |
+| Audio engine    | Rust — `symphonia` / `rodio` behind a Tauri command                                        | `src-tauri/` (not yet scaffolded)      |
+| Who pays        | Nobody. Free to users, zero running cost to us                                             | [music-sources.md](music-sources.md)   |
 | Frontend        | React 19 + TypeScript + Vite                                                               | `package.json`                         |
 | UI layer        | Tailwind v4 + shadcn/ui                                                                    | `components.json`, `src/globals.css`   |
 | Native shell    | **Tauri v2** — thin Rust layer for OS APIs, filesystem, windowing, secure storage, dialogs | `src-tauri/` (not yet scaffolded)      |
@@ -29,6 +34,9 @@ deliberately rather than by accident.
 | **PTY / pseudo-terminal**                        | Appeared in the original stack notes, inherited from the discarded starter template. A music app has no use for an interactive terminal, and it is the largest attack surface a Tauri app can expose — arbitrary command execution by design. If an external binary is ever needed (`ffmpeg`, say), use `tauri-plugin-shell` with a fixed allowlist instead. |
 | **Browser as a shipping target**                 | The five native platforms are the product. Vite still serves the frontend in development.                                                                                                                                                                                                                                                                    |
 | **Local-files-only / self-hosted-server client** | Considered and rejected. MadMusic streams from a catalogue; it is not a player for files the user already owns. See [music-sources.md](music-sources.md).                                                                                                                                                                                                    |
+| **Hi-res lossless in v1**                        | Traded away deliberately. YouTube-derived audio is ~128–160 kbps. Revisit only if a subscription-backed source is ever added.                                                                                                                                                                                                                                |
+| **Subscription services (Qobuz, TIDAL)**         | True 24/192 and legitimate, but require every user to hold a paid subscription. Rejected on that basis.                                                                                                                                                                                                                                                      |
+| **Any self-hosted or rented backend**            | No VPS, no NodeLink, no proxy instance. The native app does the work a web app would need a server for.                                                                                                                                                                                                                                                      |
 
 ## Open — nothing here is decided
 
@@ -54,10 +62,8 @@ discussion before any code assumes an answer.
   layer" needs a definition that holds under pressure: which work is a command,
   which is an event, and what is not allowed to cross. Audio decoding and
   library scanning are the two that will push hardest on "thin".
-- Audio playback engine, and whether it lives in Rust (`rodio`/`symphonia`) or
-  in the webview (Web Audio). Gapless, crossfade, and background playback pull
-  in different directions here, and mobile background audio may force the
-  answer.
+- Gapless, crossfade and background playback still need designing, though they
+  buy less on a lossy source than they would on lossless.
 - Local persistence: library index, metadata cache, artwork. SQLite via Rust,
   or a webview-side store.
 - Tauri capability/permission set — v2 denies by default, so the allowlist is a
