@@ -58,6 +58,21 @@ chore(deps): bump vite to 8.2.1
 Scopes follow the product areas: `player`, `library`, `queue`, `search`, `sync`,
 `ui`, `deps`, `build`, `docs`.
 
+### Authorship
+
+Every commit is authored by the repository owner and nobody else:
+
+```
+Mad Blast <81722794+MadBlast0@users.noreply.github.com>
+```
+
+**Do not add `Co-Authored-By` trailers — for AI assistants or anyone else.**
+Tools that append AI attribution by default must be configured not to. MadBlast0
+is the sole contributor on this repository, and the commit log should say so.
+
+This is pinned in the repo's local git config, so an ordinary `git commit` here
+already does the right thing. Do not override it with `-c user.email=...`.
+
 ## Pull requests
 
 Open a PR even when working alone — the diff is the record of why a change
