@@ -76,9 +76,10 @@ describe('library view', () => {
     await user.click(screen.getByRole('button', { name: 'Your Library' }));
 
     expect(
-      await screen.findByRole('heading', { name: 'Your Library' }),
+      await screen.findByText(/can.t open local folders/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/can.t open local folders/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add folder/i })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /choose music folder/i }),
+    ).toBeDisabled();
   });
 });

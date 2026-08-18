@@ -105,7 +105,14 @@ pub async fn pick_music_folder(app: AppHandle) -> Result<Option<String>, String>
     // from there must never depend on an async runtime being present.
     let (tx, rx) = std::sync::mpsc::channel();
 
-    app.dialog().file().pick_folder(move |picked| {
+    let mut dialog = app.dialog().file();
+    // Parent the dialog to the main window. Without this the picker can open
+    // behind the app, which is indistinguishable from the button having hung.
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+
+    dialog.pick_folder(move |picked| {
         // The receiver is gone only if the app is shutting down; a failed send
         // there is not an error worth surfacing.
         let _ = tx.send(picked);

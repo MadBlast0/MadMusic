@@ -2,17 +2,16 @@ import { useState } from 'react';
 import {
   ChevronRight,
   FolderOpen,
-  FolderPlus,
   Loader2,
   Music,
   Play,
-  X,
+  RefreshCw,
 } from 'lucide-react';
 
 import { useLibrary } from '@/components/library/library-context';
 import { usePlayer } from '@/components/player/player-context';
-import { AudioBars } from '@/components/player/audio-bars';
 import type { PlayerTrack } from '@/components/player/player-context';
+import { AudioBars } from '@/components/player/audio-bars';
 import { Button } from '@/components/ui/button';
 import {
   countTracks,
@@ -22,7 +21,7 @@ import {
 } from '@/lib/local-source';
 import { cn } from '@/lib/utils';
 
-/** Deterministic cover colours, so the same album looks the same every launch. */
+/** Deterministic cover colours, so the same track looks the same every launch. */
 function coverFor(seed: string): [string, string] {
   const palette: [string, string][] = [
     ['#6366f1', '#a855f7'],
@@ -50,117 +49,141 @@ function toPlayerTrack(track: LocalTrack, folderName: string): PlayerTrack {
   };
 }
 
+/** `C:\Users\Sam\Music` → `['C:', 'Users', 'Sam', 'Music']` */
+function segments(path: string): string[] {
+  return path.split(/[\\/]+/).filter(Boolean);
+}
+
 export function LibraryView() {
-  const { roots, sourceKind, scanning, error, addFolder, removeFolder } =
-    useLibrary();
+  const { root, sourceKind, scanning, error, chooseFolder } = useLibrary();
+  const unavailable = sourceKind === 'unavailable';
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Your Library
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Music on this device, shown exactly as it sits on disk. Playlists
-            are separate — you build those yourself from any tracks you like.
-          </p>
-        </div>
-
-        <Button
-          onClick={addFolder}
-          disabled={scanning || sourceKind === 'unavailable'}
-        >
-          {scanning ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <FolderPlus className="size-4" />
-          )}
-          {scanning ? 'Scanning…' : 'Add folder'}
-        </Button>
-      </header>
-
-      {sourceKind === 'unavailable' && (
-        <p className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-          This browser can&rsquo;t open local folders — the File System Access
-          API is Chromium-only. Use the MadMusic desktop app, or open this in a
-          Chromium-based browser.
-        </p>
-      )}
-
-      {sourceKind === 'browser' && (
-        <p className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
-          Reading folders through the browser. Access lasts for this session
-          only — the desktop app keeps them across restarts.
-        </p>
-      )}
+    <div className="flex flex-col gap-5 p-6">
+      <FolderBar
+        root={root}
+        scanning={scanning}
+        disabled={unavailable}
+        onChoose={chooseFolder}
+      />
 
       {error && (
         <p
           role="alert"
-          className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           {error}
         </p>
       )}
 
-      {roots.length === 0 && !scanning && sourceKind !== 'unavailable' && (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-12 text-center">
-          <FolderOpen className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">No folders yet</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Point MadMusic at a folder of music and it appears here exactly as
-            it sits on disk — subfolders and all.
-          </p>
-          <p className="max-w-sm text-xs text-muted-foreground">
-            Supported: MP3, FLAC, M4A, AAC, OGG, Opus, WAV, WMA, AIFF, ALAC.
-          </p>
-        </div>
+      {unavailable && (
+        <p className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          This browser can&rsquo;t open local folders. Use the desktop app, or a
+          Chromium-based browser.
+        </p>
       )}
 
-      <div className="flex flex-col gap-6">
-        {roots.map((root) => (
-          <section key={root.path} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold tracking-tight">
-                {root.name}
-              </h2>
-              <span className="text-xs text-muted-foreground">
-                {countTracks(root)} tracks
-              </span>
-              <button
-                type="button"
-                onClick={() => removeFolder(root.path)}
-                aria-label={`Remove ${root.name} from your library`}
-                className="ml-auto rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+      {!root && !unavailable && <EmptyState onChoose={chooseFolder} />}
 
-            <p className="truncate font-mono text-[11px] text-muted-foreground">
-              {root.path}
-            </p>
+      {root && countTracks(root) === 0 && (
+        <p className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          No audio in this folder. MadMusic reads MP3, FLAC, M4A, AAC, OGG,
+          Opus, WAV, WMA, AIFF and ALAC.
+        </p>
+      )}
 
-            {countTracks(root) === 0 && (
-              <p className="rounded-md border border-border bg-card p-3 text-sm text-muted-foreground">
-                No audio found in this folder. MadMusic reads MP3, FLAC, M4A,
-                AAC, OGG, Opus, WAV, WMA, AIFF and ALAC — other formats are
-                ignored.
-              </p>
-            )}
-
-            {root.truncated && (
-              <p className="text-xs text-muted-foreground">
-                This folder is very large, so only part of it was read.
-              </p>
-            )}
-
-            <FolderTree folder={root} depth={0} defaultOpen />
-          </section>
-        ))}
-      </div>
+      {root && countTracks(root) > 0 && (
+        <FolderTree folder={root} depth={0} defaultOpen />
+      )}
     </div>
+  );
+}
+
+/**
+ * The folder path and the control that changes it, as one object.
+ *
+ * Two separate affordances — a path readout in one place and an "Add folder"
+ * button somewhere else — leave the user to work out the relationship between
+ * them. Here the path *is* the control.
+ */
+function FolderBar({
+  root,
+  scanning,
+  disabled,
+  onChoose,
+}: {
+  root: LocalFolder | null;
+  scanning: boolean;
+  disabled: boolean;
+  onChoose: () => void;
+}) {
+  if (!root) {
+    return (
+      <Button onClick={onChoose} disabled={disabled || scanning} size="lg">
+        {scanning ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <FolderOpen className="size-4" />
+        )}
+        {scanning ? 'Choosing folder…' : 'Choose music folder'}
+      </Button>
+    );
+  }
+
+  const parts = segments(root.path);
+  const trail = parts.slice(0, -1);
+  const total = countTracks(root);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+      <FolderOpen className="size-5 shrink-0 text-muted-foreground" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="truncate text-sm font-semibold">{root.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {total} {total === 1 ? 'track' : 'tracks'}
+          </span>
+        </div>
+        <p
+          className="truncate font-mono text-[11px] text-muted-foreground"
+          title={root.path}
+        >
+          {trail.join(' / ')}
+        </p>
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onChoose}
+        disabled={scanning}
+        className="shrink-0"
+      >
+        {scanning ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <RefreshCw className="size-3.5" />
+        )}
+        Change
+      </Button>
+    </div>
+  );
+}
+
+function EmptyState({ onChoose }: { onChoose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onChoose}
+      className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-6 py-14 text-center transition-colors hover:border-ring hover:bg-accent/20"
+    >
+      <FolderOpen className="size-7 text-muted-foreground" />
+      <span className="text-sm font-medium">Choose a folder to start</span>
+      <span className="max-w-xs text-sm text-muted-foreground">
+        Everything inside it, however deeply nested, becomes your library.
+      </span>
+    </button>
   );
 }
 
@@ -176,21 +199,23 @@ function FolderTree({
   const [open, setOpen] = useState(defaultOpen);
   const { play, current, playing } = usePlayer();
 
+  const count = countTracks(folder);
+
   const playFolder = () => {
-    const tracks = flattenTracks(folder).map((t) =>
+    const queue = flattenTracks(folder).map((t) =>
       toPlayerTrack(t, folder.name),
     );
-    if (tracks.length > 0) play(tracks[0], tracks);
+    if (queue.length > 0) play(queue[0], queue);
   };
 
   return (
-    <div className={cn(depth > 0 && 'ml-4 border-l border-border pl-3')}>
-      <div className="group flex items-center gap-1 rounded-md py-1">
+    <div className={cn(depth > 0 && 'ml-3 border-l border-border pl-3')}>
+      <div className="group flex items-center gap-1">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1 py-1 text-left transition-colors hover:bg-accent/30"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/30"
         >
           <ChevronRight
             className={cn(
@@ -199,8 +224,8 @@ function FolderTree({
             )}
           />
           <span className="truncate text-sm font-medium">{folder.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {countTracks(folder)}
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {count}
           </span>
         </button>
 
@@ -227,16 +252,13 @@ function FolderTree({
                 key={track.id}
                 type="button"
                 onClick={() => {
-                  const tracks = folder.tracks.map((t) =>
+                  const queue = folder.tracks.map((t) =>
                     toPlayerTrack(t, folder.name),
                   );
-                  play(
-                    tracks.find((t) => t.id === track.id) ?? tracks[0],
-                    tracks,
-                  );
+                  play(queue.find((t) => t.id === track.id) ?? queue[0], queue);
                 }}
                 className={cn(
-                  'ml-5 flex items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/30',
+                  'ml-6 flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/30',
                   isCurrent && 'bg-accent/40',
                 )}
               >
@@ -245,16 +267,13 @@ function FolderTree({
                   {track.title}
                 </span>
                 {isCurrent && <AudioBars playing={playing} className="h-3" />}
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                  {(track.size / 1_048_576).toFixed(1)} MB
-                </span>
               </button>
             );
           })}
 
           {folder.truncated && (
-            <p className="ml-5 py-1 text-xs text-muted-foreground">
-              …more not shown
+            <p className="ml-6 py-1 text-xs text-muted-foreground">
+              Folder too large to read fully
             </p>
           )}
         </div>
