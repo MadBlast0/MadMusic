@@ -1,0 +1,76 @@
+MadMusic — Proprietary Software License
+Copyright (c) 2026 Mad Blast (github.com/MadBlast0). All rights reserved.
+
+================================================================================
+IMPORTANT: This is proprietary and confidential software. It is NOT open source.
+Before any public distribution, replace the copyright line above with the legal
+name of the copyright-holding entity. If MadMusic is later released as open
+source, this file is replaced wholesale by the chosen OSS license.
+================================================================================
+
+1. DEFINITIONS
+   "Software" means the MadMusic application and website, including its source
+   code, object code, documentation, configuration, assets, and all associated
+   materials in this repository.
+   "Licensor" means the copyright holder identified above.
+   "You" means the individual or legal entity granted access under this License.
+
+2. GRANT OF LICENSE
+   Subject to Your compliance with this License, Licensor grants You a limited,
+   non-exclusive, non-transferable, non-sublicensable, revocable license to
+   access and use the Software solely for Your internal business purposes and
+   only to the extent expressly authorized in writing by Licensor.
+
+3. RESTRICTIONS
+   Except as expressly permitted by this License or by applicable law, You shall
+   NOT, and shall not permit any third party to:
+   (a) copy, reproduce, or distribute the Software or any portion of it;
+   (b) sell, rent, lease, lend, sublicense, or otherwise transfer the Software;
+   (c) modify, adapt, translate, or create derivative works of the Software;
+   (d) reverse engineer, decompile, or disassemble the Software, except to the
+       limited extent such restriction is prohibited by applicable law;
+   (e) remove, alter, or obscure any proprietary notices;
+   (f) use the Software to build a competing product or service;
+   (g) disclose the Software or any benchmarking results to any third party
+       without Licensor's prior written consent.
+
+4. OWNERSHIP
+   The Software is licensed, not sold. Licensor and its licensors retain all
+   right, title, and interest in and to the Software, including all intellectual
+   property rights. No rights are granted except as expressly set forth herein.
+
+5. CONFIDENTIALITY
+   The Software constitutes the confidential and trade-secret information of
+   Licensor. You shall protect it using at least the same degree of care You use
+   for Your own confidential information, and no less than a reasonable standard.
+
+6. THIRD-PARTY COMPONENTS
+   The Software may include third-party open-source components licensed under
+   their own terms. Those components remain governed by their respective
+   licenses, which are provided in the accompanying notices (see THIRD_PARTY or
+   the dependency manifests). Nothing in this License limits Your rights under
+   those separate licenses.
+
+7. TERMINATION
+   This License terminates automatically if You breach any term. Upon
+   termination You must cease all use and destroy all copies of the Software.
+   Sections 4, 5, 8, and 9 survive termination.
+
+8. DISCLAIMER OF WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY
+   KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WITHOUT LIMITATION THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT.
+
+9. LIMITATION OF LIABILITY
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL LICENSOR BE LIABLE
+   FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR
+   ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING OUT OF OR RELATING TO THIS
+   LICENSE OR THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+10. GENERAL
+    This License is governed by the laws of the jurisdiction in which Licensor is
+    established, without regard to conflict-of-laws principles. If any provision
+    is held unenforceable, the remaining provisions remain in full force.
+
+For licensing inquiries, contact: <add a real contact address before distribution>

@@ -1,0 +1,28 @@
+# pnpm settings.
+#
+# As of pnpm 10, settings live here rather than in the `pnpm` field of
+# package.json, which is no longer read. See https://pnpm.io/settings.
+#
+# This file intentionally declares no `packages:` list — MadMusic is a single
+# package, not a monorepo. pnpm-workspace.yaml is simply where these settings
+# are read from now.
+
+# Supply-chain policy. pnpm refuses to install any package version published
+# more recently than this, in minutes. Compromised-package attacks (typosquats,
+# hijacked maintainer accounts, malicious postinstall scripts) are almost always
+# caught and unpublished within a couple of days, so a quarantine window blocks
+# the entire class of attack for free.
+#
+# 10080 minutes = 7 days. This is the machine-enforced floor of the
+# "latest proven stable" policy in CONTRIBUTING.md; the ~3-month maturity rule
+# for majors is the human-judgement layer on top of it.
+minimumReleaseAge: 10080
+
+overrides:
+  # Security pin: nanoid reaches the tree transitively (vite -> postcss ->
+  # nanoid) and versions below 3.3.18 carry a high-severity advisory,
+  # GHSA-2v37-7h3g-55p8. Build-time only — nanoid is never in the shipped
+  # bundle — but pnpm audit fails without this.
+  #
+  # Do not remove without checking `pnpm audit` first.
+  nanoid: ^3.3.18

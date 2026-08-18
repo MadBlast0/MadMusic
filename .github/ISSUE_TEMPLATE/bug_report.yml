@@ -1,0 +1,87 @@
+name: 🐛 Bug report
+description: Something in MadMusic behaves incorrectly.
+title: '[Bug]: '
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please don't use this form for security issues —
+        use [private vulnerability reporting](https://github.com/MadBlast0/MadMusic/security/advisories/new) instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: A clear description of the incorrect behaviour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps someone else can follow exactly.
+      placeholder: |
+        1. Open the library view
+        2. Queue three tracks
+        3. Seek within the second track
+        4. Playback jumps to the start of track three
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - Web (desktop browser)
+        - Web (mobile browser)
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS / browser / device version
+      placeholder: 'Windows 11 26200, Chrome 141 · or · Pixel 8, Android 15'
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: MadMusic version or commit SHA
+      placeholder: 'main @ a1b2c3d'
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output, logs, or screenshots
+      description: Paste console errors or attach a recording. This is auto-formatted as code.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I can reproduce this on the latest `main`
+          required: false

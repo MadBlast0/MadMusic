@@ -1,0 +1,45 @@
+name: 🔧 Engineering task
+description: Internal work — refactor, tooling, dependency, documentation, or research.
+title: '[Task]: '
+labels: ['chore', 'needs-triage']
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What needs doing
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why now
+      description: What this unblocks, or what it costs us to keep deferring.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of work
+      options:
+        - Refactor
+        - Build / tooling
+        - Dependency or supply chain
+        - Documentation
+        - Test coverage
+        - Research / spike
+        - Platform setup (desktop / mobile shell)
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How we'll know this is finished.
+      placeholder: |
+        - [ ] ...
+        - [ ] `pnpm verify` passes
+    validations:
+      required: true

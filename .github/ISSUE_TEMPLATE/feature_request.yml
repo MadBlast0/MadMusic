@@ -1,0 +1,70 @@
+name: ✨ Feature request
+description: Propose a capability MadMusic should have.
+title: '[Feature]: '
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't a listener do today? Describe the situation, not the solution.
+      placeholder: "When I move between my desktop and my phone, my play queue doesn't follow me, so I have to rebuild it by hand."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should happen instead, from the user's point of view.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including doing nothing, or how other music apps handle this.
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Which platforms does this apply to?
+      multiple: true
+      options:
+        - All platforms
+        - Web
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Playback
+        - Library & metadata
+        - Queue & playlists
+        - Search
+        - Sync across devices
+        - Offline & downloads
+        - UI / design
+        - Accessibility
+        - Performance
+        - Build & tooling
+        - Something else
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true

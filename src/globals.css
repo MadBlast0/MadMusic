@@ -1,0 +1,339 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Self-hosted variable fonts. Each sheet declares one @font-face per unicode
+   subset, so a latin-only page downloads only the latin file (~36-48 KB) and
+   never fetches cyrillic or vietnamese. All ship font-display: swap, so text
+   paints immediately in the fallback and never blocks LCP.
+
+   Note the family names: Fontsource registers these as "Montserrat Variable",
+   not "Montserrat". The plain name is kept as the second stack entry so a
+   locally installed copy is still honoured. */
+@import '@fontsource-variable/montserrat/wght.css';
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/fira-code/wght.css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #f0f0f0;
+  --foreground: #333333;
+  --card: #f5f5f5;
+  --card-foreground: #333333;
+  --popover: #f5f5f5;
+  --popover-foreground: #333333;
+  --primary: #606060;
+  --primary-foreground: #ffffff;
+  --secondary: #e0e0e0;
+  --secondary-foreground: #333333;
+  --muted: #d9d9d9;
+  --muted-foreground: #666666;
+  --accent: #c0c0c0;
+  --accent-foreground: #333333;
+  --destructive: #cc3333;
+  --destructive-foreground: #ffffff;
+  --border: #d0d0d0;
+  --input: #e0e0e0;
+  --ring: #606060;
+  --chart-1: #606060;
+  --chart-2: #476666;
+  --chart-3: #909090;
+  --chart-4: #a8a8a8;
+  --chart-5: #c0c0c0;
+  --sidebar: #eaeaea;
+  --sidebar-foreground: #333333;
+  --sidebar-primary: #606060;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c0c0c0;
+  --sidebar-accent-foreground: #333333;
+  --sidebar-border: #d0d0d0;
+  --sidebar-ring: #606060;
+  --font-sans:
+    'Montserrat Variable', Montserrat, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Fira Code Variable', 'Fira Code', ui-monospace, monospace;
+  --radius: 0.35rem;
+  --shadow-x: 0px;
+  --shadow-y: 2px;
+  --shadow-blur: 0px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.15;
+  --shadow-color: hsl(0 0% 20% / 0.1);
+  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
+  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+  --shadow:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+  --shadow-md:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: #1a1a1a;
+  --foreground: #d9d9d9;
+  --card: #202020;
+  --card-foreground: #d9d9d9;
+  --popover: #202020;
+  --popover-foreground: #d9d9d9;
+  --primary: #a0a0a0;
+  --primary-foreground: #1a1a1a;
+  --secondary: #303030;
+  --secondary-foreground: #d9d9d9;
+  --muted: #2a2a2a;
+  --muted-foreground: #808080;
+  --accent: #404040;
+  --accent-foreground: #d9d9d9;
+  --destructive: #e06666;
+  --destructive-foreground: #ffffff;
+  --border: #353535;
+  --input: #303030;
+  --ring: #a0a0a0;
+  --chart-1: #a0a0a0;
+  --chart-2: #7e9ca0;
+  --chart-3: #707070;
+  --chart-4: #585858;
+  --chart-5: #404040;
+  --sidebar: #1f1f1f;
+  --sidebar-foreground: #d9d9d9;
+  --sidebar-primary: #a0a0a0;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: #404040;
+  --sidebar-accent-foreground: #d9d9d9;
+  --sidebar-border: #353535;
+  --sidebar-ring: #a0a0a0;
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Fira Code Variable', 'Fira Code', ui-monospace, monospace;
+  --radius: 0.35rem;
+  --shadow-x: 0px;
+  --shadow-y: 2px;
+  --shadow-blur: 0px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.15;
+  --shadow-color: hsl(0 0% 20% / 0.1);
+  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
+  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+  --shadow:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+  --shadow-md:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
+
+/* Motion tokens.
+   Tokenised for the same reason colour is: retuning how the whole product
+   feels stays a change to this file rather than a sweep through components.
+
+   The scale is deliberately quick. Motion that lingers is the single thing
+   that makes an interface feel cheap, and in dense software the user is
+   waiting on the animation far more often than they are admiring it. Travel
+   distances should stay small to match — 4-8px, not 40px.
+
+   Pair each duration with the easing that matches the intent:
+   arriving decelerates, leaving accelerates, and anything already on screen
+   that merely moves or resizes uses the symmetric curve. */
+@theme {
+  --duration-fast: 120ms; /* hover, focus, colour — and every exit */
+  --duration-base: 180ms; /* dropdown, popover, select, tooltip, accordion */
+  --duration-slow: 260ms; /* dialog, sheet, drawer — larger surfaces travel further */
+  --duration-slower: 400ms; /* full-surface transitions; rare by design */
+
+  --ease-enter: cubic-bezier(
+    0.16,
+    1,
+    0.3,
+    1
+  ); /* decelerate: arrives fast, settles */
+  --ease-exit: cubic-bezier(
+    0.4,
+    0,
+    1,
+    1
+  ); /* accelerate: leaves without lingering */
+  --ease-move: cubic-bezier(
+    0.4,
+    0,
+    0.2,
+    1
+  ); /* symmetric: on-screen moves and resizes */
+
+  /* `tw-animate-css` falls back to `.15s` and the bare `ease` keyword when no
+     duration/easing utility is present. `ease` is CSS's symmetric default — it
+     eases *in* as well as out, so panels appear to hesitate before they move,
+     which is most of what reads as unpolished in an untuned shadcn app.
+
+     Redefining the theme variables it builds those animations from retunes all
+     12 animating primitives at once, without editing a single vendored file.
+     Exits run at the faster token: dismissing should feel immediate. */
+  --animate-in: enter
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-base)))
+    var(--tw-ease, var(--ease-enter)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+  --animate-out: exit
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-fast)))
+    var(--tw-ease, var(--ease-exit)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+
+  /* Height animations, so they resize on the symmetric curve. */
+  --animate-accordion-down: accordion-down
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-base)))
+    var(--tw-ease, var(--ease-move)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+  --animate-accordion-up: accordion-up
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-base)))
+    var(--tw-ease, var(--ease-move)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+  --animate-collapsible-down: collapsible-down
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-base)))
+    var(--tw-ease, var(--ease-move)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+  --animate-collapsible-up: collapsible-up
+    var(--tw-animation-duration, var(--tw-duration, var(--duration-base)))
+    var(--tw-ease, var(--ease-move)) var(--tw-animation-delay, 0s)
+    var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+    var(--tw-animation-fill-mode, none);
+}
+
+/* Tailwind has a `--ease-*` theme namespace, so `ease-enter` and friends are
+   generated for free — but it has no `--duration-*` namespace, which would
+   leave authors writing `duration-(--duration-base)`. A token nobody can
+   remember is a token nobody uses, so the named utilities are declared here.
+   Setting `--tw-duration` covers transitions and `tw-animate-css` animations
+   alike, since both read that variable. */
+@utility duration-fast {
+  --tw-duration: var(--duration-fast);
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  --tw-duration: var(--duration-base);
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  --tw-duration: var(--duration-slow);
+  transition-duration: var(--duration-slow);
+}
+@utility duration-slower {
+  --tw-duration: var(--duration-slower);
+  transition-duration: var(--duration-slower);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    /* iOS inflates text in landscape without this, breaking dense layouts. */
+    -webkit-text-size-adjust: 100%;
+    /* Kills the grey flash Safari/Chrome paint over tapped controls, which
+       fires on every tap and instantly reads as an unpolished web wrapper. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Montserrat and Inter are drawn for this; without it macOS renders them
+       noticeably heavier than the type designer intended. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Proportional digits shift column widths as values change, so figures
+     visibly jitter in a live table. Enterprise UI is mostly tables. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Honour a system-level request for less motion (WCAG 2.3.3). Applied once,
+   globally, so no component can forget it.
+
+   Durations collapse to a near-zero value rather than `animation: none`:
+   Radix gates unmounting on the `animationend` event, and removing the
+   animation outright means that event never fires — leaving dialogs and
+   dropdowns mounted forever. A 0.01ms animation still completes and still
+   fires. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

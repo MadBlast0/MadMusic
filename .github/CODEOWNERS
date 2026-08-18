@@ -1,0 +1,21 @@
+# Code ownership for MadMusic.
+#
+# The last matching pattern wins. @MadBlast0 owns everything by default;
+# add narrower rules below as the team and the codebase grow.
+
+*                       @MadBlast0
+
+# Project governance and legal — always review deliberately.
+/LICENSE                @MadBlast0
+/SECURITY.md            @MadBlast0
+/CODE_OF_CONDUCT.md     @MadBlast0
+/CONTRIBUTING.md        @MadBlast0
+
+# Build, tooling, and supply-chain surface.
+/package.json           @MadBlast0
+/pnpm-lock.yaml         @MadBlast0
+/pnpm-workspace.yaml    @MadBlast0
+/vite.config.ts         @MadBlast0
+/eslint.config.js       @MadBlast0
+/tsconfig*.json         @MadBlast0
+/.github/               @MadBlast0
