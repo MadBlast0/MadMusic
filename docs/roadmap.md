@@ -38,8 +38,10 @@ discussion before any code assumes an answer.
 
 - What MadMusic actually is: a player for local files, a streaming client, a
   library manager, or some combination.
-- Where the audio comes from — local filesystem, user-owned cloud storage, a
-  third-party service API, or self-hosted.
+- **Where the audio comes from** — see [music-sources.md](music-sources.md) for
+  how two reference projects do it (unofficial Tidal proxy; Spotify metadata
+  plus a Lavalink-style node) and the six realistic options ranked by legal
+  exposure. This is the decision that most constrains app-store viability.
 - Whether accounts and cross-device sync exist at all in v1.
 - Offline behaviour and downloads.
 - The one thing v1 must do better than everything else. Without this, scope has

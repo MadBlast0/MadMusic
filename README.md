@@ -91,5 +91,6 @@ docs/                  planning and engineering notes
 - [SECURITY.md](SECURITY.md) — reporting a vulnerability
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — expected conduct
 - [docs/roadmap.md](docs/roadmap.md) — what is decided, what is open
+- [docs/music-sources.md](docs/music-sources.md) — where music data can come from, and the trade-offs
 - [docs/ci-plan.md](docs/ci-plan.md) — the CI/release pipeline, deferred by choice
 - [CHANGELOG.md](CHANGELOG.md) — notable changes
