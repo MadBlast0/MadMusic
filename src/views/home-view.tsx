@@ -2,6 +2,7 @@ import { motion, type Variants } from 'motion/react';
 import { Play } from 'lucide-react';
 
 import { usePlayer } from '@/components/player/player-context';
+import type { PlayerTrack } from '@/components/player/player-context';
 import { AudioBars } from '@/components/player/audio-bars';
 import {
   coverGradient,
@@ -28,8 +29,24 @@ const card = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
 } as const satisfies Variants;
 
+/**
+ * The placeholder catalogue has no audio behind it. Adapting it to the player's
+ * shape keeps the designed home screen working while the real sources are
+ * built; the player treats a track with no `local` as silent.
+ */
+function asPlayerTrack(track: Track): PlayerTrack {
+  return {
+    id: track.id,
+    title: track.title,
+    artist: track.artist,
+    cover: track.cover,
+    duration: track.duration,
+  };
+}
+
 export function HomeView() {
   const { play, current, playing } = usePlayer();
+  const queue = tracks.map(asPlayerTrack);
 
   return (
     <div className="flex flex-col gap-10 p-6">
@@ -54,7 +71,7 @@ export function HomeView() {
               key={playlist.id}
               variants={card}
               type="button"
-              onClick={() => first && play(first)}
+              onClick={() => first && play(asPlayerTrack(first), queue)}
               whileHover={{ y: -2 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="group flex items-center gap-3 overflow-hidden rounded-md bg-card pr-3 text-left shadow-xs transition-colors hover:bg-accent/40"
@@ -94,9 +111,9 @@ export function HomeView() {
             <TrackCard
               key={track.id}
               track={track}
-              isCurrent={track.id === current.id}
+              isCurrent={track.id === current?.id}
               playing={playing}
-              onPlay={() => play(track)}
+              onPlay={() => play(asPlayerTrack(track), queue)}
             />
           ))}
         </motion.div>

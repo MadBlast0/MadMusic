@@ -1,3 +1,6 @@
+allowBuilds:
+  '@clerk/shared': set this to true or false
+
 # pnpm settings.
 #
 # As of pnpm 10, settings live here rather than in the `pnpm` field of

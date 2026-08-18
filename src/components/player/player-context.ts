@@ -1,30 +1,39 @@
 import { createContext, use } from 'react';
 
-import type { Track } from '@/lib/mock-data';
+import type { LocalTrack } from '@/lib/local-source';
 
 /**
- * Playback state for the UI layer.
+ * A track the player can play.
  *
- * Deliberately holds no audio: this is the shape the interface needs, and it
- * will later be fed by Tauri commands talking to the Rust player rather than by
- * the placeholder ticker in the provider. Keeping the boundary here means the
- * whole UI can be designed and reviewed before any audio pipeline exists.
+ * `local` is set for anything that came from a folder on disk; its playable URL
+ * is resolved lazily at play time rather than up front, because on the browser
+ * every resolved URL pins the whole file in memory until it is revoked.
  *
- * The context and hook live in this module rather than beside the provider
- * component so that the provider file exports only components — otherwise React
- * Fast Refresh gives up on it and every edit becomes a full reload, which is
- * exactly the wrong trade while the interface is being designed.
+ * Tracks without `local` are the placeholder catalogue used while the interface
+ * was designed — they have no audio and the player treats them as silent.
  */
+export type PlayerTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  cover: [string, string];
+  /** Seconds. 0 until the audio element reports real metadata. */
+  duration: number;
+  local?: LocalTrack;
+};
+
 export type PlayerState = {
-  current: Track;
-  queue: Track[];
+  current: PlayerTrack | null;
+  queue: PlayerTrack[];
   playing: boolean;
-  /** Elapsed seconds into the current track. */
+  /** Elapsed seconds, driven by the audio element. */
   progress: number;
   volume: number;
   shuffle: boolean;
   repeat: boolean;
-  play: (track?: Track) => void;
+  /** Set when the last play attempt failed, for the UI to surface. */
+  error: string | null;
+  play: (track?: PlayerTrack, queue?: PlayerTrack[]) => void;
   toggle: () => void;
   next: () => void;
   previous: () => void;

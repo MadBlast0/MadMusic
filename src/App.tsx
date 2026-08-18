@@ -3,16 +3,16 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { AppSidebar, type View } from '@/components/layout/app-sidebar';
 import { NowPlayingBar } from '@/components/player/now-playing-bar';
-import { PlayerProvider } from '@/components/player/player-provider';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Toaster } from '@/components/ui/sonner';
 import { HomeView } from '@/views/home-view';
+import { LibraryView } from '@/views/library-view';
 
 function App() {
   const [view, setView] = useState<View>('home');
 
   return (
-    <PlayerProvider>
+    <>
       <div className="flex h-svh flex-col bg-background text-foreground">
         <div className="flex min-h-0 flex-1">
           <AppSidebar view={view} onViewChange={setView} />
@@ -31,7 +31,7 @@ function App() {
                 >
                   {view === 'home' && <HomeView />}
                   {view === 'search' && <Placeholder title="Search" />}
-                  {view === 'library' && <Placeholder title="Your Library" />}
+                  {view === 'library' && <LibraryView />}
                 </motion.div>
               </AnimatePresence>
             </ScrollArea>
@@ -42,7 +42,7 @@ function App() {
       </div>
 
       <Toaster />
-    </PlayerProvider>
+    </>
   );
 }
 

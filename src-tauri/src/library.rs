@@ -221,8 +221,10 @@ fn walk(root: &Path, dir: &Path, depth: usize, budget: &mut usize) -> Result<Fol
         }
     }
 
-    node.folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    node.tracks.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    // Case-insensitive so "ABBA" and "abba" sort together rather than the
+    // uppercase names clustering first.
+    node.folders.sort_by_key(|f| f.name.to_lowercase());
+    node.tracks.sort_by_key(|t| t.title.to_lowercase());
 
     Ok(node)
 }

@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { Disc3, Heart, Home, ListMusic, Plus, Search } from 'lucide-react';
 
 import { AudioBars } from '@/components/player/audio-bars';
+import { AccountMenu } from '@/components/auth/account-menu';
 import { usePlayer } from '@/components/player/player-context';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { coverGradient, playlists } from '@/lib/mock-data';
@@ -92,7 +93,9 @@ export function AppSidebar({
           </li>
 
           {playlists.map((playlist) => {
-            const isPlayingFrom = playlist.trackIds.includes(current.id);
+            const isPlayingFrom = current
+              ? playlist.trackIds.includes(current.id)
+              : false;
             return (
               <li key={playlist.id}>
                 <button
@@ -118,6 +121,8 @@ export function AppSidebar({
           })}
         </ul>
       </ScrollArea>
+
+      <AccountMenu />
     </aside>
   );
 }

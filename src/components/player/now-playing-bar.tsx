@@ -33,6 +33,19 @@ export function NowPlayingBar() {
     toggleRepeat,
   } = usePlayer();
 
+  // Nothing queued yet: keep the bar in place so the layout does not jump when
+  // the first track starts, but do not pretend there is something to scrub.
+  if (!current) {
+    return (
+      <footer className="flex h-22 shrink-0 items-center justify-between gap-4 border-t border-border bg-card px-4">
+        <p className="text-sm text-muted-foreground">
+          Nothing playing — add a folder from Your Library to get started.
+        </p>
+        <ThemeToggle />
+      </footer>
+    );
+  }
+
   return (
     <footer className="flex h-22 shrink-0 items-center gap-4 border-t border-border bg-card px-4">
       {/* Track identity */}

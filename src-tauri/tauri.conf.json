@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https://img.clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; media-src 'self' asset: http://asset.localhost blob:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com; connect-src 'self' ipc: http://ipc.localhost https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com",
       "assetProtocol": {
         "enable": true,
         "scope": []
