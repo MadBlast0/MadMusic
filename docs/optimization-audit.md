@@ -326,8 +326,6 @@ element is referentially unchanged, which is exactly how `Providers` is built,
 so a state change in one provider does not cascade the way the finding assumed.
 No action.
 
-### P1-3b. (retired heading — see above)
-
 `src/components/common/providers.tsx:74` nests twelve providers:
 
 ```
@@ -357,6 +355,13 @@ and 44 Rust test modules, plus a well-built `pnpm verify` script that chains
 format, lint, typecheck, test, build, clippy, and cargo test — and nothing runs
 it on push. Performance work without a regression gate is how performance work
 gets undone.
+
+**DONE 2026-08-28.** `.github/workflows/verify.yml` runs `pnpm verify` on push
+to `main` and on every pull request. One Ubuntu job rather than a matrix — the
+tests are jsdom and SQLite with no OS behaviour worth running three times, and
+`release.yml` already covers building elsewhere. It calls `pnpm verify` rather
+than restating its seven steps, so CI cannot drift from what developers run.
+22.04 is pinned because the WebKit package name changed between LTS releases.
 
 ---
 
@@ -636,6 +641,22 @@ loaded so it is not on the critical path, but it is a static document being
 parsed as a JS module. Serve it as a fetched asset, or generate a trimmed
 build-time version — `scripts/attributions.mjs` already generates it.
 
+**DEFERRED 2026-08-28 — poor trade.**
+
+It is already inside a lazy chunk, so this defers bytes _within_ an
+already-deferred screen. Nothing is saved on startup, on playback, or on any
+list; the only change is that opening the licences page would `JSON.parse`
+instead of evaluating a module.
+
+Against that, `fetch` introduces a runtime failure mode — a blocked request, a
+CSP or asset-serving difference between dev and the packaged app — on a page
+that exists for **licence compliance**. A licences screen that fails to load is
+a worse outcome than one that parses 133 KB.
+
+It did shrink anyway: regenerating after the P2-2 dependency removals took it
+from 142.7 kB to 133.0 kB, and that regeneration was necessary regardless,
+since the page would otherwise credit ten libraries the app no longer ships.
+
 ---
 
 ## P3 — Rust backend
@@ -694,6 +715,15 @@ Every call recompiles its SQL. `rusqlite` ships `prepare_cached` precisely for
 this and it is a near-mechanical substitution. Biggest effect on the small
 queries called in tight succession — `db_history`, `db_folders`,
 `db_tracks_count`.
+
+**DONE 2026-08-28.** All 29 production call sites moved to `prepare_cached`;
+test code left on `prepare` deliberately, since those are one-shot assertions
+and caching them would only make the cache lie about production.
+
+Also raised the statement cache from rusqlite's default of **16** to 64. With
+29 distinct statements the default would evict the ones a busy screen cycles
+through and recompile them on the next call — the exact cost `prepare_cached`
+exists to avoid, plus the bookkeeping on top.
 
 ### ~~P3-3. Metadata fetches are fully sequential~~ — WRONG
 
@@ -868,6 +898,12 @@ the symptom that made it urgent.
 `mmap_size` is the notable omission; on a read-heavy library database it
 removes a copy per page read.
 
+**DONE 2026-08-28.** Set to 256 MB. Bounded rather than unlimited: mmap
+consumes address space, and an unbounded mapping of a large library would fail
+a 32-bit build. Past the limit SQLite falls back to ordinary reads rather than
+erroring. Not measured in isolation — it is a read-path change whose effect is
+folded into every query.
+
 ### P3-8. The library scan is single-threaded
 
 `src-tauri/src/library.rs:578` walks with a plain `std::fs::read_dir`, and
@@ -928,6 +964,15 @@ launch.
 Set `"visible": false` and call `show()` once the frontend signals it has
 painted. With the custom title bar in `shell.rs` this matters more than usual,
 because there is no OS chrome to make the empty frame look intentional.
+
+**DONE 2026-08-28.** `"visible": false` plus a `shell_ready` command the
+frontend calls from an effect in `App` — the earliest point at which something
+is genuinely painted, where `main.tsx` would only mean the render was
+_scheduled_.
+
+A five-second fallback in `setup` shows the window regardless. A frontend that
+dies before signalling would otherwise strand the process behind an invisible
+window, which is a worse failure than the flash this removes.
 
 ---
 
@@ -1001,11 +1046,39 @@ Sorting is dynamic (`src-tauri/src/db/tracks.rs:384`) —
 or `duration` falls back to a filesort. Add indexes for whichever sorts the UI
 actually exposes; check the sort menu before adding all of them.
 
+**DONE 2026-08-28 as schema V2.** Eight indexes, each declaring
+`COLLATE NOCASE` to match `sort_sql`.
+
+That collation is the real finding, and it is worse than the audit said: **an
+index in the default BINARY collation cannot serve `ORDER BY x COLLATE NOCASE`
+at all**, so V1's `track_artist` index never helped the artist sort it appears
+to exist for.
+
+Measured on 50,000 tracks, first page of 100 — **title 21.2x, album 22.0x,
+artist 12.3x, duration 12.2x, year 5.6x, genre 3.0x**. Write cost, seeding
+10,000 tracks: 183 ms → 605 ms, about two seconds on a full 50,000-track scan
+that already spends minutes reading tags.
+
+`plays`, `last_played` and `stars` are absent: they sort on a subquery or a
+joined table, which an index on `track` cannot help.
+
 ### P4-3. Image loading attributes
 
 15 `<img>` tags, 8 with `loading="lazy"` or `decoding="async"`. In a
 virtualised grid of album art the remaining 7 are worth auditing — a
 synchronously-decoded cover in a scrolling grid blocks the main thread.
+
+**DONE 2026-08-28**, and the audit's count was wrong. Its grep matched the
+`<img` line rather than the tag body, so `cover-art.tsx` looked like it lacked
+`loading="lazy"` when it has it. Parsing whole tags gives 14 images, 7 already
+lazy, and **none** with `decoding="async"` — so the real gap was decoding, not
+loading.
+
+`decoding="async"` added to all 14. The one that matters is `cover-art`, which
+renders every tile in the virtualised album grid, where a synchronous decode
+blocks the main thread mid-scroll. Deliberately **not** `loading="lazy"`
+everywhere: `motion-cover` is the immersive player's hero artwork, and
+deferring that would delay the image the screen is built around.
 
 ### ~~P4-4. Convex: five unbounded `.collect()` calls in one profile query~~ — WRONG
 
@@ -1073,6 +1146,19 @@ which is the exact failure the file was written to prevent. Not a runtime
 performance item; a correctness-drift risk that grows with every query feature
 added. Worth at least a shared test-vector fixture that both implementations
 run against.
+
+**NOT ACTIONED 2026-08-28 — out of scope for this run, and correctly so.**
+
+This is not a performance finding and never was. It is a maintenance risk, and
+acting on it would mean either deleting the browser store — removing the
+ability to develop the UI outside the native shell — or building the shared
+test-vector fixture, which is a feature in its own right rather than an
+optimisation.
+
+It stayed accurate through this run: **P4-2 changed sorting on the Rust side
+only**, so `web.ts` now diverges on the collation used for text sorts. That is
+exactly the drift predicted, and it is the strongest argument for the fixture —
+recorded here for whoever picks it up.
 
 ### ~~P4-6. Uncleaned timers~~ — WRONG
 
@@ -1180,6 +1266,26 @@ Listed so a pass over this document does not churn on things that are correct:
 9. **P2-3, P2-4, P2-5, P2-6** — bundle splitting, measured with a visualizer.
 10. **P3-3, P3-6, P3-7, P4-\*** — the rest, measured first.
 
+### How that order actually went
+
+Followed, with two departures worth recording.
+
+**P0-1b jumped the queue** because it had to: `eslint` was walking
+`src-tauri/target`, so `pnpm verify` — the gate every other item depends on —
+could not go green for anyone who had ever run a release build.
+
+**Five items were rejected rather than implemented**, and three of those
+(P2-4 fonts, P4-4 Convex, P4-7 anime.js) would have broken something had they
+been done as written. Of 15 findings examined: **8 wrong, 2 overstated, 5 held
+as stated**. The common failure was reading a grep hit-count as a fact about
+the running app — truncated by `head`, blind to `mod tests`, or aimed at the
+wrong layer entirely.
+
+**Two were deferred with reasons** rather than done: P1-2 (needs a Profiler
+trace first, and `track-list.tsx` has no test coverage to refactor against) and
+P2-6 (defers bytes inside an already-deferred screen while adding a failure
+mode to a compliance page).
+
 ## Measurement gaps
 
 These were found by reading, not by profiling. Before the P4 items especially,
@@ -1190,3 +1296,34 @@ the app needs numbers it does not currently produce:
 - A seeded 50,000-track database. Every scaling claim here is inferred from
   schema and query shape, not observed. `src-tauri/src/diagnostics.rs` already
   exists and may be the right home for a benchmark command.
+
+## What was actually measured — 2026-08-28
+
+Three benchmarks now live in the test suite, all `#[ignore]`d so they run when
+asked rather than on every CI pass:
+
+| Benchmark                                               | Answers                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `db::tracks::bench::sort_cost_with_and_without_indexes` | P4-2 — sort cost with and without indexes, and the write cost they impose |
+| `db::tracks::bench::ipc_cost_of_a_whole_library`        | P4-1 — query vs serialisation vs payload for an uncapped read             |
+| `library::scan_bench::scan_cost`                        | P3-8 — wall-clock for a folder tree                                       |
+
+Plus `pnpm build` before/after for every bundle claim (P2-1, P2-3, P2-5), and
+a direct timing for the index lock (P3-6).
+
+**The two gaps that remain open**, and they are the honest limits of this run:
+
+- **No React Profiler trace.** P1-1 was justified by counting consumers — 15 of
+  ~50 files read the hot fields — and pinned by a test asserting transport
+  consumers do not re-render on a progress tick. That is strong evidence for
+  the mechanism and no evidence at all about frames dropped on a real library.
+  It is also what P1-2 is waiting on.
+- **No end-to-end before/after on a real library.** Every number here is
+  measured in isolation, most in a debug build on a busy machine. The ratios
+  are the finding; the absolute figures are indicative. Nobody has yet launched
+  the app against 50,000 real tracks and timed startup, scan and scroll on both
+  sides of these commits.
+
+Anyone claiming "the app is faster" should take that second measurement first.
+The individual wins are real and each is reproducible from the table above;
+their sum on real hardware with real files is still unquantified.
