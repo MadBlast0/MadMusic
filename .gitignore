@@ -99,3 +99,8 @@ $RECYCLE.BIN/
 # change — keep it out of the repo.
 design/*.html
 !design/*.dc.html
+
+# Written by `rustypipe` at runtime beside the crate — YouTube's player
+# configuration, cached so a launch does not re-fetch it. Regenerated on
+# demand, machine-specific, and it appears the first time anyone runs the app.
+src-tauri/rustypipe_cache.json
