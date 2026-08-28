@@ -138,6 +138,7 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
           >
             {track.artworkUrl && (
               <img
+                decoding="async"
                 src={track.artworkUrl}
                 alt=""
                 className="size-full object-cover"
