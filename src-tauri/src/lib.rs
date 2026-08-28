@@ -151,7 +151,19 @@ pub fn run() {
             app.manage(db::Db::open(&data_dir.join("madmusic.sqlite")));
             // The native output path. Nothing is opened until something asks
             // to play through it, so a machine with no sound card still starts.
-            app.manage(engine::Engine::default());
+            {
+                // The engine reports the end of a track through a callback, not
+                // by holding an `AppHandle`. Emitting is wired here so that
+                // `engine.rs` names no Tauri runtime type — see `Engine::ended`
+                // for what that was costing.
+                let audio = engine::Engine::default();
+                let handle = app.handle().clone();
+                audio.attach(Box::new(move || {
+                    use tauri::Emitter;
+                    let _ = handle.emit(engine::ENDED_EVENT, ());
+                }));
+                app.manage(audio);
+            }
             // The system's own player UI — lock screen, Now Playing widget,
             // desktop media applet. Absent on a machine that has none, which
             // `nowplaying::init` treats as ordinary rather than as a failure.

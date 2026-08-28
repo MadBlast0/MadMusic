@@ -509,7 +509,46 @@ chunks change on a dependency upgrade rather than on every application edit —
 which for a desktop app is mostly about what the updater has to ship for a
 patch release.
 
-### P2-4. Font subsets for scripts the app does not localise
+### ~~P2-4. Font subsets for scripts the app does not localise~~ — WRONG, rejected
+
+**Status: wrong, and acting on it would have caused a visible regression.
+Verified 2026-08-28.** No action.
+
+Three things the audit missed:
+
+1. **The runtime cost is already zero.** Every `@font-face` fontsource
+   generates carries a `unicode-range`:
+
+   ```css
+   src: url(./files/inter-cyrillic-wght-normal.woff2) format('woff2-variations');
+   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+   ```
+
+   A browser fetches a subset only when the page actually renders a glyph in
+   that range. The Cyrillic and Greek files sit in the bundle and are never
+   downloaded unless they are needed — at which point they are exactly what you
+   want. "290 kB of woff2" was a directory listing, not a download.
+
+2. **The locale list is the wrong test.** The eight shipped locales are
+   English, Arabic, German, Spanish, French, Hebrew, Japanese and Portuguese —
+   so on the audit's own reasoning Cyrillic and Greek look unused. But fonts
+   here do not only render UI strings. They render **track titles and artist
+   names**, which in a music library are arbitrary text in any script on earth.
+   Dropping Cyrillic would render every Russian artist name in a fallback font.
+
+3. **The size is not worth the risk anyway.** ~290 kB of installer against an
+   18 MB `yt-dlp` sidecar the project already ships deliberately.
+
+The Fira Code observation was the weakest part: a code font is used in the
+diagnostics and licence screens, which display arbitrary paths and package
+names.
+
+**The lesson:** this one would have shipped. It is small, plausible, and
+measurable in the build output, and the damage — non-Latin names in the wrong
+font — would only show up for users whose libraries the person making the
+change does not have.
+
+### ~~P2-4 original text, retained for context~~
 
 Shipping Cyrillic, Cyrillic-Ext, Greek, and Latin-Ext for all three families:
 
@@ -534,6 +573,33 @@ panel.
 Both files are also oddly shaped: ~20 top-level declarations across 1,700+
 lines each, meaning individual components of several hundred lines. Split by
 settings panel and lazy-load per tab.
+
+**DONE 2026-08-28.**
+
+The blocker was not the import list. `settings-extra` exports nine sections and
+eight of them belong to categories nobody sees by default — but the ninth,
+`SidebarSettings`, is rendered by the default `appearance` category. One eager
+reference pulls the whole module, so lazy-loading the other eight would have
+changed nothing at all.
+
+So `SidebarSettings` (96 lines) moved into `settings-view`, which already had
+its own copy of the `Group` building block it needs — the two files each define
+one, which is duplication worth noting but not worth churning now. The
+remaining eight are `lazy()` behind a single `Suspense`.
+
+| Chunk            | Before   | After    |
+| ---------------- | -------- | -------- |
+| `settings-view`  | 92.42 kB | 47.57 kB |
+| `settings-extra` | —        | 47.68 kB |
+| gzip, on open    | 26.06 kB | 13.88 kB |
+
+**Opening Settings now parses 48% less.** The other half arrives only when
+somebody clicks one of the eight deferred categories, and because they share
+one module the first click pays for all of them.
+
+One `Suspense` around the whole panel area rather than one per section, with a
+`null` fallback: the chunk is local and resolves within a frame or two, and a
+placeholder that flashes for 16ms reads as a glitch rather than as loading.
 
 ### P2-6. `attributions.json` is 143KB and bundled
 
@@ -686,6 +752,41 @@ Emit an event from the Rust engine when the decoder drains, and let the
 frontend subscribe. Position polling can stay — it is cheap and 250ms is fine
 for a scrubber — but track advance must not depend on it.
 
+**DONE 2026-08-28.** The audio thread now uses `recv_timeout(20ms)` instead of
+a blocking `recv()`, notices `sink.empty()` itself, and fires
+`madmusic://track-ended`. `Command::Poll` is reduced to a no-op — leaving its
+end-check in would have meant two answers to one question.
+
+Three details that were not obvious going in:
+
+**It blocks when idle.** A permanent 20ms tick would wake the thread fifty
+times a second for the rest of the session to inspect a sink nobody is
+feeding. The loop only ticks while `playing`; otherwise it blocks on the
+channel exactly as before.
+
+**Both detectors are kept, and guarded.** The frontend still detects the end
+via the 250ms poll, because an event that never arrives — a listener that
+failed to attach, an engine with no callback — must not leave playback stuck
+at the end of a track. Event and poll both call `endTrack()`, guarded by
+`endedForLoadRef` keyed on the existing `loadIdRef`, so whichever arrives
+first wins and the other finds the id claimed. Without that the two would race
+and skip a track, which is worse than the gap being fixed.
+
+**The engine must not name a Tauri type.** The first version stored an
+`AppHandle` in `Engine` to emit from. That compiled and clippy passed, but
+**every Rust test then failed with `STATUS_ENTRYPOINT_NOT_FOUND` before a
+single test ran** — storing `AppHandle` pulls Wry's WebView2 linkage into a
+unit-test binary that never builds an app, so nothing resolves those imports
+at load time. A full `cargo clean` did not fix it, because it was not stale
+artifacts; the new code was the cause.
+
+The fix is also the better design: `Engine::attach` takes a
+`Box<dyn Fn() + Send + Sync>`, `lib.rs` supplies the closure that emits, and
+`engine.rs` names no Tauri runtime type at all. 304 Rust tests pass.
+
+Worth remembering for the rest of this codebase: a Tauri handle held in a
+module that has unit tests is a linkage decision, not just a dependency.
+
 ### P3-6. One mutex over one SQLite connection
 
 `src-tauri/src/db/mod.rs:53` — `pub struct Db(pub Mutex<Connection>)`. The
@@ -769,7 +870,44 @@ actually exposes; check the sort menu before adding all of them.
 virtualised grid of album art the remaining 7 are worth auditing — a
 synchronously-decoded cover in a scrolling grid blocks the main thread.
 
-### P4-4. Convex: five unbounded `.collect()` calls in one profile query
+### ~~P4-4. Convex: five unbounded `.collect()` calls in one profile query~~ — WRONG
+
+**Status: wrong, and the recommended fix would have corrupted data. Verified
+2026-08-28.** No action.
+
+It is not a query. `profiles.ts:185` is the **account-deletion** mutation, and
+the five `collect()` calls gather the caller's follows, reposts, comments and
+activity so they can be deleted. Bounding those with `.take(n)` would delete
+some of somebody's data and silently leave the rest — the worst possible
+outcome for a delete-my-account button. The code already says so:
+
+> Each of these is bounded by the user's own activity rather than by the table,
+> so a `collect` here is a read of their rows and not of everyone's.
+
+The same holds for all ten sites, checked individually:
+
+| Site                   | What it is                                                                |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `profiles.ts:195–211`  | delete account — deletes each row                                         |
+| `playlists.ts:177,181` | stop sharing — deletes items and members                                  |
+| `playlists.ts:427`     | `reindex` — "touches every row, which is why it is not the ordinary path" |
+| `playlists.ts:385`     | neighbour lookup, needs the ordered list                                  |
+| `sessions.ts:209`      | end session — deletes members                                             |
+
+Every one is a mutation that must, by definition, process every row it
+collects. Not one is a read path serving a list to the UI, which is the case
+`.take()` exists for.
+
+There is a real concern buried underneath — a sufficiently large account could
+exceed Convex's per-transaction read limit on deletion — but the fix for that
+is batched or scheduled deletion, not truncation, and it is a correctness
+design question rather than an optimisation. Recorded, not acted on.
+
+**How the audit got it wrong:** it counted `.collect()` calls without reading
+what the surrounding handler did with them. `mutation` versus `query` was right
+there in the export.
+
+### ~~P4-4 original text, retained for context~~
 
 `convex/profiles.ts:194-211` collects followers, following, and three more
 relations with no `.take()` or `.paginate()`. Ten unbounded `.collect()` calls
@@ -799,7 +937,28 @@ performance item; a correctness-drift risk that grows with every query feature
 added. Worth at least a shared test-vector fixture that both implementations
 run against.
 
-### P4-6. Uncleaned timers
+### ~~P4-6. Uncleaned timers~~ — WRONG
+
+**Status: wrong. Verified 2026-08-28.** No action. Every timer in the codebase
+has cleanup; the counts that produced this finding were meaningless.
+
+`setInterval` 10 vs `clearInterval` 8 looked like two leaks. It is not: two of
+the ten are in `audio-deck.ts`, a class rather than a component, and both are
+cleared through a shared `cancelFade()` — which the crossfade also calls on
+itself when the fade completes. Counting `clearInterval` call sites cannot see
+that, because one method serves both timers.
+
+`setTimeout` 20 vs `clearTimeout` 12 is the same mistake in a different shape:
+most of those timeouts are fire-and-forget and have nothing to cancel. A scan
+for `setTimeout` inside a `useEffect` with no matching `clearTimeout` found
+exactly one candidate, `radio-view.tsx:60` — and that was a false positive too,
+caused by my scan window ending before the cleanup function.
+
+**How the audit got it wrong:** it compared two grep totals. Balanced counts
+were never evidence of correctness, and unbalanced ones were never evidence of
+a leak.
+
+### ~~P4-6 original text, retained for context~~
 
 `setInterval` 10 / `clearInterval` 8, and `setTimeout` 20 / `clearTimeout` 12.
 Two of those interval sites are inside `audio-deck.ts`'s fade logic (a class,
@@ -810,7 +969,31 @@ per route is a slow leak that only shows up after an hour of use.
 Everything else on the leak surface is balanced: `addEventListener` 16 /
 `removeEventListener` 16, and `createObjectURL` 4 / `revokeObjectURL` 5.
 
-### P4-7. Two animation libraries
+### ~~P4-7. Two animation libraries~~ — WRONG, rejected
+
+**Status: wrong, and consolidating would make performance worse. Verified
+2026-08-28.** No action.
+
+The single `animejs` usage is `audio-bars.tsx`, the level meter beside the
+playing track, and the file explains itself:
+
+> This is anime.js rather than Motion on purpose. Motion is declarative and
+> React-state-driven, which is the right model for component transitions but
+> the wrong one for a continuous ambient loop: re-rendering React sixty times a
+> second to wiggle four rectangles is pure waste. anime.js drives the DOM
+> directly, outside React's render cycle, so this costs one animation frame
+> loop and zero renders.
+
+Moving it to Motion would re-render React 60 times a second for a decorative
+loop — the same anti-pattern P1-1 spent this run removing from the player
+context. The second library is 1 file against Motion's 17 precisely because it
+is there for the one case Motion is bad at.
+
+**How the audit got it wrong:** it counted dependencies and inferred redundancy
+without reading why the second one existed. "Two libraries doing the same job"
+was the assumption; they do different jobs.
+
+### ~~P4-7 original text, retained for context~~
 
 Both `motion` (17 files) and `animejs` (1 file) are dependencies, with 220
 animation call sites overall. The single `animejs` usage is very likely

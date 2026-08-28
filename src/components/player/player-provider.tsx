@@ -33,7 +33,7 @@ import {
 import { getLocalSource } from '@/lib/local-source';
 import { markersFrom } from '@/lib/tracklist';
 import { extend, interleave } from '@/lib/auto-playlists';
-import { buildWaveform } from '@/lib/native';
+import { buildWaveform, EVENTS } from '@/lib/native';
 import { engine, engineAvailable, setWakeLock } from '@/lib/native-engine';
 import { AudioDeck, shouldHandOver } from '@/lib/audio-deck';
 import { isOwnStream, levels } from '@/lib/analyser';
@@ -746,6 +746,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // the queue changed.
   const nextRef = useRef<() => void>(() => {});
 
+  /**
+   * The id of the load whose end has already been acted on.
+   *
+   * Two things now notice that a track finished — the engine's `trackEnded`
+   * event and the 250 ms position poll — and they race by design: the event is
+   * the fast path, the poll is what saves playback if the event never arrives.
+   * Without a guard the pair would advance twice and skip a track, which is a
+   * worse bug than the uneven gap the event was added to remove.
+   *
+   * Keyed on `loadIdRef`, which already increments on every load, so the guard
+   * clears itself for the next track without anybody having to reset it.
+   */
+  const endedForLoadRef = useRef(-1);
+
+  /**
+   * Advances, at most once per track.
+   *
+   * Called from both detectors. Whichever arrives first wins and the other
+   * finds the id already claimed.
+   */
+  const endTrack = useCallback(() => {
+    if (endedForLoadRef.current === loadIdRef.current) return;
+    endedForLoadRef.current = loadIdRef.current;
+    nextRef.current();
+  }, []);
+
   const next = useCallback(() => {
     const upcoming = step(1);
     if (upcoming) {
@@ -1098,9 +1124,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
    * second is enough for a scrubber and is cheap — each poll is one command
    * returning a small struct.
    *
-   * The end of a track is detected here too. There is no `ended` event to
-   * listen for, so "the engine says it stopped and we thought it was playing"
-   * is the only signal, and without it a queue would stop after one track.
+   * The end of a track is *also* detected here, as a fallback. The engine now
+   * emits `trackEnded` the moment its sink runs dry, which is the fast path;
+   * this stays because an event that never arrives — a listener that failed to
+   * attach, an engine with no app handle — must not leave playback stuck at the
+   * end of a track. Both routes go through `endTrack`, which only lets the
+   * first one through.
    */
   useEffect(() => {
     if (!engineRef.current || !playing) return;
@@ -1125,7 +1154,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             state.duration > 0 &&
             state.position >= state.duration - 0.5
           ) {
-            nextRef.current();
+            endTrack();
           }
         })
         .catch(() => {
@@ -1135,7 +1164,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }, 250);
 
     return () => clearInterval(timer);
-  }, [playing]);
+  }, [playing, endTrack]);
+
+  /**
+   * The engine's own end-of-track signal.
+   *
+   * The sink knows it is empty within a sample; before this, the only thing
+   * that ever asked was the poll above, so the gap between two tracks was
+   * whatever remained of a 250 ms interval and varied every time. On a music
+   * player that is the most audible defect there is.
+   *
+   * Attached whenever the engine is the active path, not only while playing —
+   * the event can arrive in the same breath as the state flipping, and a
+   * listener that only existed during playback could miss the one it was added
+   * for.
+   */
+  useEffect(() => {
+    if (!engineRef.current) return;
+    return onShellEvent(EVENTS.trackEnded, () => {
+      endTrack();
+    });
+  }, [endTrack]);
 
   /* ── the queue across restarts ───────────────────────────────────── */
 
