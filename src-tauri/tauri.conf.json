@@ -21,11 +21,12 @@
         "fullscreen": false,
         "center": true,
         "decorations": false,
-        "shadow": true
+        "shadow": true,
+        "visible": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https://img.clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; media-src 'self' asset: http://asset.localhost blob:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com; connect-src 'self' ipc: http://ipc.localhost https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com",
+      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://img.clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://coverartarchive.org https://*.coverartarchive.org https://lastfm.freetls.fastly.net https://*.discogs.com https://upload.wikimedia.org https://*.mzstatic.com; media-src 'self' asset: http://asset.localhost stream: http://stream.localhost blob: https: http:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com; connect-src 'self' ipc: http://ipc.localhost https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://accounts.google.com; upgrade-insecure-requests",
       "assetProtocol": {
         "enable": true,
         "scope": []
@@ -35,6 +36,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/yt-dlp"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,6 +46,103 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "mp3",
+          "flac",
+          "m4a",
+          "aac",
+          "ogg",
+          "opus",
+          "wav",
+          "wma",
+          "aiff",
+          "aif"
+        ],
+        "name": "Audio file",
+        "description": "Play with MadMusic",
+        "role": "Viewer",
+        "mimeType": "audio/*"
+      },
+      {
+        "ext": ["m3u", "m3u8"],
+        "name": "Playlist",
+        "description": "Open with MadMusic",
+        "role": "Editor",
+        "mimeType": "audio/x-mpegurl"
+      }
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["madmusic"]
+      }
+    },
+    "updater": {
+      "active": true,
+      "$comment": "The endpoint is what `includeUpdaterJson` in .github/workflows/release.yml publishes. `pubkey` is the public half of a key pair from `pnpm tauri signer generate`; the private half belongs in the repository's secrets and nowhere else. An empty pubkey means the app checks, finds a manifest it cannot verify, and refuses the update - which is the correct behaviour rather than a bug.",
+      "endpoints": [
+        "https://github.com/MadBlast0/MadMusic/releases/latest/download/latest.json"
+      ],
+      "pubkey": "",
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "cli": {
+      "description": "MadMusic - a local-first music player",
+      "longDescription": "Play, pause and skip from a script or a shortcut. With no arguments the window opens normally; with a transport argument the running instance is told what to do and no second window appears.",
+      "args": [
+        {
+          "name": "play",
+          "description": "Start or resume playback",
+          "takesValue": false
+        },
+        {
+          "name": "pause",
+          "description": "Pause playback",
+          "takesValue": false
+        },
+        {
+          "name": "toggle",
+          "short": "t",
+          "description": "Play if paused, pause if playing",
+          "takesValue": false
+        },
+        {
+          "name": "next",
+          "short": "n",
+          "description": "Skip to the next track",
+          "takesValue": false
+        },
+        {
+          "name": "previous",
+          "short": "p",
+          "description": "Go to the previous track",
+          "takesValue": false
+        },
+        {
+          "name": "stop",
+          "description": "Stop playback and clear what is playing",
+          "takesValue": false
+        },
+        {
+          "name": "volume",
+          "short": "v",
+          "description": "Set the volume, 0 to 100",
+          "takesValue": true
+        },
+        {
+          "name": "open",
+          "short": "o",
+          "description": "Play an audio file, or add it to the queue",
+          "takesValue": true,
+          "multiple": true
+        }
+      ]
     }
   }
 }
