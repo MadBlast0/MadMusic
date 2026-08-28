@@ -1,0 +1,92 @@
+# Runs `pnpm verify` on every push and pull request.
+#
+# ## Why this exists
+#
+# `package.json` has carried a `verify` script — format, lint, typecheck, test,
+# build, clippy, cargo test — for as long as the project has had a test suite,
+# and nothing ran it. `release.yml` builds installers, which is a different
+# question: it proves the app compiles on three operating systems, not that the
+# tests pass or that the formatting is clean.
+#
+# The gap showed. Before this file existed, `eslint .` walked `src-tauri/target`
+# and reported a parse error for every codegen asset blob it found there, so
+# `pnpm verify` failed for anyone who had ever run a release build. That went
+# unnoticed precisely because no machine ran it.
+#
+# ## Why one job rather than a matrix
+#
+# The tests are platform-independent — jsdom and SQLite, no OS behaviour worth
+# testing three times — and `release.yml` already covers "does it build on
+# macOS and Windows". Running this three times would triple the cost and the
+# wall-clock for no additional signal.
+#
+# Ubuntu is the exception-prone one for a Tauri app, since it needs the webkit
+# development headers that the other two get from the OS. That is the reason
+# for the apt step below and for pinning 22.04: the WebKit package name changed
+# between LTS releases, and `ubuntu-latest` moving underneath this workflow
+# would break it on a schedule nobody chose.
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant. Cancelling
+# it keeps the queue short and the feedback fast.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    # The Rust half dominates: a cold `cargo clippy --all-targets` on this
+    # dependency graph is several minutes, and the default six-hour timeout
+    # would let a hung job sit there all afternoon.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri's own build needs these even for `cargo clippy`, because the
+      # crate links against webkit2gtk through its build script.
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # `verify` runs both, so both have to be present. The stable toolchain
+          # includes them, but naming them fails loudly if that ever changes
+          # rather than failing inside the script.
+          components: rustfmt, clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: pnpm install --frozen-lockfile
+
+      # The one command, rather than its seven steps spelled out again here.
+      # A CI file that lists the checks separately drifts from the script
+      # developers actually run, and then "it passes locally" becomes true and
+      # useless at the same time.
+      - run: pnpm verify
