@@ -1379,11 +1379,50 @@ a direct timing for the index lock (P3-6).
   paint, that is React reconciliation alone. It is the largest single number in
   the trace and nobody has looked at what is in it.
 
-- **No end-to-end before/after on a real library.** Every number here is
-  measured in isolation, most in a debug build on a busy machine. The ratios
-  are the finding; the absolute figures are indicative. Nobody has yet launched
-  the app against 50,000 real tracks and timed startup, scan and scroll on both
-  sides of these commits.
+- **No end-to-end before/after on a real library**, and after trying, this is
+  a _cannot_ rather than a _did not_. Three things block it from inside this
+  repository:
+
+  1. **No browser driver.** Nothing in the dependency tree can drive a real
+     browser, and adding Playwright means a large devDependency plus a browser
+     download in somebody else's project to take one reading.
+  2. **The browser build cannot hold a large library.** `store/web.ts` persists
+     to `localStorage`. A 50,000-track document serialises to ~27 MB (measured
+     in P4-1) against a quota of roughly 5–10 MB, and `save()` swallows the
+     resulting failure by design. Seeding a realistic library into the browser
+     build is therefore not possible.
+  3. **The native path needs a real folder.** The scan reads actual audio files
+     through the OS picker, which is a user gesture against a real library.
+
+  So the reading has to be taken on the machine that has the music. The recipe
+  is below rather than left as an aspiration.
+
+### How to take the last measurement
+
+Fifteen minutes on a machine with a large library, and it settles both the
+"is it actually faster" question and P1-2:
+
+```bash
+# 1. Baseline: the commit before this run.
+git stash && git checkout a878085
+pnpm install && pnpm tauri build      # release, not dev - debug timings mislead
+
+# 2. Launch, point it at the library, and note:
+#    - seconds from launch to the window being usable
+#    - seconds for the first scan to finish (the log prints "scanned ... tracks")
+#    - open the library view, sort by Title, note the pause
+#    - scroll the list hard while a track plays; watch for stutter
+
+# 3. Repeat on this run's HEAD.
+git checkout main && pnpm tauri build
+```
+
+For P1-2 specifically, the one that needs a browser profiler rather than a
+stopwatch: open devtools on the library view, record a Performance profile
+while scrolling a list of a few thousand tracks, and look at whether scripting
+time per frame is the thing missing the 16 ms budget. **If it is not — and
+after P1-1 removed the 20 Hz driver it may well not be — P1-2 should be closed
+as unnecessary rather than left open.**
 
 Anyone claiming "the app is faster" should take that second measurement first.
 The individual wins are real and each is reproducible from the table above;
