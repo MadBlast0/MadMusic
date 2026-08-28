@@ -1,5 +1,5 @@
 import { Profiler, memo, useState, type ProfilerOnRenderCallback } from 'react';
-import { act, render } from '@testing-library/react';
+import { act, render, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { Virtualised } from '@/components/common/virtualised';
@@ -106,23 +106,33 @@ function measure(memoised: boolean) {
     else updates.push(actualDuration);
   };
 
-  let setBump: ((n: number) => void) | null = null;
+  // Driven through a button rather than by capturing the setter. Reassigning a
+  // variable during render is a side effect the React Compiler rules forbid,
+  // and a benchmark that breaks the rules it is measuring under is not
+  // measuring the same thing the app does.
   function Harness() {
-    const [bump, set] = useState(0);
-    setBump = set;
-    return <List memoised={memoised} bump={bump} />;
+    const [bump, setBump] = useState(0);
+    return (
+      <>
+        <button onClick={() => setBump((n) => n + 1)}>bump</button>
+        <List memoised={memoised} bump={bump} />
+      </>
+    );
   }
 
-  render(
+  const view = render(
     <Profiler id={memoised ? 'memo' : 'inline'} onRender={onRender}>
       <Harness />
     </Profiler>,
   );
 
+  // Scoped to this render's own container: both variants are measured in one
+  // test, so a document-wide query finds the other one's button too.
+  const bump = within(view.container).getByRole('button', { name: 'bump' });
   // Twenty parent re-renders with no row data changing.
   for (let i = 1; i <= 20; i += 1) {
     act(() => {
-      setBump!(i);
+      bump.click();
     });
   }
 

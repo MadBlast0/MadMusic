@@ -310,16 +310,24 @@ twice — inline row against memoised row — and re-renders the parent twenty
 times without changing any row's data:
 
 ```
-inline row    mount 116.4 ms, updates 559.3 ms
-memoised row  mount  74.3 ms, updates  52.4 ms
+inline row    mount 101.1 ms, updates 498.7 ms
+memoised row  mount  58.9 ms, updates  82.1 ms
 
-saved: 506.9 ms over 20 re-renders (10.67x)
-       25.3 ms per parent re-render
+saved: 416.6 ms over 20 re-renders (6.07x)
+       20.8 ms per parent re-render
 ```
 
-**25 ms per parent re-render, against a 16 ms frame budget.** And the model row
-is _cheaper_ than the real one — it has no Radix context menu — so this
+**20.8 ms per parent re-render, against a 16 ms frame budget.** And the model
+row is _cheaper_ than the real one — it has no Radix context menu — so this
 understates the saving.
+
+**Correction.** The first run of this benchmark reported 10.67x and 25.3 ms,
+and that is the figure quoted in the P1-2 commit message. It was wrong. The
+harness captured the `useState` setter during render — a side effect the React
+Compiler rules forbid, which `eslint` flagged only when the whole tree was
+linted rather than the touched files. Driving the re-render through a button
+instead gives the numbers above. The conclusion is unchanged and the margin is
+still large; the number was not.
 
 Both paths where it pays, after P1-1:
 
