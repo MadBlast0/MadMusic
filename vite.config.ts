@@ -17,6 +17,67 @@ export default defineConfig({
     target: 'es2022',
     // Surface accidental bundle bloat early.
     chunkSizeWarningLimit: 600,
+    // Vendor code, split out of the entry chunk.
+    //
+    // `rolldownOptions`, not `rollupOptions`: Vite 8 bundles with rolldown, and
+    // a `rollupOptions.output.manualChunks` here would be accepted and quietly
+    // ignored. The build's own warning names this option.
+    //
+    // # What this buys, and what it does not
+    //
+    // Not a smaller download on a first visit — the same bytes are fetched
+    // either way, in more requests. What it buys is that these four change on
+    // a dependency upgrade rather than on every application edit, so a
+    // returning user re-downloads the app chunk and keeps the rest. In a
+    // desktop shell that matters most for the updater: a patch release ships a
+    // changed entry chunk and unchanged vendor chunks.
+    //
+    // Grouped by upgrade cadence rather than one chunk per package. Splitting
+    // finely trades a cache win for a request count, and these four move
+    // together in practice.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            // React and its DOM renderer. Never one without the other, and a
+            // version mismatch between them is a broken app rather than a
+            // slow one, so they belong in the same chunk.
+            {
+              name: 'react',
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+            },
+            // Radix primitives, behind the `radix-ui` umbrella package.
+            {
+              name: 'radix',
+              test: /[\\/]node_modules[\\/](radix-ui|@radix-ui)[\\/]/,
+            },
+            // Motion. Large, and already loaded lazily for its feature bundle
+            // in `providers.tsx`; this keeps the core out of the entry too.
+            { name: 'motion', test: /[\\/]node_modules[\\/]motion/ },
+            // Icons. Tree-shaken to the ones actually used, but that set is
+            // stable across application changes.
+            { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/ },
+            // Everything else from `node_modules`, as one chunk.
+            //
+            // Last, so the named groups above claim their packages first —
+            // groups are matched in order and the first match wins.
+            //
+            // A catch-all rather than a group per package: the remainder is
+            // Convex, Clerk, sonner, cmdk and a handful of small utilities,
+            // none individually worth a request. Naming them one by one would
+            // also mean editing this list every time a dependency is added,
+            // and the one that got forgotten would silently land back in the
+            // entry chunk — which is how the entry grew to 974 kB.
+            //
+            // With this, the entry chunk is application code only, so its size
+            // tracks the app rather than its dependencies and
+            // `chunkSizeWarningLimit` becomes a signal about code that was
+            // actually written here.
+            { name: 'vendor', test: /[\\/]node_modules[\\/]/ },
+          ],
+        },
+      },
+    },
   },
   test: {
     globals: true,

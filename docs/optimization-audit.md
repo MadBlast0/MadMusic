@@ -474,6 +474,41 @@ Also worth noting from the same build: `@tailwindcss/vite` accounts for **86%
 of build time** (7.8s of 9.1s). Not a runtime cost, but it is most of the
 edit-rebuild loop.
 
+**DONE 2026-08-28.** Four named vendor groups (`react`, `radix`, `motion`,
+`icons`) plus a `vendor` catch-all for everything else in `node_modules`, via
+`build.rolldownOptions.output.codeSplitting`.
+
+Two naming traps on the way: `rollupOptions` is silently ignored on Vite 8, and
+`advancedChunks` — which works — is deprecated in favour of `codeSplitting`.
+Both fail quietly rather than erroring, so the only way to know the config took
+effect is to read the chunk list.
+
+The catch-all matters more than the named groups. Without it the entry chunk
+sat at 609 kB, still over the project's own 600 kB threshold, and every future
+dependency would have landed back in it — which is how it reached 974 kB in the
+first place. With it, the entry chunk is application code only, so
+`chunkSizeWarningLimit` measures code that was actually written here and the
+warning is a signal again rather than permanent noise.
+
+| Chunk                 | Before     | After         |
+| --------------------- | ---------- | ------------- |
+| entry (`index.js`)    | 974.37 kB  | **365.26 kB** |
+| `vendor`              | —          | 523.77 kB     |
+| `react`               | —          | 190.19 kB     |
+| `radix`               | —          | 158.18 kB     |
+| `motion`              | —          | 101.56 kB     |
+| **total JS**          | 1645.71 kB | 1647.92 kB    |
+| **total JS, gzipped** | 507.04 kB  | **490.80 kB** |
+
+Measured by building the same tree twice with only `vite.config.ts` stashed
+between runs, because the interesting number is the total and it would be easy
+to quote the 62% entry-chunk reduction and quietly ship more bytes. Raw total
+grew 2.2 kB in chunk boilerplate; gzipped it _fell_ 16.2 kB. First-load bytes
+are therefore slightly better, and the actual benefit is that the four vendor
+chunks change on a dependency upgrade rather than on every application edit —
+which for a desktop app is mostly about what the updater has to ship for a
+patch release.
+
 ### P2-4. Font subsets for scripts the app does not localise
 
 Shipping Cyrillic, Cyrillic-Ext, Greek, and Latin-Ext for all three families:
@@ -625,9 +660,9 @@ error on a profile override naming a package that is not in the graph, so a
 typo would have been silently ignored.
 
 **The claim about dev builds was backwards.** `[profile.dev.package."*"]
-opt-level = 2` does not make the dev build faster to *compile* — it makes it
+opt-level = 2` does not make the dev build faster to _compile_ — it makes it
 slower, and the first rebuild after this change took 9 minutes because every
-dependency was invalidated. What it makes faster is the dev app at *runtime*,
+dependency was invalidated. What it makes faster is the dev app at _runtime_,
 which is the thing that actually matters here: a debug build whose decoder
 cannot keep up with real time does not just feel slow, it misleads you about
 whether playback works. The crate's own code stays at `opt-level = 0` so
