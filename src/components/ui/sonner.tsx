@@ -9,11 +9,15 @@ import { useTheme } from 'next-themes';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme();
+  // `resolvedTheme`, not `theme`: the app offers an `amoled` mode that Sonner
+  // has never heard of, and passing it straight through leaves the toasts
+  // rendering in the light palette on a black window.
+  const { resolvedTheme } = useTheme();
+  const theme = resolvedTheme?.includes('dark') ? 'dark' : 'light';
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
