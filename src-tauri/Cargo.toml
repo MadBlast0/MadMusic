@@ -17,15 +17,94 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
 
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+# Launching at login is desktop-only; the plugin does not build for mobile.
+tauri-plugin-autostart = "2"
+
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = ["protocol-asset"] }
+tauri = { version = "2.11.3", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
+lofty = "0.22.2"
+base64 = "0.23.1"
+rustypipe = { version = "0.11.4", default-features = false, features = ["rustls-tls-webpki-roots"] }
+# `process` and `time` are for the yt-dlp sidecar in src/extractor.rs. They
+# happen to be enabled by another crate today; naming them here means a
+# dependency change cannot silently take them away.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time"] }
+tauri-plugin-global-shortcut = "2.3.2"
+notify = { version = "8.2.0", features = ["macos_fsevent"] }
+anyhow = "1.0.104"
+# The audio proxy in `src/stream.rs`. `default-features = false` with rustls
+# keeps a second TLS stack out of the binary — `rustypipe` already links
+# rustls, and pulling in native-tls alongside it would ship both.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+http = "1"
+# Last.fm signs every authenticated call with an MD5 of the sorted parameters.
+# Not a security choice on our part — it is what their API specifies.
+md5 = { package = "md-5", version = "0.10" }
+# The local library index, `src/db/`. `bundled` compiles SQLite into the binary
+# rather than linking whatever the host happens to have: five platforms with
+# five different system SQLite versions is five different sets of behaviour, and
+# FTS5 in particular is not built in everywhere.
+rusqlite = { version = "0.32", features = ["bundled", "serde_json", "backup"] }
+# The native output path in `src/engine.rs`. `cpal` enumerates devices and
+# `rodio` decodes; together they are the only way to hand a file's samples to a
+# device at the file's own rate, which the webview cannot do. Default features
+# are off so the binary does not gain a second MP3 decoder it never calls.
+cpal = "0.15"
+rodio = { version = "0.19", default-features = false, features = ["symphonia-all"] }
+# OS media controls — SMTC, MPRIS and MPNowPlayingInfoCenter behind one API.
+# See `src/nowplaying.rs` for why one wrapper beats three platform bindings.
+souvlaki = "0.7"
+# Casting, `src/cast.rs`. DLNA only, and it needs no dependency at all: SSDP is
+# a UDP multicast with a text payload and control is SOAP over HTTP.
+#
+# Chromecast is deliberately absent. The one usable crate for it, `rust_cast`,
+# links OpenSSL — which fails to build on Windows without a system OpenSSL, and
+# contradicts the `default-features = false` rustls choice above that exists to
+# keep a second TLS stack out of this binary. Discovering devices the app could
+# not then play to would be worse than not discovering them, so it does neither.
+# Artwork thumbnails, `src/artwork.rs`. Only the formats embedded art actually
+# uses — a decoder for every format on earth is a large attack surface for
+# files that arrive from strangers' tags.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+tauri-plugin-notification = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-cli = "2"
+
+# The Windows shell: taskbar thumbnail buttons and the jump list, in
+# `src/taskbar.rs`. Both are COM interfaces with no crate wrapping them, so this
+# is the raw bindings rather than a convenience layer.
+#
+# Already in the tree transitively, so this adds features rather than a
+# download. Named here because a transitive dependency can disappear in a
+# version bump and take the taskbar with it.
+[target."cfg(windows)".dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  # `CreateMutexW` takes a `SECURITY_ATTRIBUTES`, so it is gated behind this
+  # even when the argument is null. The single-instance guard needs it.
+  "Win32_Security",
+  "Win32_System_DataExchange",
+  "Win32_System_Threading",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Variant",
+] }
 
 [profile.release]
 # Smaller, faster binaries for the platforms this ships to. `panic = "abort"`
@@ -36,3 +115,48 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# Speed, not size, for the crates that touch every sample.
+#
+# `opt-level = "s"` is right for the bulk of a Tauri app: most of the binary is
+# command plumbing and serialisation, where size costs load time and the code
+# is not hot. It is the wrong trade for decoding — that runs per sample, in
+# real time, against a deadline the user hears if it is missed. Size
+# optimisation there suppresses inlining and vectorisation in exactly the loops
+# that need them.
+#
+# Scoped per package rather than raised globally so the binary does not grow
+# for the sake of code that runs once. These apply to dependencies only; the
+# crate's own DSP (`waveform.rs`, ReplayGain) follows the profile above.
+[profile.release.package.symphonia]
+opt-level = 3
+[profile.release.package.symphonia-core]
+opt-level = 3
+[profile.release.package.symphonia-bundle-flac]
+opt-level = 3
+[profile.release.package.symphonia-bundle-mp3]
+opt-level = 3
+[profile.release.package.symphonia-codec-aac]
+opt-level = 3
+[profile.release.package.symphonia-codec-vorbis]
+opt-level = 3
+[profile.release.package.rodio]
+opt-level = 3
+# Thumbnail decode and resize. Off the audio path, but it is the difference
+# between an album grid that fills in and one that stutters as it scrolls.
+[profile.release.package.image]
+opt-level = 3
+
+# Dependencies get real optimisation in dev builds too.
+#
+# Nothing here is being debugged — it is upstream code that was working when it
+# was published. Compiling it unoptimised makes `tauri dev` slow to run without
+# making anything easier to diagnose, and a debug audio path that cannot keep
+# up with real time is actively misleading. The crate's own code stays at
+# `opt-level = 0` so breakpoints and stack traces still behave.
+[profile.dev.package."*"]
+opt-level = 2
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time"] }
