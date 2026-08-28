@@ -6,7 +6,23 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage'] },
+  // `src-tauri/target` is Cargo's build directory. It has to be here rather
+  // than left to the default ignores because Tauri's codegen writes compressed
+  // asset blobs there with a `.js` extension — `eslint .` picks them up and
+  // reports a parse error per file, which makes `pnpm verify` fail for anyone
+  // who has ever run a release build. The lint result must not depend on
+  // whether a build directory happens to exist.
+  // `src-tauri/gen` is likewise generated (the Android/iOS projects).
+  // `.prettierignore` already lists both; this keeps the two tools agreed.
+  {
+    ignores: [
+      'dist',
+      'node_modules',
+      'coverage',
+      'src-tauri/target',
+      'src-tauri/gen',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
