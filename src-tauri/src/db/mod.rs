@@ -205,6 +205,10 @@ fn apply_migrations(connection: &Connection) -> Result<(), rusqlite::Error> {
         connection.execute_batch(schema::V1)?;
     }
 
+    if version < 2 {
+        connection.execute_batch(schema::V2)?;
+    }
+
     // Future migrations go here, each guarded by `if version < N`, each adding
     // only. The version is written once at the end so a crash part way through
     // re-runs the whole step rather than skipping the rest.

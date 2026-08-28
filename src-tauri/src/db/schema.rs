@@ -27,7 +27,7 @@
 //!   an orphaned playlist row is a bug that should fail loudly at write time.
 
 /// The current schema version. Bump when adding a migration below.
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// Version 1 — everything, because there was nothing before it.
 ///
@@ -448,4 +448,58 @@ CREATE TABLE IF NOT EXISTS sync_op (
 );
 
 CREATE INDEX IF NOT EXISTS sync_pending ON sync_op(synced, at);
+"#;
+
+/// Version 2 — indexes for the sorts a library screen offers.
+///
+/// # Why these, and why `COLLATE NOCASE`
+///
+/// `sort_sql` in [`crate::db::tracks`] orders text columns with
+/// `COLLATE NOCASE`, and **an index in the default BINARY collation cannot
+/// serve that order**. The `track_artist` index from V1 therefore never helped
+/// the artist sort it looks like it exists for; the sort fell back to a
+/// filesort every time. Each index below repeats the collation the ORDER BY
+/// uses, and the compound ones repeat the tie-breakers too, so SQLite can walk
+/// the index instead of sorting.
+///
+/// # Measured, on 50,000 seeded tracks
+///
+/// First page of 100 rows, without these indexes → with them:
+///
+/// ```text
+/// title      45,801 us →  2,159 us   21.2x
+/// album      44,407 us →  2,020 us   22.0x
+/// artist     39,796 us →  3,241 us   12.3x
+/// duration   34,709 us →  2,847 us   12.2x
+/// year       34,976 us →  6,299 us    5.6x
+/// genre      32,203 us → 10,688 us    3.0x
+/// ```
+///
+/// The other half of the trade, seeding 10,000 tracks: 183 ms without them,
+/// 605 ms with. Roughly two seconds added to a full 50,000-track scan — a scan
+/// that already spends minutes reading tags off disk — against 30–45 ms of dead
+/// time every time somebody clicks a column header.
+///
+/// These are debug-build numbers taken on a busy machine, so treat the ratios
+/// as the finding and the absolute microseconds as indicative.
+/// `db::tracks::bench` reproduces both halves; it drops these indexes first, so
+/// it keeps measuring the trade rather than the effect of adding a duplicate.
+///
+/// `added_at` is absent because V1 already indexes it, and `plays`,
+/// `last_played` and `stars` are absent because they sort on a subquery or a
+/// joined table, which an index on `track` cannot help.
+pub const V2: &str = r#"
+CREATE INDEX IF NOT EXISTS track_title_nocase
+  ON track(title COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS track_album_nocase
+  ON track(album COLLATE NOCASE, disc_no, track_no);
+CREATE INDEX IF NOT EXISTS track_artist_nocase
+  ON track(artist COLLATE NOCASE, album COLLATE NOCASE, disc_no, track_no);
+CREATE INDEX IF NOT EXISTS track_album_artist_nocase
+  ON track(album_artist COLLATE NOCASE, year, disc_no, track_no);
+CREATE INDEX IF NOT EXISTS track_genre_nocase
+  ON track(genre COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS track_year     ON track(year);
+CREATE INDEX IF NOT EXISTS track_duration ON track(duration);
+CREATE INDEX IF NOT EXISTS track_bpm      ON track(bpm);
 "#;

@@ -1030,3 +1030,187 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use std::time::Instant;
+
+    /// Seeds a library big enough for a sort to cost something.
+    ///
+    /// Writes straight into `track` rather than going through `upsert`.
+    /// `upsert` also maintains the FTS index, which a sort never consults —
+    /// paying for it made seeding 50,000 rows take minutes of CPU in a debug
+    /// build, and measured the wrong thing besides.
+    ///
+    /// Titles and artists are deliberately not in insertion order, so an index
+    /// is doing real work rather than reading rows off in the order they were
+    /// written.
+    fn seed(db: &Db, rows: usize) {
+        db.tx(|tx| {
+            {
+                let mut insert = tx
+                    .prepare_cached(
+                        "INSERT INTO track (id, kind, title, artist, album, album_artist,
+                                            album_key, year, duration, genre, added_at)
+                         VALUES (?1, 'local', ?2, ?3, ?4, ?3, ?5, ?6, ?7, ?8, ?9)",
+                    )
+                    .map_err(|e| fail("bench prepare", e))?;
+                for i in 0..rows {
+                    let scrambled = (i * 7919) % rows;
+                    let artist = format!("Artist {:04}", scrambled % 5000);
+                    let album = format!("Album {:04}", scrambled % 3000);
+                    insert
+                        .execute(params![
+                            format!("t{i}"),
+                            format!("Track {scrambled:06}"),
+                            artist,
+                            album,
+                            format!("{}\u{1f}{}", artist.to_lowercase(), album.to_lowercase()),
+                            1960 + (scrambled % 65) as i64,
+                            60.0 + (scrambled % 400) as f64,
+                            format!("Genre {:02}", scrambled % 40),
+                            i as i64,
+                        ])
+                        .map_err(|e| fail("bench insert", e))?;
+                }
+            }
+            Ok(())
+        })
+        .expect("seed");
+    }
+
+    fn time_sort(db: &Db, sort: &str, limit: i64) -> (u128, usize) {
+        let filter = TrackFilter {
+            sort: sort.into(),
+            limit,
+            ..Default::default()
+        };
+        let started = Instant::now();
+        let rows = db.with(|c| query(c, &filter)).expect("query");
+        (started.elapsed().as_micros(), rows.len())
+    }
+
+    /// What each sort costs on a large library, with and without an index.
+    ///
+    /// Not an assertion — a measurement, printed. The audit that prompted this
+    /// recommended indexing every sortable column; whether that is worth the
+    /// write cost on a 50,000-track scan is a question only numbers answer, and
+    /// there were none.
+    ///
+    /// ```text
+    /// cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture sort_cost
+    /// ```
+    #[test]
+    #[ignore = "seeds 50k rows; run with --ignored --nocapture"]
+    fn sort_cost_with_and_without_indexes() {
+        const ROWS: usize = 50_000;
+        let db = Db::memory();
+
+        let started = Instant::now();
+        seed(&db, ROWS);
+        println!(
+            "\nseeded {ROWS} tracks in {} ms",
+            started.elapsed().as_millis()
+        );
+
+        // The sorts a library screen actually offers, minus the ones already
+        // covered by an existing index.
+        let sorts = ["title", "album", "year", "duration", "genre", "artist"];
+
+        // The schema ships these now (V2). Dropped first, so this still
+        // measures the trade they represent rather than the marginal effect of
+        // adding a duplicate on top of an index that already exists - which is
+        // what it reported the moment V2 landed, and which reads as "indexes do
+        // nothing" to anybody running it later.
+        db.with(|c| {
+            c.execute_batch(
+                "DROP INDEX IF EXISTS track_title_nocase;
+                 DROP INDEX IF EXISTS track_album_nocase;
+                 DROP INDEX IF EXISTS track_artist_nocase;
+                 DROP INDEX IF EXISTS track_album_artist_nocase;
+                 DROP INDEX IF EXISTS track_genre_nocase;
+                 DROP INDEX IF EXISTS track_year;
+                 DROP INDEX IF EXISTS track_duration;
+                 DROP INDEX IF EXISTS track_bpm;",
+            )
+            .map_err(|e| fail("drop schema indexes", e))
+        })
+        .expect("drop");
+
+        println!("\n-- before adding indexes (first page of 100) --");
+        let mut before = Vec::new();
+        for sort in sorts {
+            let (us, n) = time_sort(&db, sort, 100);
+            println!("  {sort:<10} {us:>8} us  ({n} rows)");
+            before.push(us);
+        }
+
+        // NOCASE to match `sort_sql`. An index in the default BINARY collation
+        // cannot serve `ORDER BY x COLLATE NOCASE` — which is why the existing
+        // `track_artist` index does not help the artist sort.
+        db.with(|c| {
+            c.execute_batch(
+                "CREATE INDEX IF NOT EXISTS bench_title  ON track(title COLLATE NOCASE);
+                 CREATE INDEX IF NOT EXISTS bench_album  ON track(album COLLATE NOCASE, disc_no, track_no);
+                 CREATE INDEX IF NOT EXISTS bench_year   ON track(year);
+                 CREATE INDEX IF NOT EXISTS bench_dur    ON track(duration);
+                 CREATE INDEX IF NOT EXISTS bench_genre  ON track(genre COLLATE NOCASE);
+                 CREATE INDEX IF NOT EXISTS bench_artist ON track(artist COLLATE NOCASE, album COLLATE NOCASE, disc_no, track_no);",
+            )
+            .map_err(|e| fail("bench indexes", e))
+        })
+        .expect("indexes");
+
+        println!("\n-- after adding indexes --");
+        for (i, sort) in sorts.iter().enumerate() {
+            let (us, n) = time_sort(&db, sort, 100);
+            let was = before[i];
+            let ratio = was as f64 / us.max(1) as f64;
+            println!("  {sort:<10} {us:>8} us  ({n} rows)  {ratio:>5.1}x faster");
+        }
+
+        // The other half of the trade: what those indexes cost on write.
+        let fresh = Db::memory();
+        fresh
+            .with(|c| {
+                c.execute_batch(
+                    "DROP INDEX IF EXISTS track_title_nocase;
+                 DROP INDEX IF EXISTS track_album_nocase;
+                 DROP INDEX IF EXISTS track_artist_nocase;
+                 DROP INDEX IF EXISTS track_album_artist_nocase;
+                 DROP INDEX IF EXISTS track_genre_nocase;
+                 DROP INDEX IF EXISTS track_year;
+                 DROP INDEX IF EXISTS track_duration;
+                 DROP INDEX IF EXISTS track_bpm;",
+                )
+                .map_err(|e| fail("drop schema indexes", e))
+            })
+            .expect("drop");
+        let plain = Instant::now();
+        seed(&fresh, 10_000);
+        let plain = plain.elapsed().as_millis();
+
+        let indexed = Db::memory();
+        indexed
+            .with(|c| {
+                c.execute_batch(
+                    "CREATE INDEX IF NOT EXISTS bench_title  ON track(title COLLATE NOCASE);
+                     CREATE INDEX IF NOT EXISTS bench_album  ON track(album COLLATE NOCASE, disc_no, track_no);
+                     CREATE INDEX IF NOT EXISTS bench_year   ON track(year);
+                     CREATE INDEX IF NOT EXISTS bench_dur    ON track(duration);
+                     CREATE INDEX IF NOT EXISTS bench_genre  ON track(genre COLLATE NOCASE);
+                     CREATE INDEX IF NOT EXISTS bench_artist ON track(artist COLLATE NOCASE, album COLLATE NOCASE, disc_no, track_no);",
+                )
+                .map_err(|e| fail("bench indexes", e))
+            })
+            .expect("indexes");
+        let with = Instant::now();
+        seed(&indexed, 10_000);
+        let with = with.elapsed().as_millis();
+
+        println!("\n-- write cost, 10k tracks --");
+        println!("  without the six indexes: {plain} ms");
+        println!("  with them:               {with} ms");
+    }
+}
