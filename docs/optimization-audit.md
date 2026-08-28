@@ -542,6 +542,34 @@ chunks change on a dependency upgrade rather than on every application edit —
 which for a desktop app is mostly about what the updater has to ship for a
 patch release.
 
+**CORRECTED 2026-08-28 — the catch-all was a regression and has been reverted.**
+
+Running the visualizer that rule 4 asked for (and that I had skipped) showed
+what the chunk-size table could not: **the `vendor` catch-all had made lazily
+loaded code eager.** `music-metadata` is behind a dynamic `import()` in
+`local-source.ts`, and its sixteen format parsers were sixteen on-demand
+chunks. A `/node_modules/` group swallowed all of them into a 523 kB chunk that
+`index.html` preloads — so the browser began downloading an AIFF tag parser in
+order to render the home screen.
+
+Reverted to naming what should be eager (`react`, `radix`, `motion`, `icons`,
+and a `backend` group for Convex and Clerk) and leaving everything unnamed to
+rolldown, which already honours the lazy boundaries the source declares.
+
+Current split, and this is the honest one:
+
+```
+eager  15 chunks  1,103.6 kB
+lazy   56 chunks    511.8 kB
+```
+
+The entry chunk is 481 kB rather than the 365 kB the catch-all reported. That
+365 kB was not a better result — it was the same work with half a megabyte of
+on-demand code moved to startup, and the entry-chunk number alone could not see
+it. `ANALYSE=1 pnpm build` now writes `dist/bundle-report.html`; the treemap is
+what made this visible and is why rule 4 asked for it _before_ P2-3 rather than
+after.
+
 ### ~~P2-4. Font subsets for scripts the app does not localise~~ — WRONG, rejected
 
 **Status: wrong, and acting on it would have caused a visible regression.

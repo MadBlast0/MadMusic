@@ -2,10 +2,34 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    // Bundle composition, on demand.
+    //
+    // Off unless `ANALYSE=1` is set, because it writes a megabyte of HTML and
+    // slows the build for a report nobody reads on an ordinary `pnpm build`.
+    //
+    //   ANALYSE=1 pnpm build   ->   dist/bundle-report.html
+    //
+    // The chunk-size warning tells you *that* something is large;
+    // this tells you *what* is inside it, which is the question you actually
+    // have when the warning fires.
+    ...(process.env.ANALYSE
+      ? [
+          visualizer({
+            filename: 'dist/bundle-report.html',
+            gzipSize: true,
+            brotliSize: true,
+            template: 'treemap',
+          }),
+        ]
+      : []),
+  ],
   resolve: {
     alias: {
       // Absolute imports: `@/x` -> `src/x`
@@ -57,23 +81,23 @@ export default defineConfig({
             // Icons. Tree-shaken to the ones actually used, but that set is
             // stable across application changes.
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/ },
-            // Everything else from `node_modules`, as one chunk.
+            // The remaining vendors that really are needed at startup, named
+            // individually rather than caught by a wildcard.
             //
-            // Last, so the named groups above claim their packages first —
-            // groups are matched in order and the first match wins.
+            // A `/node_modules/` catch-all was tried and reverted. It pulled
+            // dependencies reachable only through a dynamic `import()` into an
+            // eagerly-preloaded chunk: `music-metadata`'s parsers were three
+            // lazy chunks, the catch-all folded them into one the entry HTML
+            // preloads, and the browser started downloading an audio-tag parser
+            // in order to render the home screen. The treemap from
+            // `ANALYSE=1 pnpm build` is what made that visible.
             //
-            // A catch-all rather than a group per package: the remainder is
-            // Convex, Clerk, sonner, cmdk and a handful of small utilities,
-            // none individually worth a request. Naming them one by one would
-            // also mean editing this list every time a dependency is added,
-            // and the one that got forgotten would silently land back in the
-            // entry chunk — which is how the entry grew to 974 kB.
-            //
-            // With this, the entry chunk is application code only, so its size
-            // tracks the app rather than its dependencies and
-            // `chunkSizeWarningLimit` becomes a signal about code that was
-            // actually written here.
-            { name: 'vendor', test: /[\\/]node_modules[\\/]/ },
+            // So name what should be eager and leave the rest to rolldown,
+            // which already honours the lazy boundaries the source declares.
+            {
+              name: 'backend',
+              test: /[\\/]node_modules[\\/](convex|@clerk)[\\/]/,
+            },
           ],
         },
       },
