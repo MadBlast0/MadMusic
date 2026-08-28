@@ -608,6 +608,43 @@ it. `ANALYSE=1 pnpm build` now writes `dist/bundle-report.html`; the treemap is
 what made this visible and is why rule 4 asked for it _before_ P2-3 rather than
 after.
 
+### The review P2-3 should have started from
+
+Done late, from the treemap rather than the chunk-size table. Every chunk the
+entry HTML preloads, gzipped:
+
+```
+277.5  index          (sonner 11.7, player-provider 7.3, store/web 7.2)
+ 94.9  radix
+ 94.1  motion
+ 92.5  react          (react-dom 83.1)
+ 69.2  backend        (Clerk 8.3 + 7.4 + 7.3)
+ 11.5  utils          (tailwind-merge 11.1)
+  9.3  icons x2
+  8.7  everything else
+──────
+658.1  kB gz eager, across 15 chunks
+```
+
+Nothing here is misplaced. `sonner`, Radix, Motion and Clerk are all reachable
+from the first paint, and `react-dom` at 83 kB is simply what React costs.
+
+**One candidate, examined and rejected.** `store/web.ts` — the browser store —
+is 7.2 kB gz in the entry chunk of a desktop build where `isNative()` is
+constantly true. `store/index.ts` picks between the two implementations with a
+runtime ternary, so both are referenced and neither can be shaken out.
+
+Aliasing `store/web` to a stub for the production build would remove it without
+touching the API. **Do not.** `dist` is not exclusively loaded by Tauri:
+`pnpm preview` serves it in a browser, and `preview.bat` exists to launch the
+app both ways. In a browser `isNative()` is false and the aliased-away store is
+the one that would be selected — turning a preview into an app with no library
+at all. 7.2 kB is the price of `pnpm preview` working, and that is a fair
+price.
+
+So the current grouping is what the measurement supports, not merely what
+survived the regression.
+
 ### ~~P2-4. Font subsets for scripts the app does not localise~~ — WRONG, rejected
 
 **Status: wrong, and acting on it would have caused a visible regression.
