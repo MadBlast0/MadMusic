@@ -1184,6 +1184,71 @@ mod bench {
     /// ```text
     /// cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture sort_cost
     /// ```
+    /// What a whole-library read costs, query and serialisation separately.
+    ///
+    /// The audit claimed the expensive part of `db_tracks` is not the query but
+    /// the JSON crossing the IPC boundary — 40 columns a row, uncapped. Several
+    /// call sites really do ask for everything (`health-report`, `loved-sync`,
+    /// `track-actions` all pass `limit: 0`), so the claim is worth a number
+    /// rather than an assumption.
+    ///
+    /// The transport itself is not measured here — that needs a running
+    /// webview — but serialisation is the part this side controls and the part
+    /// the claim is about.
+    ///
+    /// ```text
+    /// cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture ipc_cost
+    /// ```
+    #[test]
+    #[ignore = "seeds 50k rows; run with --ignored --nocapture"]
+    fn ipc_cost_of_a_whole_library() {
+        const ROWS: usize = 50_000;
+        let db = Db::memory();
+        seed(&db, ROWS);
+
+        let all = TrackFilter {
+            limit: 0,
+            ..Default::default()
+        };
+
+        let started = Instant::now();
+        let rows = db.with(|c| query(c, &all)).expect("query");
+        let queried = started.elapsed().as_millis();
+        assert_eq!(rows.len(), ROWS);
+
+        let started = Instant::now();
+        let json = serde_json::to_string(&rows).expect("serialise");
+        let serialised = started.elapsed().as_millis();
+
+        println!(
+            "
+-- one uncapped db_tracks over {ROWS} tracks --"
+        );
+        println!("  query        {queried:>6} ms");
+        println!("  serialise    {serialised:>6} ms");
+        println!("  payload      {:>6} MB", json.len() / 1_048_576);
+        println!(
+            "  per row      {:>6.1} us query, {:>6.1} us serialise",
+            (queried as f64 * 1000.0) / ROWS as f64,
+            (serialised as f64 * 1000.0) / ROWS as f64
+        );
+
+        // The same read, capped the way a list screen would cap it.
+        let paged = TrackFilter {
+            limit: 100,
+            ..Default::default()
+        };
+        let started = Instant::now();
+        let page = db.with(|c| query(c, &paged)).expect("query");
+        let page_ms = started.elapsed().as_micros();
+        let page_json = serde_json::to_string(&page).expect("serialise");
+        println!(
+            "
+  first page of 100: {page_ms} us, {} KB",
+            page_json.len() / 1024
+        );
+    }
+
     /// How long indexing a library holds the database lock.
     ///
     /// `db_tracks_upsert` wraps every row in one transaction, and `Db` is a

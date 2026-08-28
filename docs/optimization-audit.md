@@ -950,6 +950,49 @@ This is the one item to **measure before changing** — instrument `db_tracks`
 with a large library first. The fix, if the numbers justify it, is request
 deduplication rather than a stale cache.
 
+**MEASURED 2026-08-28. The concern is real; the recommendation was wrong. No
+code change.**
+
+One uncapped `db_tracks` over 50,000 tracks, debug build:
+
+|                       |                                      |
+| --------------------- | ------------------------------------ |
+| query                 | 509 ms                               |
+| **serialise to JSON** | **3,158 ms**                         |
+| payload               | **27 MB**                            |
+| per row               | 10.2 us query, **63.2 us serialise** |
+
+So the audit was right that the query is not the expensive part — and
+understated it. **Serialisation costs six times the query.** 27 MB then has to
+cross the bridge and be parsed by the webview, which this benchmark does not
+even include.
+
+**But it is not on the hot path, which is what the recommendation got wrong.**
+The same read capped the way a list screen caps it — `limit: 100` — is
+**1.85 ms and 55 KB**. Every list in the app pages. Chasing the three uncapped
+callers:
+
+| Caller              | Trigger                      | Verdict                                                                                                                                         |
+| ------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `track-actions.tsx` | on mount                     | **already bounded** — `withState: true` returns only tracks carrying a rating, tag or like, "the overwhelming majority are deliberately absent" |
+| `health-report.tsx` | user opens the health screen | genuinely uncapped                                                                                                                              |
+| `loved-sync.tsx`    | user presses Check           | genuinely uncapped, and correctly so — "a loved track can be anywhere in the library and a page of it would silently miss the rest"             |
+
+Both real cases are **user-initiated, occasional, and already show a loading
+state**. Neither runs at startup or during playback.
+
+**So `native.ts`'s "deliberately no caching layer" stands, and request
+deduplication would fix nothing** — there is no repeated-query problem. The
+cost is one big read on two screens that legitimately need every row.
+
+If it ever needs fixing, the lever is a **narrower projection**, not a cache:
+both callers use a handful of the 40 columns, and at ~540 bytes a row most of
+the payload is field names and empty strings from columns declared
+`NOT NULL DEFAULT ''`. That is a new command and a second row type, worth doing
+only if somebody reports the health screen being slow.
+
+`db::tracks::bench::ipc_cost_of_a_whole_library` reproduces the numbers.
+
 ### P4-2. Index coverage for sort columns
 
 `track` is indexed on `album_key`, `artist`, `added_at DESC`, `kind`, `path`.
