@@ -296,6 +296,18 @@ larger job than the optimisation they would protect.
 large library. That is the measurement to take first; the refactor is only
 worth its risk if the trace says so. Recorded rather than done.
 
+**The trace was taken 2026-08-28 and it does not settle this.** See the
+measurement section: React's profiler under jsdom reports reconciliation only,
+and jsdom neither lays out nor scrolls. The trace confirms the _idle_ property
+P1-1 bought — three commits in 250 ms, asserted — but produces no scroll data,
+because there is no scrolling to measure.
+
+So P1-2 stays deferred, now for a sharper reason than before: **the evidence it
+needs cannot come from the test suite.** It requires a browser profiling a real
+library while scrolling. Until somebody does that, refactoring eleven props
+into a memoised row inside an untested 462-line component is speculative work
+on an unmeasured problem.
+
 ### ~~P1-3. Twelve nested providers with no error boundary above them~~ — WRONG
 
 **Status: wrong. Verified 2026-08-28.** There _is_ an outer boundary, and it
@@ -1341,11 +1353,32 @@ a direct timing for the index lock (P3-6).
 
 **The two gaps that remain open**, and they are the honest limits of this run:
 
-- **No React Profiler trace.** P1-1 was justified by counting consumers — 15 of
-  ~50 files read the hot fields — and pinned by a test asserting transport
-  consumers do not re-render on a progress tick. That is strong evidence for
-  the mechanism and no evidence at all about frames dropped on a real library.
-  It is also what P1-2 is waiting on.
+- ~~**No React Profiler trace.**~~ **TAKEN 2026-08-28** — `src/profiler.test.tsx`
+  runs React's own `<Profiler>` over the whole application and writes
+  `profiler-trace.txt`:
+
+  ```
+  mount:                          488.3 ms  (React work only)
+  commits on mount:               2
+  commits while idle for 250 ms:  3
+    slowest single commit:        374.6 ms
+  opening the library view:       1 commit, 90.0 ms
+  ```
+
+  **What it settles:** an idle shell commits three times in a quarter second,
+  not continuously — which is the property P1-1 bought, now observed rather
+  than inferred. The test asserts it (`< 20` commits), so a regression that
+  reintroduced a per-frame render would fail rather than merely feel slow.
+
+  **What it does not settle:** jsdom has no layout, no paint and no scrolling.
+  None of these figures is a frame budget, and **scroll cost — the open
+  question behind P1-2 — is not measurable here at all.** That still needs a
+  browser and a real library.
+
+  Worth noting the 374.6 ms commit during startup settling. In jsdom, with no
+  paint, that is React reconciliation alone. It is the largest single number in
+  the trace and nobody has looked at what is in it.
+
 - **No end-to-end before/after on a real library.** Every number here is
   measured in isolation, most in a debug build on a busy machine. The ratios
   are the finding; the absolute figures are indicative. Nobody has yet launched
