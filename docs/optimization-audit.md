@@ -296,17 +296,43 @@ larger job than the optimisation they would protect.
 large library. That is the measurement to take first; the refactor is only
 worth its risk if the trace says so. Recorded rather than done.
 
-**The trace was taken 2026-08-28 and it does not settle this.** See the
-measurement section: React's profiler under jsdom reports reconciliation only,
-and jsdom neither lays out nor scrolls. The trace confirms the _idle_ property
-P1-1 bought — three commits in 250 ms, asserted — but produces no scroll data,
-because there is no scrolling to measure.
+**MEASURED 2026-08-28 — and the measurement reverses the deferral above.**
 
-So P1-2 stays deferred, now for a sharper reason than before: **the evidence it
-needs cannot come from the test suite.** It requires a browser profiling a real
-library while scrolling. Until somebody does that, refactoring eleven props
-into a memoised row inside an untested 462-line component is speculative work
-on an unmeasured problem.
+Deferring this twice was wrong, and the reason it was wrong is worth keeping:
+**I kept framing the question as scroll jank**, which jsdom cannot measure, and
+concluded the evidence was unobtainable. The question underneath has nothing to
+do with scrolling. It is: _when the parent re-renders and a row's data has not
+changed, does `memo` skip enough work to be worth the refactor?_ That is
+reconciliation, which jsdom measures perfectly well.
+
+`virtualised.bench.test.tsx` renders the real `Virtualised` over 2,000 rows
+twice — inline row against memoised row — and re-renders the parent twenty
+times without changing any row's data:
+
+```
+inline row    mount 116.4 ms, updates 559.3 ms
+memoised row  mount  74.3 ms, updates  52.4 ms
+
+saved: 506.9 ms over 20 re-renders (10.67x)
+       25.3 ms per parent re-render
+```
+
+**25 ms per parent re-render, against a 16 ms frame budget.** And the model row
+is _cheaper_ than the real one — it has no Radix context menu — so this
+understates the saving.
+
+Both paths where it pays, after P1-1:
+
+- **A track change** re-renders `track-list`, which rebuilds every visible row.
+  Only the row whose `current` flag flipped actually changed; `memo` skips the
+  rest.
+- **A scroll** re-renders `Virtualised`, and rows still inside the window keep
+  their `key` and their props, so `memo` skips them and only entering rows
+  mount.
+
+Implemented rather than deferred. The refactor's cost — eleven props needing
+referential stability in an untested component — is unchanged; what changed is
+that there is now a number justifying paying it.
 
 ### ~~P1-3. Twelve nested providers with no error boundary above them~~ — WRONG
 
