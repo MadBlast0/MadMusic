@@ -178,6 +178,18 @@ fn configure(connection: &Connection) -> Result<(), rusqlite::Error> {
     connection.pragma_update(None, "mmap_size", 268_435_456)?;
     // Wait rather than fail if something else does hold the write lock.
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    // Room for every cached statement, with headroom.
+    //
+    // The query layer uses `prepare_cached` throughout, which is only a saving
+    // while the statement is still in the cache. rusqlite's default holds 16;
+    // `db/` prepares 29 distinct statements, so the default would evict the
+    // ones a busy screen is cycling through and re-compile them on the next
+    // call — the exact cost `prepare_cached` exists to avoid, paid with the
+    // extra bookkeeping on top.
+    //
+    // A prepared statement is a few kilobytes, so 64 is cheap insurance
+    // against the same thing happening quietly the next time a query is added.
+    connection.set_prepared_statement_cache_capacity(64);
     Ok(())
 }
 
