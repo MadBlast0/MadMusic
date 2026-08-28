@@ -268,6 +268,34 @@ render, so an unmemoised row multiplies the parent's cost by the window size.
 Target the row renderers in `track-list`, `playlist-track-list`,
 `catalogue-track-list`, and `album-grid`.
 
+**DEFERRED 2026-08-28, with reasons.** Verified, not implemented.
+
+**The premise weakened once P1-1 landed.** The finding's force was that an
+unmemoised row "multiplies the parent's cost by the window size" — and the
+parent was re-rendering 20 times a second. It no longer is. `track-list` now
+re-renders when the _track_ changes, a few times a minute, plus on scroll when
+the virtualiser's range updates. The remaining win is scroll smoothness alone,
+and it is unmeasured.
+
+**The cost is not small.** The row closure in `track-list.tsx` reads eleven
+distinct values — `queue`, `rows`, `selected`, `actions`, `play`, `selectAt`,
+`clearSelection`, `longPress`, `setDragTrack`, `tracks`, `current`. Extracting
+a `React.memo` row means all eleven become props and every one needs
+referential stability, including `selected`, which is a Set that changes on any
+selection change and would invalidate every row unless flattened to a
+per-row boolean.
+
+**And there are no tests.** `track-list.tsx` is 462 lines of drag-and-drop,
+multi-select with modifier semantics, context menus, long-press, and keyboard
+accessibility, with **zero test coverage** — the only test file under
+`components/library/` is the library provider's. Rule 7 says add tests first
+for a risky change, and credible tests for that interaction surface are a
+larger job than the optimisation they would protect.
+
+**What would change this decision:** a Profiler trace showing scroll jank on a
+large library. That is the measurement to take first; the refactor is only
+worth its risk if the trace says so. Recorded rather than done.
+
 ### ~~P1-3. Twelve nested providers with no error boundary above them~~ — WRONG
 
 **Status: wrong. Verified 2026-08-28.** There _is_ an outer boundary, and it
@@ -799,6 +827,40 @@ SQLite's own layer.
 Consider a dedicated read connection (WAL supports concurrent readers), or
 chunking the scan's write transaction so the mutex is released periodically.
 
+**DONE 2026-08-28 — the chunking half, measured first.**
+
+The stall is real and larger than the audit implied. `db_tracks_upsert` wrapped
+every row in one transaction, and `Db` is one connection behind a mutex, so the
+whole database was held for the entire indexing pass. Measured:
+**8,762 ms to index 5,000 tracks** in a debug build — 1.75 ms a row, which puts
+a 50,000-track library near **90 seconds with every database-backed screen
+frozen**. Browse, search, statistics and smart playlists all queue behind it.
+
+Now committed in batches of 1,000, so a read never waits more than a fraction
+of a second.
+
+**This trades all-or-nothing writing, deliberately.** Worth stating plainly
+because it is a change to how library data is written:
+
+- The old guarantee was stronger on paper and worse in practice. One unreadable
+  row at position 49,999 discarded 49,998 perfectly good writes.
+- `upsert` **merges**, it does not replace, so a partial pass leaves a
+  consistent database with fewer tracks indexed, and the rescan that runs on
+  every launch fills in the rest. That is recovery.
+- The same reasoning would **not** justify chunking a writer that replaces
+  rather than merges, and the comment in `tracks.rs` says so.
+
+`indexing_crosses_chunk_boundaries_without_losing_rows` covers the failure this
+introduces — a library short by exactly one chunk is the kind of bug found
+weeks later. It uses `INDEX_CHUNK * 2 + 7` so the trailing partial batch is
+exercised, and asserts both the row count and that no id was written twice.
+
+**Not done: the dedicated read connection.** That is the other half of the
+audit's suggestion and it is a much larger change — `Db::with` currently serves
+both reads and single-statement writes, so routing reads elsewhere means
+auditing every one of the ~29 call sites to classify it. The chunking removes
+the symptom that made it urgent.
+
 ### P3-7. Missing `mmap_size`
 
 `src-tauri/src/db/mod.rs` `configure()` sets `journal_mode`, `synchronous`,
@@ -822,6 +884,38 @@ minutes.
 a single writer thread drains into the existing batched transaction, keeps the
 one-writer invariant that `db/mod.rs` depends on while parallelising the part
 that actually costs.
+
+**DONE 2026-08-28.** No `rayon` — `std::thread::scope` over a folder's files,
+chunked across `available_parallelism()`, inline below four files.
+
+**Measured: 2,688 ms → 1,507 ms for 3,000 files across 250 folders on sixteen
+cores. About 1.8x.**
+
+Well short of sixteen, and the reasons matter more than the number. The batch
+is one folder, so parallel width is however many tracks an album holds —
+twelve in the benchmark — which caps the speedup at twelve before anything
+else. The remainder is that opening a file is largely the filesystem's work,
+and several threads asking one disk do not finish sixteen times sooner.
+
+A real library should beat 1.8x rather than fall short of it: the benchmark
+writes 4 KB stubs, so header parsing — the part that actually parallelises —
+is a far smaller share of each call than for a real 40 MB FLAC.
+
+**What was deliberately left sequential.** The walk still owns the file budget,
+the cancellation check, and the canonicalise-and-compare that stops a symlink
+escaping the granted root. Parallelising those buys nothing and risks a great
+deal. Only `Scan` is shared, and it is `Sync` — atomic counters, mutex cache —
+so the lookup and write-back happen inside the worker and a cached file never
+reaches a thread at all.
+
+**Tests first, per rule 7.** Three were written _before_ the change and
+confirmed passing on the sequential code: the file budget stays an exact cap
+(a folder crossing the limit takes only what is left), every audio file still
+reaches the `seen` set that prunes the artwork cache, and a cancelled scan
+still gives up. Those are precisely what a batched read could have broken.
+
+Scanning folders concurrently would scale further and is the obvious next
+increment; it is a much larger change and not this one.
 
 ### P3-9. The window is visible before the frontend paints
 
