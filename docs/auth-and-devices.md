@@ -1,7 +1,7 @@
 # Sign-in from the browser, and playback across devices
 
-Two features that look separate and are not. Both need the app to know *who you
-are* on more than one machine, and both are built on the same backend session.
+Two features that look separate and are not. Both need the app to know _who you
+are_ on more than one machine, and both are built on the same backend session.
 
 This document is the design. It is written before the code so the trade-offs are
 arguable rather than implied.
@@ -10,12 +10,12 @@ arguable rather than implied.
 
 ## Where things stand
 
-| Piece                | State                                                    |
-| -------------------- | -------------------------------------------------------- |
-| Web build            | **Works today.** Same bundle; `isNative()` reads Tauri's injected globals at runtime, `store/web.ts` backs the library with `localStorage`, and every backend screen degrades when there is no Convex. |
-| Clerk                | Configured — development instance, publishable key in `.env.local`. |
-| Convex               | **Written, not deployed.** 349-line schema and eight function files, but no `VITE_CONVEX_URL`, so `backendAvailable` is `false` and none of it runs. |
-| Server-side secrets  | **None.** `.env.local` says so outright: "There is no MadMusic server, so the secret key has nothing to sign or verify." |
+| Piece               | State                                                                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Web build           | **Works today.** Same bundle; `isNative()` reads Tauri's injected globals at runtime, `store/web.ts` backs the library with `localStorage`, and every backend screen degrades when there is no Convex. |
+| Clerk               | Configured — development instance, publishable key in `.env.local`.                                                                                                                                    |
+| Convex              | **Written, not deployed.** 349-line schema and eight function files, but no `VITE_CONVEX_URL`, so `backendAvailable` is `false` and none of it runs.                                                   |
+| Server-side secrets | **None.** `.env.local` says so outright: "There is no MadMusic server, so the secret key has nothing to sign or verify."                                                                               |
 
 That last row is the blocker. Both features below need something holding
 `CLERK_SECRET_KEY`, and Convex is the natural home for it.
@@ -26,7 +26,7 @@ That last row is the blocker. Both features below need something holding
 
 ### Why bother
 
-Signing in *inside* the app means authenticating with Google again, in a webview
+Signing in _inside_ the app means authenticating with Google again, in a webview
 that shares no cookies with the browser where you are already signed in. The
 browser route turns that into one click on an account chooser.
 
@@ -68,12 +68,12 @@ as somebody else. The app must only accept a ticket it asked for.
 `CLERK_SECRET_KEY`. A secret key in a desktop binary is not a secret; anybody
 with the app has it, and with it they can mint a token for **any user id**. So
 the mint lives in a Convex action, which checks `ctx.auth.getUserIdentity()`
-first and will only ever mint a token for *the caller's own* user.
+first and will only ever mint a token for _the caller's own_ user.
 
 **A ticket, not a session (7).** Clerk sessions are bound to an origin's cookie
 jar. The browser's jar and the webview's are different, and there is no
 supported way to copy one into the other. A sign-in token is the supported
-bridge: single-use, short-lived, and exchanged for a *new* session that belongs
+bridge: single-use, short-lived, and exchanged for a _new_ session that belongs
 to the webview.
 
 ### What is genuinely weak about it, stated plainly
@@ -105,17 +105,17 @@ offer it automatically. Nothing in this app needs to change.
 The Spotify Connect behaviour: every device you are signed in on can see what is
 playing, control it, and take it over.
 
-### What already exists and is *not* this
+### What already exists and is _not_ this
 
-`convex/sessions.ts` is **listen together** — several *people* following one
+`convex/sessions.ts` is **listen together** — several _people_ following one
 host, each resolving and playing their own copy of the track. Superficially
 similar, fundamentally different:
 
-|                | Listen together        | Connect                          |
-| -------------- | ---------------------- | -------------------------------- |
-| Who            | several users          | one user, several devices        |
-| Audio plays on | every follower         | exactly one device               |
-| Direction      | host broadcasts        | remotes command the active device |
+|                | Listen together | Connect                           |
+| -------------- | --------------- | --------------------------------- |
+| Who            | several users   | one user, several devices         |
+| Audio plays on | every follower  | exactly one device                |
+| Direction      | host broadcasts | remotes command the active device |
 
 They share a shape — a reactive row holding "what is playing and where" — and
 nothing else. Keeping them separate is deliberate; folding them together would
@@ -157,7 +157,7 @@ offline.
 userId, targetDeviceId, kind, payload, createdAt, consumedAt
 ```
 
-Commands are separate from `playback` because they are *events*, and events
+Commands are separate from `playback` because they are _events_, and events
 folded into state are lost when two arrive between renders. `consumedAt` rather
 than deletion, so the issuing device can tell "obeyed" from "not delivered yet".
 
@@ -193,7 +193,7 @@ copy, exactly as listen-together does. Streaming audio from one device to
 another is a different product with a different licensing problem, and
 `stream.rs` already explains why the app does not rebroadcast.
 
-Choosing an *output* device — headphones versus speakers on the same machine —
+Choosing an _output_ device — headphones versus speakers on the same machine —
 is unrelated and already exists: `engine.rs` enumerates outputs and
 `audio-settings` selects one.
 
