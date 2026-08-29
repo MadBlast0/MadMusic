@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 
 import { CoverArt } from '@/components/library/cover-art';
@@ -49,6 +49,7 @@ import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
 import { EqualiserPanel } from '@/components/player/equaliser-panel';
 import { DevicesControl } from '@/components/player/devices-control';
+import { useRemote } from '@/components/player/remote-context';
 import {
   Dialog,
   DialogContent,
@@ -92,6 +93,40 @@ export function NowPlayingBar({
     undoSkip,
   } = usePlayer();
   const { progress } = usePlayerProgress();
+  const remote = useRemote();
+
+  /**
+   * The transport, pointed at whatever owns the audio.
+   *
+   * When another device is playing, these send commands instead of driving the
+   * local player — otherwise pressing play here would start a second copy of
+   * the same track, out of step, with no way to tell which button stops which.
+   *
+   * Every surface reads these rather than the player directly, so "am I a
+   * player or a remote" is decided once.
+   */
+  // Memoised, and deliberately without the position in it. `progress` ticks
+  // twenty times a second; rebuilding this object at that rate would rebuild
+  // every callback that depends on it — which is exactly what `commitScrub`
+  // does. The position is derived separately below.
+  const transport = useMemo(
+    () =>
+      remote.elsewhere
+        ? {
+            playing: remote.isPlaying,
+            volume: remote.volume,
+            toggle: () =>
+              remote.send({ kind: remote.isPlaying ? 'pause' : 'play' }),
+            next: () => remote.send({ kind: 'next' }),
+            previous: () => remote.send({ kind: 'previous' }),
+            seek: (seconds: number) =>
+              remote.send({ kind: 'seek', value: seconds }),
+            setVolume: (value: number) =>
+              remote.send({ kind: 'volume', value }),
+          }
+        : { playing, volume, toggle, next, previous, seek, setVolume },
+    [remote, playing, volume, toggle, next, previous, seek, setVolume],
+  );
 
   const { isLiked, toggleLike } = useSaved();
   // Derived from the store, not held locally. The old local flag never reset
@@ -115,13 +150,40 @@ export function NowPlayingBar({
     [setScrubbing],
   );
 
+  /**
+   * A one-second clock, but only while a *remote* device is playing.
+   *
+   * The remote reports a position and a timestamp every few seconds rather than
+   * a stream of numbers, so the scrubber has to interpolate between reports or
+   * it would jump in five-second steps. That needs the current time — and
+   * reading `Date.now()` during render is the impurity the React Compiler rules
+   * forbid, because two renders of the same state would disagree.
+   *
+   * So the clock is state, ticked by an effect, and render stays a function of
+   * it. It runs at 1 Hz rather than per frame: this is a progress bar a few
+   * hundred pixels wide showing somebody else's playback, and a second of
+   * granularity is invisible.
+   */
+  const [remoteNow, setRemoteNow] = useState(0);
+  const ticking = remote.elsewhere && remote.isPlaying;
+
+  useEffect(() => {
+    if (!ticking) return;
+    const tick = () => setRemoteNow(Date.now());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [ticking]);
+
   const commitScrub = useCallback(
     (value: number) => {
-      seek(value);
+      // Through the transport, so dragging the scrubber while the desktop is
+      // playing seeks *the desktop* rather than a silent local element.
+      transport.seek(value);
       setScrub(null);
       setScrubbing(false);
     },
-    [seek, setScrubbing],
+    [transport, setScrubbing],
   );
 
   // Nothing queued yet: keep the bar in place so the layout does not jump when
@@ -136,9 +198,19 @@ export function NowPlayingBar({
     );
   }
 
-  const position = scrub ?? progress;
+  const livePosition = remote.elsewhere
+    ? (remote.positionMs +
+        (ticking ? Math.max(0, remoteNow - remote.updatedAt) : 0)) /
+      1000
+    : progress;
+  const position = scrub ?? livePosition;
   const total = current.duration || 0;
-  const level = muted || volume === 0 ? 'muted' : volume < 0.5 ? 'low' : 'high';
+  const level =
+    muted || transport.volume === 0
+      ? 'muted'
+      : transport.volume < 0.5
+        ? 'low'
+        : 'high';
 
   return (
     <footer
@@ -173,7 +245,17 @@ export function NowPlayingBar({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{current.title}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {current.artist}
+            {/* Replaces the artist rather than sitting beside it. When the
+                sound is on another machine, *where* is the more urgent fact —
+                the artist is still one line up in the title, and a bar that
+                showed both would wrap on the width this column actually has. */}
+            {remote.elsewhere ? (
+              <span className="text-primary">
+                Playing on {remote.deviceName}
+              </span>
+            ) : (
+              current.artist
+            )}
           </p>
         </div>
 
@@ -236,14 +318,14 @@ export function NowPlayingBar({
             <Shuffle />
           </IconButton>
 
-          <IconButton label="Previous track" onClick={previous}>
+          <IconButton label="Previous track" onClick={transport.previous}>
             <SkipBack />
           </IconButton>
 
           <m.button
             type="button"
-            onClick={toggle}
-            aria-label={playing ? 'Pause' : 'Play'}
+            onClick={transport.toggle}
+            aria-label={transport.playing ? 'Pause' : 'Play'}
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             transition={spring.snappy}
@@ -252,10 +334,10 @@ export function NowPlayingBar({
             {/* Larger than the default 16px: a 16px glyph inside a 36px filled
                 circle reads as a dot in a disc. 20px is a little over half the
                 button, which is where a primary transport control sits. */}
-            <PlayPause playing={playing} className="size-5" />
+            <PlayPause playing={transport.playing} className="size-5" />
           </m.button>
 
-          <IconButton label="Next track" onClick={next}>
+          <IconButton label="Next track" onClick={transport.next}>
             <SkipForward />
           </IconButton>
 
@@ -433,10 +515,10 @@ export function NowPlayingBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 p-3">
               <Slider
-                value={[muted ? 0 : Math.round(volume * 100)]}
+                value={[muted ? 0 : Math.round(transport.volume * 100)]}
                 max={100}
                 step={1}
-                onValueChange={([value]) => setVolume(value / 100)}
+                onValueChange={([value]) => transport.setVolume(value / 100)}
                 aria-label="Volume"
                 aria-valuetext={`${muted ? 0 : Math.round(volume * 100)} percent`}
               />

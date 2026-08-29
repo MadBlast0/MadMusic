@@ -8,6 +8,7 @@ import { BackendProvider } from '@/components/common/backend-provider';
 import { LibraryProvider } from '@/components/library/library-provider';
 import { OsBridge } from '@/components/player/os-bridge';
 import { Connect } from '@/components/player/connect';
+import { RemoteProvider } from '@/components/player/remote-provider';
 import { OfflineProvider } from '@/components/common/offline-provider';
 import { PlayerProvider } from '@/components/player/player-provider';
 import { BackupScheduler } from '@/components/common/backup-scheduler';
@@ -94,14 +95,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
                               silent gap in someone's listening record, a lock
                               screen showing the wrong track, or an equaliser
                               that applies to some tracks and not others. */}
-                                <Scrobbler />
-                                <AudioSettings />
-                                <OsBridge />
-                                <Connect />
-                                <BackupScheduler />
-                                <QueueDownloader />
-                                <EpisodeProgress />
-                                {children}
+                                <RemoteProvider>
+                                  <Scrobbler />
+                                  <AudioSettings />
+                                  <OsBridge />
+                                  <Connect />
+                                  <BackupScheduler />
+                                  <QueueDownloader />
+                                  <EpisodeProgress />
+                                  {children}
+                                </RemoteProvider>
                               </SidebarLayoutProvider>
                             </TrackActionsProvider>
                           </SavedProvider>
