@@ -47,6 +47,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .manage(cli::Pending::from_env())
         .manage(library::GrantedRoots::default())
         .manage(scan::Scan::default())
         .manage(shell::Shell::default())
@@ -314,6 +315,7 @@ pub fn run() {
             db::media::db_waveform_get,
             db::sync::db_sync_enqueue,
             db::sync::db_sync_pending,
+            cli::cli_take_pending,
             db::sync::db_sync_ack,
             db::sync::db_sync_failed,
             db::sync::db_sync_state,

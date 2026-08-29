@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { ClerkProvider, useClerk, useUser } from '@clerk/react';
 
+import { accountFromClerk } from '@/components/auth/account-from-clerk';
 import { clerkAppearance } from '@/components/auth/auth-appearance';
 import {
   AuthContext,
@@ -15,6 +16,7 @@ import {
 } from '@/components/auth/auth-context';
 import { SignInDialog } from '@/components/auth/sign-in-dialog';
 import { readTicket } from '@/lib/desktop-auth';
+import { tryInvoke } from '@/lib/native';
 import { onShellEvent } from '@/lib/desktop';
 import { EVENTS } from '@/lib/native';
 import { clerkPublishableKey } from '@/lib/auth-config';
@@ -28,17 +30,21 @@ import { clerkPublishableKey } from '@/lib/auth-config';
  * account — so a missing key should cost you sync, not the whole app. It also
  * means a fresh clone runs before anyone has set up Clerk.
  *
- * ## What signing in actually buys, and what it does not
+ * ## What signing in actually buys
  *
- * There is no MadMusic backend (`docs/music-sources.md` rules one out by
- * name). Clerk establishes *identity* and stores a little per-user state, so
- * playlists and likes can follow you between devices.
+ * Clerk establishes *identity*; Convex does everything that follows from it.
+ * A token from here is what lets `convex/` recognise you, which is what makes
+ * sync, the social graph, shared playlists and playback across your devices
+ * possible. See `convex/schema.ts` for what that backend does and does not
+ * hold — notably not your library, which stays on the machine.
  *
- * It is **not an authorization boundary**. Every check in this process runs on
- * the user's own machine, in a webview they control, against a bundle they can
- * edit. Nothing that must be enforced can be enforced here. If a paid tier or a
- * rate limit ever exists, the enforcement has to live somewhere the user does
- * not control — which today means it cannot exist at all.
+ * ## Nothing here is an authorization boundary
+ *
+ * Every check in *this process* runs on the user's own machine, in a webview
+ * they control, against a bundle they can edit. `account.role` is a label, not
+ * a permission. Anything that must be enforced is enforced in Convex, which
+ * verifies the token itself and derives the caller from it rather than from an
+ * argument — see `convex/lib.ts`.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   if (!clerkPublishableKey) return <Disabled>{children}</Disabled>;
@@ -75,6 +81,11 @@ function Disabled({ children }: { children: ReactNode }) {
       signIn: () => {},
       signOut: () => {},
       manageAccount: () => {},
+      // Rejects rather than resolving: "there is no account to delete" is not
+      // the same as "the account is gone", and a caller that ignores
+      // `configured` should see the difference.
+      deleteAccount: () =>
+        Promise.reject(new Error('Accounts are not configured in this build.')),
     }),
     [],
   );
@@ -133,7 +144,9 @@ function Enabled({ children }: { children: ReactNode }) {
    * alarming for something that is usually a stale second click.
    */
   useEffect(() => {
-    return onShellEvent<string[]>(EVENTS.opened, (argv) => {
+    let live = true;
+
+    const redeem = (argv: string[]) => {
       for (const argument of argv) {
         const handoff = readTicket(argument);
         if (!handoff) continue;
@@ -179,7 +192,27 @@ function Enabled({ children }: { children: ReactNode }) {
         })();
         return;
       }
+    };
+
+    // The warm path: a second launch, forwarded here by the single-instance
+    // guard to a frontend that is already listening.
+    const stop = onShellEvent<string[]>(EVENTS.opened, redeem);
+
+    // The cold path. If the deep link *started* the app, the arguments were
+    // read in Rust's `setup`, before this component — before React — existed,
+    // and an event emitted then reached nobody. So they are held on that side
+    // and drained here, once, now that something is listening.
+    //
+    // Without this, signing in through the browser worked only while the app
+    // happened to still be running, and stranded anybody who had closed it.
+    void tryInvoke<string[]>('cli_take_pending', undefined, []).then((argv) => {
+      if (live && argv.length > 0) redeem(argv);
     });
+
+    return () => {
+      live = false;
+      stop();
+    };
   }, [clerk]);
 
   // Clerk's own hosted modal is avoided in favour of a dialog this app owns —
@@ -204,19 +237,30 @@ function Enabled({ children }: { children: ReactNode }) {
   }, [clerk]);
   const manageAccount = useCallback(() => clerk.openUserProfile(), [clerk]);
 
-  const account = useMemo<Account | null>(() => {
-    if (!user) return null;
-    return {
-      id: user.id,
-      name:
-        user.fullName ??
-        user.username ??
-        user.primaryEmailAddress?.emailAddress ??
-        'Account',
-      email: user.primaryEmailAddress?.emailAddress ?? null,
-      imageUrl: user.hasImage ? user.imageUrl : null,
-    };
+  /**
+   * Deleting the account, for real.
+   *
+   * Straight through to Clerk with no confirmation of its own — the dialog
+   * belongs to the surface that offers the button, which is the only place
+   * that knows what the user was looking at when they pressed it.
+   *
+   * `deleteSelfEnabled` is checked first so a disallowed attempt fails with a
+   * sentence somebody can act on, rather than with Clerk's 403.
+   */
+  const deleteAccount = useCallback(async () => {
+    if (!user) throw new Error('You are not signed in.');
+    if (!user.deleteSelfEnabled) {
+      throw new Error('This account cannot be deleted from inside the app.');
+    }
+    await user.delete();
   }, [user]);
+
+  // Mapped in one place, in `account-from-clerk.ts`, so this file stays about
+  // the *session* and the flattening stays testable without a Clerk instance.
+  const account = useMemo<Account | null>(
+    () => (user ? accountFromClerk(user) : null),
+    [user],
+  );
 
   const value = useMemo<AuthState>(
     () => ({
@@ -227,8 +271,17 @@ function Enabled({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       manageAccount,
+      deleteAccount,
     }),
-    [isLoaded, isSignedIn, account, signIn, signOut, manageAccount],
+    [
+      isLoaded,
+      isSignedIn,
+      account,
+      signIn,
+      signOut,
+      manageAccount,
+      deleteAccount,
+    ],
   );
 
   return (
