@@ -61,16 +61,30 @@ import { sidebarKeyFor, type Route } from '@/lib/routes';
  * window costs two events instead of one per frame.
  */
 /**
- * Destinations the bar already reaches by other means.
+ * Destinations the bar deliberately leaves out.
  *
- * Both are still one control each; neither is here as well. `search` is the
- * field in the middle of this same bar — focusing it opens the search view and
- * Ctrl+F reaches it from anywhere, so a magnifier that navigates to search,
- * beside the box you search in, is two controls for one job. `settings` is the
- * cog on the right, which is one click rather than the two a menu costs, and
- * belongs with the things that are about the app rather than about your music.
+ * Each is still reachable by exactly one control — just not this one.
+ *
+ * `search` is the field in the middle of this same bar. Focusing it opens the
+ * search view and Ctrl+F reaches it from anywhere, so a magnifier that
+ * navigates to search, beside the box you search in, is two controls for one
+ * job.
+ *
+ * `settings` is the cog on the right, which is one click rather than the two a
+ * menu costs, and belongs with the things that are about the app rather than
+ * about your music.
+ *
+ * `liked` and `history` are in the library panel, where they already sit among
+ * the playlists — which is what they are, lists of tracks. Putting them in the
+ * chrome as well made the two most list-like destinations the ones that looked
+ * least like the lists beside them.
  */
-const ELSEWHERE = new Set<SidebarItemId>(['search', 'settings']);
+const ELSEWHERE = new Set<SidebarItemId>([
+  'search',
+  'settings',
+  'liked',
+  'history',
+]);
 
 const STEPS = [
   { query: '(min-width: 1280px)', inline: 6 },
