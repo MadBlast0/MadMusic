@@ -47,15 +47,24 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  /**
+   * Extra classes for the backdrop.
+   *
+   * Exposed so a dialog that owns the whole screen's attention — sign-in — can
+   * darken and blur behind itself without changing every other dialog, where a
+   * blur would be a distraction rather than a focus.
+   */
+  overlayClassName?: string;
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
