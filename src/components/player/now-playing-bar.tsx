@@ -238,7 +238,10 @@ export function NowPlayingBar({
             transition={spring.snappy}
             className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
           >
-            <PlayPause playing={playing} />
+            {/* Larger than the default 16px: a 16px glyph inside a 36px filled
+                circle reads as a dot in a disc. 20px is a little over half the
+                button, which is where a primary transport control sits. */}
+            <PlayPause playing={playing} className="size-5" />
           </m.button>
 
           <IconButton label="Next track" onClick={next}>
