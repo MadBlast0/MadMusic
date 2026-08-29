@@ -74,6 +74,7 @@ function PipContents() {
         <>
           <CoverArt
             track={current.local ?? null}
+            src={current.artworkUrl}
             seed={current.artist + current.title}
             rounded="rounded-lg"
             className="aspect-square w-full"

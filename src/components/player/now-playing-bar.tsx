@@ -162,6 +162,7 @@ export function NowPlayingBar({
                 catalogue and untagged files fall back to their gradient. */}
             <CoverArt
               track={current.local ?? null}
+              src={current.artworkUrl}
               seed={current.artist + current.title}
               className="size-14"
             />

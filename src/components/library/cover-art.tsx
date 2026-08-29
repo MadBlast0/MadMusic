@@ -67,21 +67,39 @@ function useArtwork(track: LocalTrack | null): string | null {
  * Falls back to a gradient keyed on the name rather than to a grey box: a wall
  * of identical placeholders is unreadable, while stable colours give each
  * record its own silhouette to recognise even before the title is read.
+ *
+ * # Two sources, in order
+ *
+ * `track` is art embedded in a file on disk; `src` is a URL the catalogue gave
+ * us. Embedded wins where both exist, because it is already local and needs no
+ * network — but until `src` existed this component could *only* read embedded
+ * art, so every catalogue track fell through to the gradient no matter how good
+ * a thumbnail YouTube had handed us. The data was there the whole time and had
+ * nowhere to go.
  */
 export function CoverArt({
   track,
+  src,
   seed,
   className,
   rounded = 'rounded-md',
 }: {
   /** The file to read embedded art from; null renders the fallback. */
   track: LocalTrack | null;
+  /**
+   * A remote cover, for tracks that are not files — a catalogue thumbnail.
+   *
+   * Used only when there is no embedded art, so a local file with a picture in
+   * its tags still shows that rather than whatever the catalogue guessed.
+   */
+  src?: string | null;
   /** Name the fallback colours are derived from. */
   seed: string;
   className?: string;
   rounded?: string;
 }) {
-  const url = useArtwork(track);
+  const embedded = useArtwork(track);
+  const url = embedded ?? (src || null);
   const [from, to] = fallbackCover(seed);
 
   return (
