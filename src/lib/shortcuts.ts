@@ -1,0 +1,267 @@
+/**
+ * Keyboard shortcuts: the ones inside the window, and the ones that work
+ * anywhere.
+ *
+ * # Two kinds, deliberately kept apart
+ *
+ * **In-app** shortcuts are ordinary key handling. Space pauses, `/` searches,
+ * `L` likes. They are free, they cannot clash with anything outside the window,
+ * and every one of them is rebindable here.
+ *
+ * **Global** shortcuts take a combination away from *every other program on the
+ * machine*. They go through `hotkeys.rs`, nothing is bound by default, and a
+ * combination another program already holds fails visibly rather than silently.
+ *
+ * # Why an action vocabulary
+ *
+ * Both kinds resolve to the same action names, so a binding can move from one to
+ * the other without anything else changing, and so the command palette, the
+ * media keys, the OS controls and the local endpoint all speak one language.
+ */
+
+import { store } from '@/lib/store';
+import { invoke, isNative, tryInvoke } from '@/lib/native';
+import { keys } from '@/lib/store/keys';
+
+/** Everything a shortcut can do. Kept in step with `ACTIONS` in `hotkeys.rs`. */
+export type Action =
+  | 'play-pause'
+  | 'next'
+  | 'previous'
+  | 'stop'
+  | 'seek-forward'
+  | 'seek-back'
+  | 'volume-up'
+  | 'volume-down'
+  | 'mute'
+  | 'like'
+  | 'shuffle'
+  | 'repeat'
+  | 'queue'
+  | 'search'
+  | 'command-palette'
+  | 'lyrics'
+  | 'full-screen'
+  | 'mini-player'
+  | 'settings'
+  | 'library'
+  | 'home'
+  | 'show-window';
+
+/** What each action is called on screen. */
+export const ACTION_LABELS: Record<Action, string> = {
+  'play-pause': 'Play or pause',
+  next: 'Next track',
+  previous: 'Previous track',
+  stop: 'Stop',
+  'seek-forward': 'Skip forward',
+  'seek-back': 'Skip back',
+  'volume-up': 'Volume up',
+  'volume-down': 'Volume down',
+  mute: 'Mute',
+  like: 'Like this track',
+  shuffle: 'Shuffle',
+  repeat: 'Repeat',
+  queue: 'Show the queue',
+  search: 'Search',
+  'command-palette': 'Command palette',
+  lyrics: 'Lyrics',
+  'full-screen': 'Full screen',
+  'mini-player': 'Mini player',
+  settings: 'Settings',
+  library: 'Library',
+  home: 'Home',
+  'show-window': 'Bring MadMusic to the front',
+};
+
+/**
+ * The defaults.
+ *
+ * Chosen to match what people already know: space for play/pause from every
+ * media player there has ever been, `/` for search from the web, `Ctrl+K` for
+ * the palette from every editor written since 2019.
+ */
+export const DEFAULT_KEYS: Partial<Record<Action, string>> = {
+  'play-pause': ' ',
+  next: 'Ctrl+ArrowRight',
+  previous: 'Ctrl+ArrowLeft',
+  'seek-forward': 'ArrowRight',
+  'seek-back': 'ArrowLeft',
+  'volume-up': 'ArrowUp',
+  'volume-down': 'ArrowDown',
+  mute: 'm',
+  like: 'l',
+  shuffle: 's',
+  repeat: 'r',
+  queue: 'q',
+  search: '/',
+  'command-palette': 'Ctrl+k',
+  lyrics: 'y',
+  'full-screen': 'f',
+  'mini-player': 'Ctrl+m',
+  settings: 'Ctrl+,',
+  library: 'Ctrl+l',
+  home: 'Ctrl+h',
+};
+
+/** A binding map, action to accelerator. */
+export type KeyMap = Partial<Record<Action, string>>;
+
+/**
+ * Turns a keyboard event into the accelerator form used above.
+ *
+ * `Ctrl` rather than `Control`, and the metadata key normalised to `Ctrl` on
+ * macOS — a Mac user pressing Command expects the shortcut labelled Ctrl in a
+ * cross-platform app to be the one that fires, and maintaining two tables of
+ * bindings to express that is worse than normalising here.
+ */
+export function accelerator(event: KeyboardEvent): string {
+  const parts: string[] = [];
+  if (event.ctrlKey || event.metaKey) parts.push('Ctrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+
+  // The space bar's `key` is a single space, which is invisible in a settings
+  // row; it is displayed as "Space" and stored as itself.
+  parts.push(event.key);
+  return parts.join('+');
+}
+
+/** The accelerator as something readable in a settings row. */
+export function describeKey(accel: string): string {
+  return accel
+    .split('+')
+    .map((part) => {
+      if (part === ' ') return 'Space';
+      if (part.startsWith('Arrow')) return part.slice(5);
+      return part.length === 1 ? part.toUpperCase() : part;
+    })
+    .join(' + ');
+}
+
+/**
+ * Whether a key event should be ignored because the user is typing.
+ *
+ * The single most important function in this file. Without it, typing "space"
+ * into a playlist name pauses the music, and typing "l" into a search box likes
+ * whatever is playing — the classic bug in every app that adds single-key
+ * shortcuts and forgets it also has text fields.
+ */
+export function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  // A dialog's own controls, and anything that has opted out explicitly.
+  return target.closest('[data-no-shortcuts]') !== null;
+}
+
+/**
+ * Finds the action a key event means.
+ *
+ * Returns null when the user is typing, when nothing is bound, or when a
+ * modifier the binding does not ask for is held — so `Ctrl+L` does not trigger
+ * the `l` binding.
+ */
+export function actionFor(event: KeyboardEvent, map: KeyMap): Action | null {
+  if (isTyping(event.target)) return null;
+
+  const pressed = accelerator(event);
+  for (const [action, binding] of Object.entries(map)) {
+    if (binding === pressed) return action as Action;
+  }
+  return null;
+}
+
+/** Reads the user's bindings, falling back to the defaults per action. */
+export async function loadKeyMap(): Promise<KeyMap> {
+  const stored = await store.kvGet(keys.SHORTCUTS).catch(() => null);
+  if (!stored) return { ...DEFAULT_KEYS };
+
+  try {
+    const parsed = JSON.parse(stored) as KeyMap;
+    // Merged over the defaults rather than replacing them, so an action added
+    // in a later version has a binding for somebody who customised before it
+    // existed.
+    return { ...DEFAULT_KEYS, ...parsed };
+  } catch {
+    return { ...DEFAULT_KEYS };
+  }
+}
+
+export async function saveKeyMap(map: KeyMap): Promise<void> {
+  await store.kvSet(keys.SHORTCUTS, JSON.stringify(map));
+}
+
+/**
+ * Whether an accelerator is already used by something else.
+ *
+ * Checked as the user records a binding, because discovering the clash after
+ * saving means two actions bound to one key and only one of them working.
+ */
+export function conflictFor(
+  map: KeyMap,
+  accel: string,
+  except: Action,
+): Action | null {
+  for (const [action, binding] of Object.entries(map)) {
+    if (binding === accel && action !== except) return action as Action;
+  }
+  return null;
+}
+
+/* ── global shortcuts ────────────────────────────────────────────────────── */
+
+/** One global binding. */
+export type GlobalBinding = { accelerator: string; action: string };
+
+/** What `hotkeys_apply` reported. */
+export type ApplyResult = {
+  registered: string[];
+  /** Accelerator and why, for the ones that did not take. */
+  rejected: [string, string][];
+};
+
+/**
+ * Registers the global bindings, replacing whatever was held.
+ *
+ * The whole set at once, because releasing has to happen before registering —
+ * otherwise swapping two shortcuts fails on the second and leaves one of each.
+ */
+export async function applyGlobalKeys(
+  bindings: GlobalBinding[],
+): Promise<ApplyResult> {
+  if (!isNative()) return { registered: [], rejected: [] };
+  return invoke<ApplyResult>('hotkeys_apply', { bindings });
+}
+
+export async function clearGlobalKeys(): Promise<void> {
+  await tryInvoke('hotkeys_clear', undefined, null);
+}
+
+export async function currentGlobalKeys(): Promise<GlobalBinding[]> {
+  return tryInvoke<GlobalBinding[]>('hotkeys_current', undefined, []);
+}
+
+/** Which actions a *global* shortcut may be bound to. Fewer than the in-app set. */
+export async function globalActions(): Promise<string[]> {
+  return tryInvoke<string[]>('hotkeys_actions', undefined, []);
+}
+
+/** The stored global bindings, which are separate from the in-app map. */
+export async function loadGlobalKeys(): Promise<GlobalBinding[]> {
+  const stored = await store.kvGet('global_shortcuts').catch(() => null);
+  if (!stored) return [];
+
+  try {
+    const parsed = JSON.parse(stored) as GlobalBinding[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveGlobalKeys(bindings: GlobalBinding[]): Promise<void> {
+  await store.kvSet('global_shortcuts', JSON.stringify(bindings));
+}

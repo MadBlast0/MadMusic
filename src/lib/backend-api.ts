@@ -222,6 +222,9 @@ export const backend = {
     listeners: anyApi.sessions.listeners,
     heartbeat: anyApi.sessions.heartbeat,
   },
+  desktopAuth: {
+    mintTicket: anyApi.desktopAuth.mintTicket,
+  },
   devices: {
     announce: anyApi.devices.announce,
     list: anyApi.devices.list,

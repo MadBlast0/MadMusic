@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { ClerkProvider, useClerk, useUser } from '@clerk/react';
 
 import { clerkAppearance } from '@/components/auth/auth-appearance';
@@ -8,6 +14,9 @@ import {
   type AuthState,
 } from '@/components/auth/auth-context';
 import { SignInDialog } from '@/components/auth/sign-in-dialog';
+import { readTicket } from '@/lib/desktop-auth';
+import { onShellEvent } from '@/lib/desktop';
+import { EVENTS } from '@/lib/native';
 import { clerkPublishableKey } from '@/lib/auth-config';
 
 /**
@@ -110,6 +119,68 @@ function Enabled({ children }: { children: ReactNode }) {
   const clerk = useClerk();
   // Lazily, so the URL is read once on mount rather than on every render.
   const [dialogOpen, setDialogOpen] = useState(isOAuthReturn);
+
+  /**
+   * The desktop hand-off: a ticket arriving from the browser.
+   *
+   * The deep link may *launch* the app, so this listens rather than being
+   * triggered by the button that started the flow — by the time the ticket
+   * arrives, the code that asked for it may not have been running.
+   *
+   * A ticket whose state does not match is discarded silently inside
+   * `readTicket`. There is nothing useful to tell the user about a hand-off
+   * they did not start, and saying "a sign-in attempt was rejected" would be
+   * alarming for something that is usually a stale second click.
+   */
+  useEffect(() => {
+    return onShellEvent<string[]>(EVENTS.opened, (argv) => {
+      for (const argument of argv) {
+        const handoff = readTicket(argument);
+        if (!handoff) continue;
+
+        void (async () => {
+          try {
+            // Through the Clerk singleton rather than `useSignIn`, whose v6
+            // signal-shaped return does not expose `createdSessionId`. The
+            // structural type is narrow on purpose: it names exactly what is
+            // used, so a future Clerk that drops it fails here rather than at
+            // runtime in front of somebody trying to sign in.
+            const instance = clerk as unknown as {
+              client?: {
+                signIn?: {
+                  create: (params: {
+                    strategy: 'ticket';
+                    ticket: string;
+                  }) => Promise<{
+                    status: string | null;
+                    createdSessionId: string | null;
+                  }>;
+                };
+              };
+              setActive: (params: { session: string }) => Promise<void>;
+            };
+
+            const signInResource = instance.client?.signIn;
+            if (!signInResource) return;
+
+            const attempt = await signInResource.create({
+              strategy: 'ticket',
+              ticket: handoff.ticket,
+            });
+            if (attempt.status === 'complete' && attempt.createdSessionId) {
+              await instance.setActive({ session: attempt.createdSessionId });
+              setDialogOpen(false);
+            }
+          } catch {
+            // An expired or already-redeemed ticket. Sixty seconds is short by
+            // design, so this is an ordinary outcome for somebody who left the
+            // browser open and came back later — the sign-in button still works.
+          }
+        })();
+        return;
+      }
+    });
+  }, [clerk]);
 
   // Clerk's own hosted modal is avoided in favour of a dialog this app owns —
   // see `sign-in-dialog.tsx` for why that matters inside a Tauri webview.

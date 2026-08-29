@@ -167,6 +167,145 @@ a paid subscription.
 3. **Extract** — obtain the audio stream URL in-process.
 4. **Play** — stream into `symphonia`/`rodio` behind a Tauri command.
 
+### Spike result (2026-08-20): `rustypipe` works
+
+The verification this document asked for below has been done, and extraction is
+**live** — `src-tauri/src/catalogue.rs`.
+
+| Checked                | Result                                                         |
+| ---------------------- | -------------------------------------------------------------- |
+| Crate version          | 0.11.4 — unchanged, now ~32 months old                         |
+| Search (YouTube Music) | 20 results for a normal query                                  |
+| Resolve + extract      | 5 audio streams, Opus up to 161 kbps and AAC up to 131 kbps    |
+| **Fetching the audio** | **HTTP 206, real bytes** — but only for a _bounded_ `Range`    |
+| `Range` requests       | Honoured when bounded. `bytes=0-` is refused with **403**      |
+| CORS headers           | **None.** See below — this shapes the whole frontend design    |
+| Stream URL lifetime    | ~21,540 s (about six hours)                                    |
+| Bytes actually served  | Whole file for ordinary videos; **~1 MiB** for many YTM tracks |
+
+Three findings changed the design:
+
+- **An open-ended range is refused.** `Range: bytes=0-4095` returns 206 and real
+  audio; `Range: bytes=0-` returns **403**. A media element opens every stream
+  with the second shape, so the URL that passes every hand-written check is the
+  one the app cannot play — and it fails as `MEDIA_ERR_SRC_NOT_SUPPORTED`,
+  "Format error", which points at codecs rather than at HTTP. This is why audio
+  no longer goes straight from YouTube to the element: `src-tauri/src/stream.rs`
+  re-issues every request with a bounded range. Verified 2026-08-20, playing 90
+  seconds across four chunk boundaries without a gap.
+- **No `Access-Control-Allow-Origin`.** `fetch` cannot read these URLs. It did
+  not matter while the element played them directly, because a media request is
+  _no-CORS_; it matters even less now, since the proxy is same-app and sets the
+  header itself. The upside is that Web Audio _can_ analyse the proxied stream,
+  so a real spectrum visualiser is no longer ruled out.
+- **AAC is served, not just Opus.** The app picks AAC/MP4 even though Opus is
+  ~30 kbps richer, because WKWebView (macOS, iOS) cannot decode Opus in WebM and
+  WebKitGTK is inconsistent. A codec that works on one of five platforms is not
+  a default. Opus is the fallback when no AAC stream exists.
+
+### The one-mebibyte cap, and what actually fixed it — 2026-08-20
+
+Many YouTube Music tracks stop being served after **1 MiB**, about a minute of
+audio. Ordinary videos are unaffected and stream to the end.
+
+```text
+bytes=786432-1048575     ->  206
+bytes=1048576-1310719    ->  403
+bytes=1048576-1052671    ->  206   (16 KiB slips through, once)
+bytes=1048576-1064959    ->  403   (and then it does not)
+```
+
+It is not a rate limit and not a range bug: smaller chunks do not help, waiting
+between them does not help, and a sequential 16 KiB walk reaches 39% of the file
+and is then refused six times running. It is YouTube declining to serve the rest
+of a track to a client that has not proved it is a browser.
+
+**A proof-of-origin token does not fix it.** That was the obvious hypothesis and
+it is wrong, which is worth recording so nobody spends the day on it twice.
+`rustypipe-botguard` was fetched, run, and confirmed working (`rustypipe-botguard
+0.1.2`), and the capped byte was _still_ refused. The reason is that PO tokens
+apply to the `Desktop` extraction client, and `Desktop` is one of the clients
+that cannot extract at all:
+
+```text
+client    open-ended bounded    past-cap
+Ios       403        206        403        audio/mp4 @ 132 kbps
+Tv        deobfuscation error: could not extract sig fn name
+Desktop   deobfuscation error: could not get deobf data
+Android   deobfuscation error: could not get deobf data
+Mobile    deobfuscation error: could not get deobf data
+```
+
+That is the real problem: **`rustypipe`'s deobfuscator is behind YouTube's
+player JavaScript.** Only the iOS client still extracts, and its URLs are the
+capped ones. Upstream has published nothing since 2025-04 and `0.11.4` is the
+newest release, so there is no version to move to.
+
+**`yt-dlp` fixes it**, which is what [roadmap.md](roadmap.md) settled on as the
+extraction fallback long before any of this came up. Measured on the same track,
+same machine, minutes apart:
+
+```text
+                 0MiB  1MiB  2MiB  3MiB
+built-in         206   206   403   403
+yt-dlp           206   206   206   206
+```
+
+So stream resolution goes through the `yt-dlp` sidecar when it is installed
+(`pnpm extractor`), and falls back to the built-in extractor when it is not —
+which still plays, just only the first minute of restricted tracks. Search,
+charts, albums and artists all still come from `rustypipe`, which is fine at
+them.
+
+The `extractor_lifts_the_cap` test in `src-tauri/src/catalogue.rs` re-measures
+the table above and **fails** if the sidecar stops lifting the cap. That is the
+early warning for "YouTube changed something"; the fix is
+`pnpm extractor --latest`.
+
+Because breakage is expected rather than hypothetical, there is one command that
+answers "does extraction still work?":
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture
+```
+
+It goes all the way to fetching audio bytes on purpose. Every earlier step can
+succeed while the URL itself is refused, which is exactly how these breakages
+present.
+
+### Already drifting: the charts
+
+Found while wiring the home screen, and a useful illustration of how this
+breaks. `music_charts` **succeeds** and returns artists and playlists — but
+`top_tracks` and `trending_tracks` come back empty. YouTube reorganised the
+charts page and `rustypipe` no longer finds tracks on it.
+
+The important part is the failure _shape_: no error, no exception, no failed
+request. Just an empty home screen. Anything checking only for errors would
+have reported everything healthy.
+
+The same songs are still reachable through the chart _playlists_, so the home
+feed prefers `top_tracks` and falls back to opening the first chart playlist —
+one extra request, and the difference between a populated home screen and a
+blank one. If extraction is fixed upstream the fast path resumes on its own,
+with no code change.
+
+`home_feed_is_populated` (also `--ignored`) exists because of this: it asserts
+the shelves have content, not merely that nothing errored.
+
+### Licensing
+
+`rustypipe` is **GPL-3.0** and MadMusic is proprietary. Rust links statically,
+so distributing a binary containing it would require releasing MadMusic under
+the GPL. Raised on 2026-08-20; the owner's decision was to proceed and handle
+licensing separately. Recorded here so it is not rediscovered as a surprise at
+release. It affects distribution only — development is unaffected.
+
+If that decision reverses, the escape hatch below is also the licence fix: a
+`yt-dlp` sidecar runs as a separate process, so no linking and no GPL
+obligation. Permissively licensed in-process crates exist (`ytdown`,
+MIT OR Apache-2.0; `tydle`, MIT) but are young and unproven at this job.
+
 ### Extraction: `rustypipe`, with an escape hatch
 
 [`rustypipe`](https://crates.io/crates/rustypipe) is a Rust client for YouTube's
@@ -174,15 +313,18 @@ Innertube API, inspired by NewPipe, and covers YouTube Music as well as YouTube.
 Chosen over a bundled `yt-dlp` sidecar: no external binary, smallest bundle,
 identical behaviour on all five platforms, and no Python dependency to ship.
 
-**The main technical risk in this plan lives here.** At the time of writing the
-latest release is 0.11.4, published 2025-04-23 — roughly sixteen months old. For
-the one component whose entire job is keeping pace with YouTube's changes,
-staleness is exactly the wrong property.
+**The main technical risk in this plan lives here.** The latest release is still
+0.11.4, published 2025-04-23. For the one component whose entire job is keeping
+pace with YouTube's changes, staleness is exactly the wrong property.
+
+The spike above shows it working today regardless, so the risk is future
+breakage rather than a broken start — which is what the mitigations, the
+adapter trait and the live check are all for.
 
 Mitigations, in order:
 
-- **Verify it still works before writing code against it.** A quick spike that
-  resolves and plays one track answers this in an afternoon.
+- **Verify it still works before writing code against it.** Done — see the spike
+  result above. Re-runnable as an ignored test whenever something looks wrong.
 - **Keep extraction behind the source-adapter trait** (below). If `rustypipe`
   rots, swapping to a `yt-dlp` sidecar or another crate touches one module and
   leaves the player, library and UI untouched.

@@ -1,4 +1,9 @@
 import { SignIn } from '@clerk/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { beginBrowserSignIn, browserSignInAvailable } from '@/lib/desktop-auth';
 
 import {
   Dialog,
@@ -85,7 +90,53 @@ export function SignInDialog({
             paths. This shell has no router, so a path-routed sign-in would
             navigate to a URL nothing serves. */}
         <SignIn routing="hash" fallbackRedirectUrl="/" />
+
+        {/* Offered under Clerk's card rather than instead of it. Signing in
+            through the browser is the better path on desktop — the account is
+            usually already chosen there, so it is one click instead of a full
+            Google authentication inside a webview that shares no cookies with
+            it — but it needs a deployed web build to hand off to, so it cannot
+            be the only option. */}
+        <BrowserHandoff />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * "Continue in your browser", for the desktop app.
+ *
+ * Renders nothing when there is nothing to hand off to: a browser build has no
+ * use for it, and a desktop build without `VITE_WEB_ORIGIN` has nowhere to send
+ * anybody. A button that cannot work is worse than no button.
+ */
+function BrowserHandoff() {
+  const [sending, setSending] = useState(false);
+
+  if (!browserSignInAvailable()) return null;
+
+  const go = async () => {
+    setSending(true);
+    try {
+      await beginBrowserSignIn();
+      toast('Finish signing in in your browser, then come back here.');
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error ? cause.message : 'Could not open your browser.',
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-col items-center gap-1">
+      <Button variant="outline" disabled={sending} onClick={() => void go()}>
+        Continue in your browser
+      </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        Uses the account you are already signed in with there.
+      </p>
+    </div>
   );
 }

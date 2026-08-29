@@ -13,126 +13,242 @@
 @import '@fontsource-variable/inter/wght.css';
 @import '@fontsource-variable/fira-code/wght.css';
 
-@custom-variant dark (&:is(.dark *));
+/* `.amoled` is a deepening of dark, not a third mode, so every `dark:`
+   variant in the component layer has to keep matching under it. */
+@custom-variant dark (&:is(.dark *, .amoled *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOKENS — two independent axes.
+
+   MODE  (`:root` / `.dark` / `.amoled`) owns surfaces and text. Nothing else.
+   ESSENCE (`[data-essence="…"]`) owns the accent: --primary,
+   --primary-foreground, --ring. Nothing else.
+
+   Keeping them separate is what lets a user pick "amoled + monochrome" or
+   "light + cyan" without a combinatorial explosion of palettes — and it is why
+   the default look is one line rather than a whole theme.
+
+   Anything shared by every mode (type, radius, shadow, spacing) is declared
+   once here and never repeated. The previous version duplicated all of it into
+   `.dark`, which is how the two blocks drifted into specifying *different
+   typefaces* — light rendered in Montserrat and dark in Inter, so switching
+   theme re-typeset the entire app.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
+  /* ── shared: type ──────────────────────────────────────────────────────
+     One text face for both modes. Montserrat is kept, but as a *display*
+     face for headings rather than as the body face in one theme only. */
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    'Montserrat Variable', Montserrat, 'Inter Variable', ui-sans-serif,
+    system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Fira Code Variable', 'Fira Code', ui-monospace, monospace;
+
+  /* ── shared: geometry ──────────────────────────────────────────────────
+     Multiplied, not subtracted. The old scale did `calc(var(--radius) - 4px)`
+     against a 0.35rem base, which computes to a *negative* radius for
+     --radius-sm. */
+  --radius: 0.5rem;
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* ── shared: elevation ─────────────────────────────────────────────────
+     Real blurred shadows. The old scale was `0px 2px 0px 0px` — a hard,
+     unblurred offset inherited from the discarded starter template, which is
+     invisible on dark surfaces and reads as a hard line on light ones. */
+  --shadow-color: 0 0% 0%;
+  --shadow-2xs: 0 1px 2px -1px hsl(var(--shadow-color) / 0.08);
+  --shadow-xs: 0 1px 3px -1px hsl(var(--shadow-color) / 0.1);
+  --shadow-sm:
+    0 1px 3px -1px hsl(var(--shadow-color) / 0.12),
+    0 1px 2px -1px hsl(var(--shadow-color) / 0.08);
+  --shadow:
+    0 2px 6px -1px hsl(var(--shadow-color) / 0.14),
+    0 1px 3px -2px hsl(var(--shadow-color) / 0.1);
+  --shadow-md:
+    0 4px 10px -2px hsl(var(--shadow-color) / 0.16),
+    0 2px 4px -2px hsl(var(--shadow-color) / 0.1);
+  --shadow-lg:
+    0 10px 20px -5px hsl(var(--shadow-color) / 0.2),
+    0 4px 8px -4px hsl(var(--shadow-color) / 0.12);
+  --shadow-xl:
+    0 18px 32px -8px hsl(var(--shadow-color) / 0.24),
+    0 6px 12px -6px hsl(var(--shadow-color) / 0.14);
+  --shadow-2xl: 0 28px 56px -12px hsl(var(--shadow-color) / 0.34);
+
+  /* ── mode: light surfaces ──────────────────────────────────────────── */
   --background: #f0f0f0;
-  --foreground: #333333;
-  --card: #f5f5f5;
-  --card-foreground: #333333;
-  --popover: #f5f5f5;
-  --popover-foreground: #333333;
-  --primary: #606060;
-  --primary-foreground: #ffffff;
-  --secondary: #e0e0e0;
-  --secondary-foreground: #333333;
+  --foreground: #2e2e2e;
+  --card: #f6f6f6;
+  --card-foreground: #2e2e2e;
+  --popover: #f8f8f8;
+  --popover-foreground: #2e2e2e;
+  --secondary: #e2e2e2;
+  --secondary-foreground: #2e2e2e;
   --muted: #d9d9d9;
-  --muted-foreground: #666666;
-  --accent: #c0c0c0;
-  --accent-foreground: #333333;
-  --destructive: #cc3333;
+  /* Was #666 on #f0f0f0 (5.1:1) but used at /70 opacity in places, which drops
+     below 4.5:1. Darkened so the muted role is safe at full strength and the
+     opacity modifiers can go away. */
+  --muted-foreground: #5c5c5c;
+  --accent: #dcdcdc;
+  --accent-foreground: #2e2e2e;
+  --destructive: #c62d2d;
   --destructive-foreground: #ffffff;
-  --border: #d0d0d0;
+  --border: #d2d2d2;
   --input: #e0e0e0;
-  --ring: #606060;
+
   --chart-1: #606060;
   --chart-2: #476666;
   --chart-3: #909090;
   --chart-4: #a8a8a8;
   --chart-5: #c0c0c0;
+
   --sidebar: #eaeaea;
-  --sidebar-foreground: #333333;
-  --sidebar-primary: #606060;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #c0c0c0;
-  --sidebar-accent-foreground: #333333;
-  --sidebar-border: #d0d0d0;
-  --sidebar-ring: #606060;
-  --font-sans:
-    'Montserrat Variable', Montserrat, ui-sans-serif, system-ui, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: 'Fira Code Variable', 'Fira Code', ui-monospace, monospace;
-  --radius: 0.35rem;
-  --shadow-x: 0px;
-  --shadow-y: 2px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.15;
-  --shadow-color: hsl(0 0% 20% / 0.1);
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-sm:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow-md:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
-  --shadow-lg:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
-  --shadow-xl:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
-  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
+  --sidebar-foreground: #2e2e2e;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: #d6d6d6;
+  --sidebar-accent-foreground: #2e2e2e;
+  --sidebar-border: #d2d2d2;
+  --sidebar-ring: var(--ring);
 }
 
-.dark {
+.dark,
+.amoled {
   --background: #1a1a1a;
-  --foreground: #d9d9d9;
-  --card: #202020;
-  --card-foreground: #d9d9d9;
-  --popover: #202020;
-  --popover-foreground: #d9d9d9;
-  --primary: #a0a0a0;
-  --primary-foreground: #1a1a1a;
+  --foreground: #e4e4e4;
+  --card: #212121;
+  --card-foreground: #e4e4e4;
+  --popover: #262626;
+  --popover-foreground: #e4e4e4;
   --secondary: #303030;
-  --secondary-foreground: #d9d9d9;
+  --secondary-foreground: #e4e4e4;
   --muted: #2a2a2a;
-  --muted-foreground: #808080;
-  --accent: #404040;
-  --accent-foreground: #d9d9d9;
+  /* #808080 on #1a1a1a was 4.4:1 — just under AA, and worse wherever the old
+     code applied /70. */
+  --muted-foreground: #949494;
+  --accent: #3a3a3a;
+  --accent-foreground: #e4e4e4;
   --destructive: #e06666;
-  --destructive-foreground: #ffffff;
-  --border: #353535;
+  --destructive-foreground: #1a1a1a;
+  --border: #363636;
   --input: #303030;
-  --ring: #a0a0a0;
+
   --chart-1: #a0a0a0;
   --chart-2: #7e9ca0;
   --chart-3: #707070;
   --chart-4: #585858;
   --chart-5: #404040;
+
   --sidebar: #1f1f1f;
-  --sidebar-foreground: #d9d9d9;
-  --sidebar-primary: #a0a0a0;
-  --sidebar-primary-foreground: #1a1a1a;
-  --sidebar-accent: #404040;
-  --sidebar-accent-foreground: #d9d9d9;
-  --sidebar-border: #353535;
-  --sidebar-ring: #a0a0a0;
-  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: 'Fira Code Variable', 'Fira Code', ui-monospace, monospace;
-  --radius: 0.35rem;
-  --shadow-x: 0px;
-  --shadow-y: 2px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.15;
-  --shadow-color: hsl(0 0% 20% / 0.1);
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-sm:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow-md:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
+  --sidebar-foreground: #e4e4e4;
+  --sidebar-accent: #333333;
+  --sidebar-accent-foreground: #e4e4e4;
+  --sidebar-border: #333333;
+
+  /* Shadows need more force on a dark ground to read at all. */
+  --shadow-color: 0 0% 0%;
   --shadow-lg:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
+    0 10px 22px -5px hsl(var(--shadow-color) / 0.5),
+    0 4px 8px -4px hsl(var(--shadow-color) / 0.3);
   --shadow-xl:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
-  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
+    0 18px 36px -8px hsl(var(--shadow-color) / 0.6),
+    0 6px 12px -6px hsl(var(--shadow-color) / 0.35);
+  --shadow-2xl: 0 28px 60px -12px hsl(var(--shadow-color) / 0.7);
 }
+
+/* True black, for OLED panels. Inherits the whole dark palette above and only
+   deepens the surfaces — it is one class, not two, because `next-themes`
+   writes its value straight into `classList.add()` and that rejects a token
+   containing a space. */
+.amoled {
+  --background: #000000;
+  --card: #0d0d0d;
+  --popover: #131313;
+  --secondary: #1c1c1c;
+  --muted: #161616;
+  --accent: #262626;
+  --border: #242424;
+  --input: #1c1c1c;
+  --sidebar: #000000;
+  --sidebar-accent: #202020;
+  --sidebar-border: #222222;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESSENCE — the accent axis. Three variables, never more.
+
+   `monochrome` is the default and is what the app looks like today: the accent
+   is simply the foreground, so nothing on screen competes with album art. The
+   difference from the old palette is that it now *contrasts* — the previous
+   --primary was a mid grey with less contrast than the body text, which made
+   the "currently playing" marker read as less important than everything
+   around it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-essence='monochrome'] {
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --ring: var(--foreground);
+}
+
+[data-essence='amber'] {
+  --primary: #d98e26;
+  --primary-foreground: #1a1305;
+  --ring: #d98e26;
+}
+:is(.dark, .amoled)[data-essence='amber'] {
+  --primary: #f0a742;
+  --primary-foreground: #1a1305;
+}
+
+[data-essence='emerald'] {
+  --primary: #16916a;
+  --primary-foreground: #04140e;
+  --ring: #16916a;
+}
+:is(.dark, .amoled)[data-essence='emerald'] {
+  --primary: #3fcb96;
+  --primary-foreground: #04140e;
+}
+
+[data-essence='cyan'] {
+  --primary: #0d8ba8;
+  --primary-foreground: #04141a;
+  --ring: #0d8ba8;
+}
+:is(.dark, .amoled)[data-essence='cyan'] {
+  --primary: #38c5e0;
+  --primary-foreground: #04141a;
+}
+
+[data-essence='violet'] {
+  --primary: #7048c8;
+  --primary-foreground: #ffffff;
+  --ring: #7048c8;
+}
+:is(.dark, .amoled)[data-essence='violet'] {
+  --primary: #a78bfa;
+  --primary-foreground: #140a26;
+}
+
+[data-essence='rose'] {
+  --primary: #c33a5c;
+  --primary-foreground: #ffffff;
+  --ring: #c33a5c;
+}
+:is(.dark, .amoled)[data-essence='rose'] {
+  --primary: #f4738f;
+  --primary-foreground: #1c0710;
+}
+
+/* `custom` carries no values — the theme provider writes --primary,
+   --primary-foreground and --ring inline on <html>, deriving a readable
+   foreground from the chosen colour. The selector exists so the provider has
+   something to key on and so a stale essence never leaks values. */
 
 @theme inline {
   --color-background: var(--background);
@@ -169,13 +285,15 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
 
   --shadow-2xs: var(--shadow-2xs);
   --shadow-xs: var(--shadow-xs);
@@ -196,9 +314,8 @@
    waiting on the animation far more often than they are admiring it. Travel
    distances should stay small to match — 4-8px, not 40px.
 
-   Pair each duration with the easing that matches the intent:
-   arriving decelerates, leaving accelerates, and anything already on screen
-   that merely moves or resizes uses the symmetric curve. */
+   `src/lib/motion.ts` mirrors this scale for JS animations, so Motion and
+   anime.js read the same numbers instead of hardcoding their own. */
 @theme {
   --duration-fast: 120ms; /* hover, focus, colour — and every exit */
   --duration-base: 180ms; /* dropdown, popover, select, tooltip, accordion */
@@ -289,6 +406,51 @@
   transition-duration: var(--duration-slower);
 }
 
+/* One focus treatment for the whole app. Custom buttons throughout the
+   codebase set `outline-none` and then style only `:hover`, which leaves
+   keyboard users with no indication of position at all. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Compact density. One declaration, because every row and card in the app
+   already sizes from the spacing scale rather than from hardcoded pixels —
+   which is the whole return on having had a scale in the first place.
+
+   Not scoped to `:root`, because density is per view as well as global: a
+   screen that overrides it puts the same attribute on its own container, and
+   `--spacing` cascades from wherever it is set. The document element still
+   carries the global answer, so a view that agrees with it sets nothing. */
+[data-density='compact'] {
+  --spacing: 0.22rem;
+  --radius: 0.4rem;
+}
+
+/* And the way back. A view set to comfortable inside a compact document has to
+   restate the defaults, because there is nothing to inherit them from. */
+[data-density='comfortable'] {
+  --spacing: 0.25rem;
+  --radius: 0.5rem;
+}
+
+/* The in-app reduced-motion override, for people whose system setting says one
+   thing and who want the opposite here. Same near-zero durations as the media
+   query rather than `none`, for the same reason: Radix gates unmounting on
+   `animationend`, and an animation that never runs never fires it. */
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -315,10 +477,22 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Nothing in a desktop shell should be selectable by default — dragging
+     across a track list highlighting text is a browser behaviour, not an app
+     one. Text that is genuinely content opts back in. */
+  :where(button, [role='button'], [role='tab'], [role='option']) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 /* Honour a system-level request for less motion (WCAG 2.3.3). Applied once,
    globally, so no component can forget it.
+
+   This covers CSS only. Motion is handled by `<MotionConfig reducedMotion>` in
+   the provider tree, and anime.js by an explicit check — see
+   `src/lib/motion.ts`.
 
    Durations collapse to a near-zero value rather than `animation: none`:
    Radix gates unmounting on the `animationend` event, and removing the

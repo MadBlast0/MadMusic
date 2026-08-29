@@ -48,6 +48,7 @@ import { formatTime } from '@/lib/library-model';
 import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
 import { EqualiserPanel } from '@/components/player/equaliser-panel';
+import { DevicesControl } from '@/components/player/devices-control';
 import {
   Dialog,
   DialogContent,
@@ -369,6 +370,7 @@ export function NowPlayingBar({
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Send elsewhere</DropdownMenuLabel>
             <div className="flex items-center gap-1 px-2 py-1.5">
+              <DevicesControl />
               <ListenTogether />
               <CastControl />
               <ShuffleModeControl />
