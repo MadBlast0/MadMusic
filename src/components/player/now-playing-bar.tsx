@@ -5,6 +5,7 @@ import { CoverArt } from '@/components/library/cover-art';
 import { RollingTime } from '@/components/player/rolling-time';
 import {
   Heart,
+  More,
   Sliders,
   PlayPause,
   Queue,
@@ -46,6 +47,13 @@ import {
 import { formatTime } from '@/lib/library-model';
 import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
+import { EqualiserPanel } from '@/components/player/equaliser-panel';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { duration as motionDuration, ease, spring } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
@@ -96,6 +104,7 @@ export function NowPlayingBar({
   const [scrub, setScrub] = useState<number | null>(null);
   /** The share dialog, which is a mode of the bar rather than a route. */
   const [sharing, setSharing] = useState(false);
+  const [eqOpen, setEqOpen] = useState(false);
 
   const beginScrub = useCallback(
     (value: number) => {
@@ -324,7 +333,7 @@ export function NowPlayingBar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <IconButton label="More player controls">
-              <Sliders />
+              <More />
             </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -365,6 +374,17 @@ export function NowPlayingBar({
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Its own button rather than a menu item, because the sliders icon is
+            what people look for when they want an equaliser — burying it behind
+            three dots is what made somebody press the overflow expecting one. */}
+        <IconButton
+          label="Equaliser"
+          active={eqOpen}
+          onClick={() => setEqOpen(true)}
+        >
+          <Sliders />
+        </IconButton>
 
         <IconButton
           label={queueOpen ? 'Hide queue' : 'Show queue'}
@@ -422,6 +442,18 @@ export function NowPlayingBar({
         </div>
       </div>
       <ShareDialog track={current} open={sharing} onOpenChange={setSharing} />
+
+      {/* A dialog rather than a trip to Settings: adjusting an equaliser is
+          something you do *while listening*, and navigating away from the
+          screen you were on to do it is the reason nobody found this one. */}
+      <Dialog open={eqOpen} onOpenChange={setEqOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Equaliser</DialogTitle>
+          </DialogHeader>
+          <EqualiserPanel />
+        </DialogContent>
+      </Dialog>
     </footer>
   );
 }

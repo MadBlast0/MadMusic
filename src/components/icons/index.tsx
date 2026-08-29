@@ -880,6 +880,28 @@ export function Waves({ className, ...props }: IconProps) {
 }
 
 /** A drag handle: two columns of dots. Used on reorderable rows. */
+/**
+ * Three dots: "there is more here".
+ *
+ * Added because `Sliders` was standing in for it, and in a music player that
+ * icon means one thing — the equaliser. Somebody pressed it expecting an
+ * equaliser and got a menu of unrelated controls, which is the icon's fault
+ * rather than theirs. `Sliders` now opens the equaliser, and this is the
+ * overflow.
+ *
+ * Filled circles rather than the outline the rest of the set uses: at 16px an
+ * outlined dot is a smudge.
+ */
+export function More({ className, ...props }: IconProps) {
+  return (
+    <Frame className={className} {...props}>
+      <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </Frame>
+  );
+}
+
 export function Grip({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
