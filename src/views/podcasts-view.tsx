@@ -132,6 +132,7 @@ export function PodcastsView({
           action={
             <div className="flex items-center gap-2">
               <Button
+                animate
                 variant="ghost"
                 size="sm"
                 onClick={refresh}

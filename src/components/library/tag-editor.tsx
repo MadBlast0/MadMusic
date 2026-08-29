@@ -270,6 +270,7 @@ function TagForm({
       <DialogFooter className="gap-2 sm:justify-between">
         {editable.length === 1 && recognition.available && changes === null ? (
           <Button
+            animate
             variant="ghost"
             size="sm"
             disabled={busy}

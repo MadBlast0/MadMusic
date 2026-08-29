@@ -25,6 +25,7 @@ export function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          animate
           variant="outline"
           size="icon"
           className="relative"

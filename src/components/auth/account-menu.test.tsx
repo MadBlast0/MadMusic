@@ -2,8 +2,49 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { AccountMenu } from '@/components/auth/account-menu';
-import { AuthContext, type AuthState } from '@/components/auth/auth-context';
+import {
+  AuthContext,
+  type Account,
+  type AuthState,
+} from '@/components/auth/auth-context';
 import { render } from '@testing-library/react';
+
+/**
+ * A signed-in account with everything filled in.
+ *
+ * A builder rather than a literal per test, because `Account` grew from four
+ * fields to fifteen and each test cares about one of them. Spelling out the
+ * other fourteen at every call site would make the interesting difference the
+ * hardest thing to see.
+ */
+function anAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: 'u1',
+    name: 'Mad Blast',
+    username: null,
+    firstName: null,
+    lastName: null,
+    email: 'someone@example.com',
+    emailVerified: true,
+    emails: [],
+    phoneNumbers: [],
+    imageUrl: null,
+    connections: [],
+    security: {
+      password: true,
+      twoFactor: false,
+      totp: false,
+      backupCodes: false,
+      passkeys: 0,
+    },
+    role: null,
+    createdAt: null,
+    lastSignInAt: null,
+    legalAcceptedAt: null,
+    canDelete: true,
+    ...overrides,
+  };
+}
 
 function withAuth(state: Partial<AuthState>) {
   const value: AuthState = {
@@ -14,6 +55,7 @@ function withAuth(state: Partial<AuthState>) {
     signIn: () => {},
     signOut: () => {},
     manageAccount: () => {},
+    deleteAccount: async () => {},
     ...state,
   };
   return render(
@@ -50,12 +92,7 @@ describe('account menu', () => {
   it('shows the account once signed in', () => {
     withAuth({
       signedIn: true,
-      account: {
-        id: 'u1',
-        name: 'Mad Blast',
-        email: 'someone@example.com',
-        imageUrl: null,
-      },
+      account: anAccount(),
     });
 
     expect(screen.getByRole('button', { name: 'Account' })).toBeInTheDocument();

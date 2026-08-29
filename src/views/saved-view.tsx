@@ -68,6 +68,7 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
                 Play
               </Button>
               <Button
+                animate
                 variant="outline"
                 size="sm"
                 disabled={queue.length === 0}

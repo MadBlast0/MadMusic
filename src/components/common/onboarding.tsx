@@ -102,6 +102,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
       content: (
         <div className="space-y-3">
           <Button
+            animate
             variant="outline"
             disabled={library.picking}
             onClick={() => {

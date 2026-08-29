@@ -338,6 +338,7 @@ function SmartPlaylistForm({
               )}
 
               <Button
+                animate
                 variant="ghost"
                 size="icon"
                 aria-label="Remove this rule"
@@ -360,6 +361,7 @@ function SmartPlaylistForm({
       </ul>
 
       <Button
+        animate
         variant="outline"
         size="sm"
         className="self-start"

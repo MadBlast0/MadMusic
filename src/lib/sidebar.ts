@@ -272,6 +272,57 @@ export async function loadLayout(): Promise<SidebarLayout> {
   }
 }
 
+/**
+ * A synchronous copy of the arrangement, for the first paint.
+ *
+ * # Why this exists
+ *
+ * `loadLayout` reads a KV store, which is asynchronous, so the real answer is
+ * never available on the first render. That was tolerable when the destinations
+ * lived in a sidebar panel and the top bar carried Home and Library regardless.
+ * It is not tolerable now that this *is* the navigation: waiting would leave
+ * every launch with a bar you cannot navigate from, which is a worse fault than
+ * the flicker the wait was avoiding.
+ *
+ * So the arrangement is mirrored into `localStorage`, which answers
+ * synchronously. First run has nothing mirrored and shows the defaults, which
+ * is what a first run should show anyway. Every run after that paints the right
+ * arrangement immediately and the store confirms it a moment later.
+ *
+ * The mirror is a cache, never the source: it is written after the store, read
+ * only to seed, and any failure to read or write is ignored — a browser with
+ * site data blocked throws on access, and a missing cache is a slower first
+ * paint rather than a broken one.
+ */
+const MIRROR = 'madmusic.sidebar.layout';
+
+export function readLayoutMirror(): SidebarLayout | null {
+  try {
+    const raw = localStorage.getItem(MIRROR);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SidebarLayout>;
+    const known = new Set(SIDEBAR_ITEMS.map((item) => item.id));
+    return {
+      order: (parsed.order ?? []).filter((id): id is SidebarItemId =>
+        known.has(id as SidebarItemId),
+      ),
+      hidden: (parsed.hidden ?? []).filter((id): id is SidebarItemId =>
+        known.has(id as SidebarItemId),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeLayoutMirror(layout: SidebarLayout): void {
+  try {
+    localStorage.setItem(MIRROR, JSON.stringify(layout));
+  } catch {
+    // Storage can be unavailable or full. The store still has the truth.
+  }
+}
+
 export async function saveLayout(layout: SidebarLayout): Promise<void> {
   await store.kvSet(keys.SIDEBAR, JSON.stringify(layout));
 }

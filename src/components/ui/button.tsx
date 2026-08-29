@@ -1,7 +1,9 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
+import { m } from 'motion/react';
 
+import { spring } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
@@ -38,17 +40,46 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * # Why animation is opt-in
+ *
+ * The icons animate by Motion's variant propagation: a `motion.*` ancestor
+ * declaring `whileHover="hover"` drives every `hover` variant beneath it. A
+ * plain `<button>` is not such an ancestor, so an animated glyph inside one is
+ * simply static — which is why twenty-nine of them across the app never moved.
+ *
+ * The obvious fix is to make *every* button a motion component. That is the
+ * wrong trade here: there are 209 of these, and some render per row in the
+ * virtualised track list, where each would add a hover subscription to a
+ * component that was deliberately cut down to re-render six times less. So the
+ * cost is paid only where the benefit exists — a button that contains an
+ * animated icon asks for it, and the rest stay ordinary DOM.
+ *
+ * `asChild` stays plain regardless: Radix's `Slot` clones its child, so there
+ * is no element here to animate, and the child is free to be a motion
+ * component itself.
+ */
 function Button({
   className,
   variant = 'default',
   size = 'default',
   asChild = false,
+  animate = false,
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
+    /** Drive the `hover` variants of any animated icon inside. */
+    animate?: boolean;
   }) {
-  const Comp = asChild ? Slot.Root : 'button';
+  const animated = animate && !asChild;
+  // Widened deliberately. `m.button` types `onDrag` as a pan handler, which
+  // contradicts the DOM's drag event, so a union of the three components has no
+  // props assignable to all of them. The public signature above stays the
+  // honest one — callers are still checked against `ComponentProps<'button'>`.
+  const Comp = (
+    asChild ? Slot.Root : animated ? m.button : 'button'
+  ) as React.ElementType;
 
   return (
     <Comp
@@ -56,6 +87,14 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      {...(animated
+        ? {
+            whileHover: 'hover',
+            whileTap: 'tap',
+            variants: { tap: { scale: 0.97 } },
+            transition: spring.snappy,
+          }
+        : null)}
       {...props}
     />
   );

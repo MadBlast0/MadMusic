@@ -111,6 +111,7 @@ export function DownloadsView() {
             <div className="flex items-center gap-2">
               {failed.length > 0 && (
                 <Button
+                  animate
                   variant="ghost"
                   size="sm"
                   onClick={() => void downloader.retryFailed()}
@@ -153,6 +154,7 @@ export function DownloadsView() {
               </p>
             </div>
             <Button
+              animate
               variant="ghost"
               size="sm"
               onClick={() => void downloader.clearQueue()}

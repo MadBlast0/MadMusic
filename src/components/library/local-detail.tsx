@@ -41,7 +41,13 @@ export function AlbumDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <Button variant="ghost" size="sm" onClick={onBack} className="self-start">
+      <Button
+        animate
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        className="self-start"
+      >
         <ArrowLeft className="size-4" />
         Back to library
       </Button>
@@ -125,7 +131,13 @@ export function ArtistDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <Button variant="ghost" size="sm" onClick={onBack} className="self-start">
+      <Button
+        animate
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        className="self-start"
+      >
         <ArrowLeft className="size-4" />
         Back to library
       </Button>

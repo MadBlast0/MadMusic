@@ -13,9 +13,20 @@ import {
 import {
   DEFAULT_LAYOUT,
   loadLayout,
+  readLayoutMirror,
   saveLayout,
+  writeLayoutMirror,
   type SidebarLayout,
 } from '@/lib/sidebar';
+
+/**
+ * Read once, at import, rather than in a render or a lazy initialiser.
+ *
+ * Reading storage during render is a side effect the React Compiler rules
+ * rightly object to, and the value cannot change between a module loading and
+ * the provider first mounting — so once is both correct and the cheapest.
+ */
+const INITIAL: SidebarLayout = readLayoutMirror() ?? DEFAULT_LAYOUT;
 
 /**
  * Which destinations the sidebar shows, and in what order.
@@ -35,7 +46,9 @@ import {
  * remove it — so the sidebar renders its nav only once the real answer is in.
  */
 export function SidebarLayoutProvider({ children }: { children: ReactNode }) {
-  const [layout, setStored] = useState<SidebarLayout>(DEFAULT_LAYOUT);
+  // Seeded from the synchronous mirror so the navigation is on screen in the
+  // first frame. See `readLayoutMirror` for why the store alone is not enough.
+  const [layout, setStored] = useState<SidebarLayout>(INITIAL);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -43,6 +56,7 @@ export function SidebarLayoutProvider({ children }: { children: ReactNode }) {
     void loadLayout().then((stored) => {
       if (!live) return;
       setStored(stored);
+      writeLayoutMirror(stored);
       setReady(true);
     });
     return () => {
@@ -52,6 +66,7 @@ export function SidebarLayoutProvider({ children }: { children: ReactNode }) {
 
   const setLayout = useCallback((next: SidebarLayout) => {
     setStored(next);
+    writeLayoutMirror(next);
     // Written without awaiting: the arrangement is already on screen, and a
     // failed write costs an arrangement rather than anything irreplaceable.
     void saveLayout(next).catch(() => {});

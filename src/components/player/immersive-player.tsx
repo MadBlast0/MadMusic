@@ -119,6 +119,7 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
           Now playing
         </p>
         <Button
+          animate
           variant="ghost"
           size="icon"
           onClick={onClose}
@@ -199,6 +200,7 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
 
           <div className="flex items-center gap-4">
             <Button
+              animate
               variant="ghost"
               size="icon"
               onClick={player.previous}
@@ -219,6 +221,7 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
               )}
             </Button>
             <Button
+              animate
               variant="ghost"
               size="icon"
               onClick={player.next}

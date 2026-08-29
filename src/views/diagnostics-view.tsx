@@ -254,6 +254,7 @@ export function DiagnosticsView() {
               onClick={() =>
                 void tryInvoke('diagnostics_open_folder', undefined, null)
               }
+              animate
             >
               <FolderOpen className="size-4" />
               Open the data folder

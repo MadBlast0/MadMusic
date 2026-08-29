@@ -283,6 +283,7 @@ function StationRow({
       </div>
 
       <Button
+        animate
         size="icon"
         variant="ghost"
         aria-label={saved ? 'Remove from saved stations' : 'Save this station'}

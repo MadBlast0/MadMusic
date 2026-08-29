@@ -107,6 +107,7 @@ export function AlbumView({
             Play
           </Button>
           <Button
+            animate
             size="sm"
             variant="outline"
             disabled={queue.length === 0}

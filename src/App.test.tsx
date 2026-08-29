@@ -31,7 +31,9 @@ describe('App shell', () => {
       'Back',
       'Forward',
       'Home',
-      'Your Library',
+      // The catalogue's label, not the old hard-coded one. There is a single
+      // list of destinations now, and the bar shows what it says.
+      'Library',
       'Settings',
     ]) {
       expect(
@@ -177,7 +179,7 @@ describe('App shell', () => {
     renderWithProviders(<App />);
 
     await user.click(
-      within(titleBar()).getByRole('button', { name: 'Your Library' }),
+      within(titleBar()).getByRole('button', { name: 'Library' }),
     );
 
     expect(
@@ -242,7 +244,7 @@ describe('title bar', () => {
     renderWithProviders(<App />);
 
     await user.click(
-      within(titleBar()).getByRole('button', { name: 'Your Library' }),
+      within(titleBar()).getByRole('button', { name: 'Library' }),
     );
     expect(
       await screen.findByText(/can.t open local folders/i),
@@ -326,7 +328,7 @@ describe('library view', () => {
     renderWithProviders(<App />);
 
     await user.click(
-      within(titleBar()).getByRole('button', { name: 'Your Library' }),
+      within(titleBar()).getByRole('button', { name: 'Library' }),
     );
 
     expect(

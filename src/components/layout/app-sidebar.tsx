@@ -28,7 +28,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SidebarNav } from '@/components/layout/sidebar-nav';
 import {
   Tooltip,
   TooltipContent,
@@ -100,14 +99,11 @@ function gradient([from, to]: [string, string]): string {
  * are recognisable at 40px in a way a column of identical icons is not.
  */
 export function AppSidebar({
-  route,
   onViewChange,
   onOpen,
   collapsed,
   onToggleCollapsed,
 }: {
-  /** Where the app is, so the nav can say so. */
-  route: Route;
   onViewChange: (view: Tab) => void;
   /** Opens something that is not a nav destination. */
   onOpen: (route: Route) => void;
@@ -232,10 +228,6 @@ export function AppSidebar({
           <TooltipContent side="right">Your Library</TooltipContent>
         </Tooltip>
 
-        <SidebarNav route={route} onOpen={onOpen} collapsed />
-
-        <span className="my-1 h-px w-6 bg-sidebar-border" aria-hidden />
-
         <ScrollArea className="w-full flex-1">
           <ul className="flex flex-col items-center gap-2 py-1">
             {visible.map((entry) => (
@@ -281,13 +273,6 @@ export function AppSidebar({
       aria-label="Your Library"
       className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-sidebar"
     >
-      {/* Destinations first, then the library. The two are different kinds of
-          thing — one is where you can go, the other is what you have — and the
-          divider is what stops them reading as one list. */}
-      <div className="shrink-0 pt-3 pb-2">
-        <SidebarNav route={route} onOpen={onOpen} collapsed={false} />
-      </div>
-
       <header className="flex shrink-0 items-center gap-2 border-t border-sidebar-border px-4 pt-3 pb-3">
         <h2 className="flex-1 truncate font-display text-base font-bold tracking-tight">
           Your Library

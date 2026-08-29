@@ -127,13 +127,19 @@ describe('a Profiler trace of the shell', () => {
     const before = trace.commits.length;
     const beforeTime = trace.total();
 
-    // The sidebar's destinations are buttons, not links — an earlier version of
-    // this test looked for a link, found nothing, and reported a confident
-    // 0.0 ms for an interaction that never happened. A measurement that cannot
-    // fail is not a measurement.
+    // The destinations are buttons, not links — an earlier version of this
+    // test looked for a link, found nothing, and reported a confident 0.0 ms
+    // for an interaction that never happened. A measurement that cannot fail
+    // is not a measurement.
+    //
+    // Matched on the accessible name rather than `textContent` for the same
+    // reason: now that they live in the top bar they are icons, so their text
+    // is empty and the search silently found nothing again.
     const target = screen
       .queryAllByRole('button')
-      .find((b) => /library/i.test(b.textContent ?? ''));
+      .find((b) =>
+        /library/i.test(b.getAttribute('aria-label') ?? b.textContent ?? ''),
+      );
 
     expect(target, 'the library destination is reachable').toBeTruthy();
 

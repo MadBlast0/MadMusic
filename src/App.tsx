@@ -503,6 +503,8 @@ function App() {
       <div className="flex h-screen flex-col bg-background text-foreground">
         <TopBar
           view={tab}
+          route={route}
+          onOpenRoute={go}
           query={query}
           onQueryChange={setQuery}
           onNavigate={navigate}
@@ -533,7 +535,6 @@ function App() {
             }}
           >
             <AppSidebar
-              route={route}
               onViewChange={navigate}
               onOpen={go}
               collapsed={!sidebarOpen}

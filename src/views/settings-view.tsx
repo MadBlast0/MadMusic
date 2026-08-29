@@ -1455,7 +1455,12 @@ function Privacy() {
           label="Back up your library"
           hint="Writes likes, playlists, history and preferences to a JSON file you keep. This is what moves a library to another machine."
           control={
-            <Button variant="outline" onClick={onExport} disabled={!desktop}>
+            <Button
+              animate
+              variant="outline"
+              onClick={onExport}
+              disabled={!desktop}
+            >
               <Download className="size-4" />
               Export
             </Button>
@@ -1465,7 +1470,12 @@ function Privacy() {
           label="Restore from a backup"
           hint="Merges a backup into what is here rather than replacing it, so importing on a machine that already has likes keeps both."
           control={
-            <Button variant="outline" onClick={onImport} disabled={!desktop}>
+            <Button
+              animate
+              variant="outline"
+              onClick={onImport}
+              disabled={!desktop}
+            >
               <FolderOpen className="size-4" />
               Import
             </Button>

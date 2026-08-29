@@ -283,6 +283,7 @@ function UploadRow({
         </div>
       ) : (
         <Button
+          animate
           size="icon"
           variant="ghost"
           aria-label={`Delete ${upload.title}`}

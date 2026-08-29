@@ -4,8 +4,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Command,
-  Home,
-  Library,
   Mic,
   Plus,
   Search,
@@ -13,6 +11,7 @@ import {
   X,
 } from '@/components/icons';
 import { IconButton } from '@/components/icons/icon-button';
+import { TopNav } from '@/components/layout/top-nav';
 import { SearchSuggestions } from '@/components/layout/search-suggestions';
 import {
   listenOnce,
@@ -22,7 +21,7 @@ import {
 import { toast } from 'sonner';
 import { AccountMenu } from '@/components/auth/account-menu';
 import { WindowControls } from '@/components/layout/window-controls';
-import type { Tab } from '@/lib/routes';
+import type { Route, Tab } from '@/lib/routes';
 import { Kbd } from '@/components/ui/kbd';
 import { isNative } from '@/lib/platform';
 import { cn } from '@/lib/utils';
@@ -54,6 +53,8 @@ export function TopBar({
   query,
   onQueryChange,
   onNavigate,
+  route,
+  onOpenRoute,
   onSubmit,
   onCommand,
   onBack,
@@ -62,6 +63,10 @@ export function TopBar({
   canGoForward,
 }: {
   view: Tab | null;
+  /** The whole route, so the destinations can say which one you are on. */
+  route: Route;
+  /** Opens a destination. Separate from `onNavigate`, which takes a tab. */
+  onOpenRoute: (route: Route) => void;
   query: string;
   onQueryChange: (value: string) => void;
   onNavigate: (view: Tab) => void;
@@ -123,24 +128,10 @@ export function TopBar({
 
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
 
-        {/* Home and Library are destinations, not tools, so they carry the
-            current-page state the tools never do. */}
-        <IconButton
-          label="Home"
-          size="sm"
-          current={view === 'home'}
-          onClick={() => onNavigate('home')}
-        >
-          <Home />
-        </IconButton>
-        <IconButton
-          label="Your Library"
-          size="sm"
-          current={view === 'library'}
-          onClick={() => onNavigate('library')}
-        >
-          <Library />
-        </IconButton>
+        {/* Every destination, not the two that used to be hard-coded here.
+            They were duplicated in the sidebar, which meant two lists that had
+            to agree about which was current — see `top-nav.tsx`. */}
+        <TopNav route={route} onOpen={onOpenRoute} />
       </div>
 
       {/* Centre: the search field, and nothing else. */}

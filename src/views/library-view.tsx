@@ -124,7 +124,7 @@ export function LibraryView({
           This browser can&rsquo;t open local folders. Use the desktop app, or a
           Chromium-based browser.
         </Notice>
-        <Button disabled size="lg" className="mt-4 self-start">
+        <Button animate disabled size="lg" className="mt-4 self-start">
           <FolderOpen className="size-4" />
           Choose music folder
         </Button>
@@ -353,7 +353,7 @@ function EmptyLibrary({
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={onChoose} disabled={picking} size="lg">
+        <Button animate onClick={onChoose} disabled={picking} size="lg">
           {picking ? (
             <Spinner className="size-4" />
           ) : (

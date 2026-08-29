@@ -152,6 +152,7 @@ export function MiniPlayer({ onClose }: { onClose: () => void }) {
 
         <div className="mt-1 flex items-center gap-1">
           <Button
+            animate
             variant="ghost"
             size="icon"
             className="size-7"
@@ -173,6 +174,7 @@ export function MiniPlayer({ onClose }: { onClose: () => void }) {
             )}
           </Button>
           <Button
+            animate
             variant="ghost"
             size="icon"
             className="size-7"
@@ -213,6 +215,7 @@ export function MiniPlayer({ onClose }: { onClose: () => void }) {
       )}
 
       <Button
+        animate
         variant="ghost"
         size="icon"
         className="size-7 shrink-0 self-start"
