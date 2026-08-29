@@ -5,9 +5,7 @@ import { CoverArt } from '@/components/library/cover-art';
 import { RollingTime } from '@/components/player/rolling-time';
 import {
   Heart,
-  PictureInPicture,
-  Upload,
-  Waves,
+  Sliders,
   PlayPause,
   Queue,
   Repeat,
@@ -26,7 +24,6 @@ import {
   ShuffleModeControl,
   SleepControl,
   SpeedControl,
-  UndoSkipControl,
 } from '@/components/player/transport-extras';
 import { toast } from 'sonner';
 
@@ -38,6 +35,14 @@ import { useSaved } from '@/components/common/saved-context';
 import { useSettings } from '@/components/common/settings-context';
 import { LoudnessMeter } from '@/components/player/loudness-meter';
 import { Slider } from '@/components/ui/slider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatTime } from '@/lib/library-model';
 import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
@@ -49,17 +54,12 @@ export function NowPlayingBar({
   onToggleQueue,
   pipOn,
   onTogglePip,
-  videoOn,
-  onToggleVideo,
 }: {
   queueOpen: boolean;
   onToggleQueue: () => void;
   /** Whether the floating window is open. Absent where the engine has none. */
   pipOn: boolean;
   onTogglePip: () => void;
-  /** Whether the video surface is open. */
-  videoOn: boolean;
-  onToggleVideo: () => void;
 }) {
   const {
     current,
@@ -77,6 +77,10 @@ export function NowPlayingBar({
     toggleMute,
     toggleShuffle,
     cycleRepeat,
+    loop,
+    markLoopPoint,
+    canUndoSkip,
+    undoSkip,
   } = usePlayer();
   const { progress } = usePlayerProgress();
 
@@ -297,53 +301,67 @@ export function NowPlayingBar({
             extra on a podcast, it is the reason people reach for the bar. */}
         <EpisodeControls />
 
-        {/* Hidden on narrow windows rather than wrapped: the bar has a fixed
-            height, and these are the controls somebody can live without. */}
+        {/* Speed and the sleep timer stay on the bar because they *display*
+            their value — "1.5x", "20m" — so hiding them would hide the only
+            evidence that they are on. Everything with a fixed glyph moved into
+            the menu below, where it can carry a word instead. */}
         <div className="hidden items-center gap-1 xl:flex">
-          <UndoSkipControl />
-          <ShuffleModeControl />
-          <LoopControl />
           <SpeedControl />
           <SleepControl />
+          {/* Only while a loop exists. Idle it was a bare "A", which reads as
+              nothing at all; the menu offers it by name instead. */}
+          {loop !== null && <LoopControl />}
         </div>
 
-        <ListenTogether />
-        <CastControl />
+        {/* Everything that used to be a row of unlabelled glyphs.
+            A-B loop, shuffle mode, casting and picture-in-picture are not
+            self-evident as icons, and there were nine of them competing with
+            the scrubber for the same row. A menu costs one click and gives
+            each of them a name. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton label="More player controls">
+              <Sliders />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Playback</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={markLoopPoint}>
+              {loop === null
+                ? 'Repeat a section'
+                : Number.isFinite(loop.end)
+                  ? 'Stop repeating the section'
+                  : 'Set where the section ends'}
+            </DropdownMenuItem>
+            {canUndoSkip && (
+              <DropdownMenuItem onSelect={undoSkip}>
+                Bring back the skipped track
+              </DropdownMenuItem>
+            )}
 
-        {/* Sharing the current track: a card, a link, and each destination
-            saying what it will actually do. `share-card.ts` explains why the
-            three social ones are three different mechanisms. */}
-        <IconButton label="Share this track" onClick={() => setSharing(true)}>
-          <Upload />
-        </IconButton>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>This track</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => setSharing(true)}>
+              Share…
+            </DropdownMenuItem>
+            {pipAvailable() && (
+              <DropdownMenuItem onSelect={onTogglePip}>
+                {pipOn ? 'Close the floating window' : 'Floating window'}
+              </DropdownMenuItem>
+            )}
 
-        {/* Only for a catalogue track. A local file has no video to fetch and
-            a radio stream is not a recording — offering the button for either
-            would be offering something that can only fail. */}
-        {current?.handle && !current.local && !current.episodeId && (
-          <IconButton
-            label={videoOn ? 'Back to the artwork' : 'Watch the video'}
-            active={videoOn}
-            onClick={onToggleVideo}
-          >
-            <Waves />
-          </IconButton>
-        )}
-
-        {/* Only where the engine can actually open one. A button that always
-            fails is worse than no button — the same rule the voice-search
-            microphone follows. */}
-        {pipAvailable() && (
-          <IconButton
-            label={
-              pipOn ? 'Leave picture-in-picture' : 'Open picture-in-picture'
-            }
-            active={pipOn}
-            onClick={onTogglePip}
-          >
-            <PictureInPicture />
-          </IconButton>
-        )}
+            {/* These two keep their own menus and dialogs, so they sit here as
+                themselves rather than as items that would need a second menu
+                nested inside this one. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Send elsewhere</DropdownMenuLabel>
+            <div className="flex items-center gap-1 px-2 py-1.5">
+              <ListenTogether />
+              <CastControl />
+              <ShuffleModeControl />
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <IconButton
           label={queueOpen ? 'Hide queue' : 'Show queue'}
@@ -357,23 +375,48 @@ export function NowPlayingBar({
           <LoudnessMeter className="hidden lg:block" />
         )}
 
-        <IconButton
-          label={muted ? 'Unmute' : 'Mute'}
-          active={muted}
-          onClick={toggleMute}
-        >
-          <Volume level={level} />
-        </IconButton>
+        {/* Volume lives behind the speaker rather than beside it.
+            On the bar it was a 96px track whose unfilled part is `bg-muted` —
+            all but invisible on this background — so at full volume the only
+            thing anyone could see was the white thumb, floating at the right
+            edge like a stray dot with no explanation. Behind the icon it is
+            legible, and the scrubber gets the width back.
 
-        <Slider
-          value={[muted ? 0 : Math.round(volume * 100)]}
-          max={100}
-          step={1}
-          onValueChange={([value]) => setVolume(value / 100)}
-          aria-label="Volume"
-          aria-valuetext={`${muted ? 0 : Math.round(volume * 100)} percent`}
-          className="w-24"
-        />
+            The icon still mutes on click; the menu is the secondary action, so
+            the common case stays one click. */}
+        <div className="flex items-center">
+          <IconButton
+            label={muted ? 'Unmute' : 'Mute'}
+            active={muted}
+            onClick={toggleMute}
+          >
+            <Volume level={level} />
+          </IconButton>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Volume, ${muted ? 0 : Math.round(volume * 100)} percent`}
+                className="h-6 w-2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <span aria-hidden className="text-[10px] leading-none">
+                  ⌃
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 p-3">
+              <Slider
+                value={[muted ? 0 : Math.round(volume * 100)]}
+                max={100}
+                step={1}
+                onValueChange={([value]) => setVolume(value / 100)}
+                aria-label="Volume"
+                aria-valuetext={`${muted ? 0 : Math.round(volume * 100)} percent`}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <ShareDialog track={current} open={sharing} onOpenChange={setSharing} />
     </footer>

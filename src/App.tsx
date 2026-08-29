@@ -127,11 +127,6 @@ const PipPlayer = lazy(() =>
     default: m.PipPlayer,
   })),
 );
-const VideoMode = lazy(() =>
-  import('@/components/player/video-mode').then((m) => ({
-    default: m.VideoMode,
-  })),
-);
 const BigScreen = lazy(() =>
   import('@/components/common/big-screen').then((m) => ({
     default: m.BigScreen,
@@ -206,8 +201,6 @@ function App() {
   const [pip, setPip] = useState(false);
   /** The ten-foot interface, for a television and a remote. */
   const [bigScreen, setBigScreen] = useState(false);
-  /** Watching a catalogue track rather than listening to it. */
-  const [video, setVideo] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
   /**
    * The show whose episodes are open.
@@ -728,8 +721,6 @@ function App() {
           onToggleQueue={() => setQueueOpen((open) => !open)}
           pipOn={pip}
           onTogglePip={() => setPip((on) => !on)}
-          videoOn={video}
-          onToggleVideo={() => setVideo((on) => !on)}
         />
       </div>
 
@@ -747,7 +738,6 @@ function App() {
         {mini && <MiniPlayer onClose={() => setMini(false)} />}
         {pip && <PipPlayer onClose={closePip} />}
         {bigScreen && <BigScreen onClose={() => setBigScreen(false)} />}
-        {video && <VideoMode onClose={() => setVideo(false)} />}
         {onboarding && <Onboarding onDone={() => setOnboarding(false)} />}
       </Suspense>
       {/* Files dropped anywhere on the window. Mounted at the top level
