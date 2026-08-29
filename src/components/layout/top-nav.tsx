@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useSyncExternalStore } from 'react';
 
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import { NAV_ICONS } from '@/components/layout/nav-icons';
 import { useSidebarLayout } from '@/components/common/sidebar-context';
 import { backendAvailable } from '@/lib/convex-client';
 import { isNative } from '@/lib/native';
-import { routeFor, visibleItems } from '@/lib/sidebar';
+import { routeFor, visibleItems, type SidebarItemId } from '@/lib/sidebar';
 import { sidebarKeyFor, type Route } from '@/lib/routes';
 
 /**
@@ -38,6 +38,9 @@ import { sidebarKeyFor, type Route } from '@/lib/routes';
  * that. The rest carry their names in a menu, which is better than fourteen
  * unlabelled glyphs anyway.
  *
+ * Nothing is ever in both places. A menu that repeats the icon beside it is
+ * the same duplication this component was written to remove, one level down.
+ *
  * # Why it is memoised
  *
  * It re-renders only when the route or the arrangement changes, and it sits in
@@ -46,13 +49,57 @@ import { sidebarKeyFor, type Route } from '@/lib/routes';
  */
 
 /**
- * How many destinations get an icon of their own.
+ * How many destinations get an icon of their own, by window width.
  *
- * Five is what fits beside back, forward and a 26rem search field on a laptop
- * without the row becoming a toolbar nobody can read. The rest are one click
- * away rather than absent.
+ * A fixed count was wrong in both directions: five icons plus back, forward, a
+ * 26rem search field and the right-hand group overflow a 900px window, and on a
+ * wide display they left the bar half empty with destinations hidden in a menu
+ * for no reason.
+ *
+ * Read through `matchMedia` rather than a resize handler — the browser
+ * evaluates the query and reports only when the answer changes, so dragging a
+ * window costs two events instead of one per frame.
  */
-const INLINE = 5;
+/**
+ * Destinations the bar already reaches by other means.
+ *
+ * Both are still one control each; neither is here as well. `search` is the
+ * field in the middle of this same bar — focusing it opens the search view and
+ * Ctrl+F reaches it from anywhere, so a magnifier that navigates to search,
+ * beside the box you search in, is two controls for one job. `settings` is the
+ * cog on the right, which is one click rather than the two a menu costs, and
+ * belongs with the things that are about the app rather than about your music.
+ */
+const ELSEWHERE = new Set<SidebarItemId>(['search', 'settings']);
+
+const STEPS = [
+  { query: '(min-width: 1280px)', inline: 6 },
+  { query: '(min-width: 1024px)', inline: 4 },
+] as const;
+
+/** Below the narrowest step. Still enough for home, library and one more. */
+const FEWEST = 3;
+
+function subscribe(onChange: () => void) {
+  const lists = STEPS.map((step) => window.matchMedia(step.query));
+  lists.forEach((list) => list.addEventListener('change', onChange));
+  return () =>
+    lists.forEach((list) => list.removeEventListener('change', onChange));
+}
+
+function getSnapshot() {
+  const step = STEPS.find((entry) => window.matchMedia(entry.query).matches);
+  return step ? step.inline : FEWEST;
+}
+
+/**
+ * No viewport to measure before the window exists, so assume the widest case:
+ * the alternative is rendering three icons and then adding three more, a
+ * visible jump in the chrome on every load.
+ */
+function getServerSnapshot() {
+  return STEPS[0].inline;
+}
 
 export const TopNav = memo(function TopNav({
   route,
@@ -66,15 +113,20 @@ export const TopNav = memo(function TopNav({
   // and the arrangement is seeded synchronously from a mirror, so the wait
   // would buy a flicker-free frame that is already flicker-free.
   const { layout } = useSidebarLayout();
+  const inlineCount = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   const items = visibleItems(layout, {
     native: isNative(),
     backend: backendAvailable,
-  });
+  }).filter((item) => !ELSEWHERE.has(item.id));
   const active = sidebarKeyFor(route);
 
-  const inline = items.slice(0, INLINE);
-  const rest = items.slice(INLINE);
+  const inline = items.slice(0, inlineCount);
+  const rest = items.slice(inlineCount);
 
   return (
     <nav aria-label="Destinations" className="flex items-center gap-0.5">
@@ -86,6 +138,9 @@ export const TopNav = memo(function TopNav({
               <IconButton
                 label={item.label}
                 size="sm"
+                // The tooltip below is the label. Leaving the native one on as
+                // well shows both, a second apart, saying the same word.
+                title={undefined}
                 // `current`, not `active`: this is a destination you have
                 // arrived at, which a screen reader announces as the current
                 // page rather than as a pressed toggle.
@@ -120,6 +175,10 @@ export const TopNav = memo(function TopNav({
                 <DropdownMenuItem
                   key={item.id}
                   onSelect={() => onOpen(routeFor(item.id))}
+                  // Announced as the current page here too. The menu is the
+                  // only way to reach these, so it is the only place that can
+                  // say you are already on one.
+                  aria-current={active === item.id ? 'page' : undefined}
                   className="gap-2"
                 >
                   <Icon className="size-4 shrink-0" />

@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Command,
   Mic,
-  Plus,
   Search,
   Settings,
   X,
@@ -246,12 +245,19 @@ export function TopBar({
         data-tauri-drag-region
         className="flex h-full items-center justify-end gap-0.5 self-stretch"
       >
-        <IconButton label="Create playlist" size="sm">
-          <Plus />
-        </IconButton>
+        {/* No "create playlist" here. It had no handler at all — a button that
+            looked like the primary action and did nothing — and the library
+            panel already carries a working, *labelled* one, which is the right
+            place for it: creating a playlist is what that panel is for. */}
         <IconButton label="Command palette" size="sm" onClick={onCommand}>
           <Command />
         </IconButton>
+
+        {/* Settings stays here rather than in the destinations menu, and the
+            menu leaves it out — one control either way, but this one is a
+            single click and sits with the other things that are about the app
+            rather than about your music. `top-nav.tsx` names it as one of the
+            ids the bar already owns. */}
         <IconButton
           label="Settings"
           size="sm"

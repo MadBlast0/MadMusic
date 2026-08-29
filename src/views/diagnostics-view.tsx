@@ -121,7 +121,12 @@ export function DiagnosticsView() {
           title="Diagnostics"
           subtitle="Everything here is safe to paste in public. No paths from your library, no track names, no account details."
           action={
-            <Button variant="ghost" size="sm" onClick={() => void load()}>
+            <Button
+              animate
+              variant="ghost"
+              size="sm"
+              onClick={() => void load()}
+            >
               <Refresh className="size-4" />
               Refresh
             </Button>
@@ -249,12 +254,12 @@ export function DiagnosticsView() {
               {copied ? 'Copied' : 'Copy'}
             </Button>
             <Button
+              animate
               variant="ghost"
               size="sm"
               onClick={() =>
                 void tryInvoke('diagnostics_open_folder', undefined, null)
               }
-              animate
             >
               <FolderOpen className="size-4" />
               Open the data folder

@@ -64,13 +64,17 @@ export function IconButton({
   // Motion's own props rather than the DOM's: `m.button` types `onDrag` as a
   // pan handler, which a plain `ComponentProps<'button'>` contradicts.
   HTMLMotionProps<'button'>,
-  'onClick' | 'ref' | 'className' | 'children' | 'disabled' | 'title'
+  'onClick' | 'ref' | 'className' | 'children' | 'disabled'
 >) {
   return (
     <m.button
       ref={ref}
       type="button"
       aria-label={label}
+      // The native tooltip, by default: most of these are unlabelled glyphs
+      // and a slow ugly tooltip beats none. `title` stays overridable — pass
+      // `title={undefined}` when a real tooltip already covers the button, or
+      // both appear, one a second after the other, saying the same thing.
       title={label}
       aria-pressed={active || undefined}
       aria-current={current ? 'page' : undefined}
