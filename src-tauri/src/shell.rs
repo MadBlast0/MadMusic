@@ -152,6 +152,12 @@ fn set_media_keys<R: Runtime>(app: &AppHandle<R>, enabled: bool) {
 // Tray
 // ---------------------------------------------------------------------------
 
+/// The id the tray icon is registered under.
+///
+/// Named once because it is also how [`apply_shell_prefs`] asks the OS whether
+/// an icon already exists, and the two must not drift.
+const TRAY_ID: &str = "madmusic";
+
 /// The tray, and the menu item that shows what is playing.
 ///
 /// Returned together because the caller has to keep both: the icon so it stays
@@ -174,7 +180,7 @@ fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<BuiltTray<R>> {
         &[&now_playing, &play_pause, &next, &previous, &show, &quit],
     )?;
 
-    let tray = TrayIconBuilder::with_id("madmusic")
+    let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().cloned().ok_or_else(|| {
             tauri::Error::Anyhow(anyhow_msg(
                 "this build has no window icon to use in the tray",
@@ -289,7 +295,18 @@ pub async fn apply_shell_prefs(
         // Built *before* the lock is taken, so the lock covers assignment and
         // nothing else. Creating a tray while holding a lock a worker might
         // want is the shape of the deadlock this replaces.
-        let built = if prefs.minimise_to_tray {
+        //
+        // `tray_by_id` is the guard, and it has to be this rather than
+        // `state.tray.is_none()` for the same reason: reading our own state
+        // needs the lock, and taking it here is what deadlocked.
+        //
+        // Without the guard this built a second icon on *every* settings
+        // change and then dropped it unread, because the assignment below only
+        // stores one when none exists. Two `TrayIcon`s registered under the
+        // same id existed at once for as long as that took, and Windows was
+        // left showing both — one live, one that answers nothing. Asking the
+        // OS what it already has costs nothing and cannot drift from it.
+        let built = if prefs.minimise_to_tray && handle.tray_by_id(TRAY_ID).is_none() {
             match build_tray(&handle) {
                 Ok(pair) => Some(pair),
                 Err(err) => {
