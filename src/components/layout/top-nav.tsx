@@ -17,7 +17,7 @@ import { NAV_ICONS } from '@/components/layout/nav-icons';
 import { useSidebarLayout } from '@/components/common/sidebar-context';
 import { backendAvailable } from '@/lib/convex-client';
 import { isNative } from '@/lib/native';
-import { routeFor, visibleItems, type SidebarItemId } from '@/lib/sidebar';
+import { BAR_EXCLUDES, routeFor, visibleItems } from '@/lib/sidebar';
 import { sidebarKeyFor, type Route } from '@/lib/routes';
 
 /**
@@ -60,32 +60,6 @@ import { sidebarKeyFor, type Route } from '@/lib/routes';
  * evaluates the query and reports only when the answer changes, so dragging a
  * window costs two events instead of one per frame.
  */
-/**
- * Destinations the bar deliberately leaves out.
- *
- * Each is still reachable by exactly one control — just not this one.
- *
- * `search` is the field in the middle of this same bar. Focusing it opens the
- * search view and Ctrl+F reaches it from anywhere, so a magnifier that
- * navigates to search, beside the box you search in, is two controls for one
- * job.
- *
- * `settings` is the cog on the right, which is one click rather than the two a
- * menu costs, and belongs with the things that are about the app rather than
- * about your music.
- *
- * `liked` and `history` are in the library panel, where they already sit among
- * the playlists — which is what they are, lists of tracks. Putting them in the
- * chrome as well made the two most list-like destinations the ones that looked
- * least like the lists beside them.
- */
-const ELSEWHERE = new Set<SidebarItemId>([
-  'search',
-  'settings',
-  'liked',
-  'history',
-]);
-
 const STEPS = [
   { query: '(min-width: 1280px)', inline: 6 },
   { query: '(min-width: 1024px)', inline: 4 },
@@ -136,7 +110,7 @@ export const TopNav = memo(function TopNav({
   const items = visibleItems(layout, {
     native: isNative(),
     backend: backendAvailable,
-  }).filter((item) => !ELSEWHERE.has(item.id));
+  }).filter((item) => !BAR_EXCLUDES.has(item.id));
   const active = sidebarKeyFor(route);
 
   const inline = items.slice(0, inlineCount);

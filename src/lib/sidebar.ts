@@ -192,6 +192,29 @@ export const DEFAULT_LAYOUT: SidebarLayout = {
   hidden: ['podcasts', 'radio', 'statistics', 'feed', 'uploads'],
 };
 
+/**
+ * Destinations the top bar reaches by some other control.
+ *
+ * Each is still exactly one control; none of them is a nav icon as well.
+ *
+ * - `search` is the field in the middle of the bar.
+ * - `browse` is that same field's empty state, opened by the button inside it.
+ * - `settings` is the cog on the right, one click rather than a menu's two.
+ * - `liked` and `history` are in the library panel, among the playlists, which
+ *   is what they are.
+ *
+ * It lives here rather than in the bar because the settings screen has to agree
+ * with it: a panel offering to reorder a destination that can never appear is a
+ * control that does nothing, which is the failure that panel exists to avoid.
+ */
+export const BAR_EXCLUDES = new Set<SidebarItemId>([
+  'search',
+  'browse',
+  'settings',
+  'liked',
+  'history',
+]);
+
 /** What the sidebar should actually render, given the environment. */
 export function visibleItems(
   layout: SidebarLayout,

@@ -19,6 +19,98 @@ afterEach(() => {
   document.documentElement.className = '';
 });
 
+describe('browsing and searching on one screen', () => {
+  /**
+   * Browse is the empty state of the search field, not a separate destination.
+   *
+   * The behaviour worth protecting is the *switch*: with nothing typed the
+   * screen enumerates the library, and the moment a query exists it becomes
+   * results. Getting that backwards — or leaving both on screen — is the whole
+   * failure mode of merging the two pages, and it is invisible to a type
+   * checker.
+   */
+
+  it('offers browse from inside the search field', () => {
+    renderWithProviders(<App />);
+
+    // Inside the field rather than beside it: browsing is what searching does
+    // before you type, so the control belongs to the control it modifies.
+    const browse = within(topBar()).getByRole('button', { name: /browse/i });
+    expect(browse).toBeInTheDocument();
+  });
+
+  it('hides the browse control once there is something to clear', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    await user.type(searchField(), 'violet');
+
+    // Both would sit in the same corner, and browsing is not what you are
+    // doing once you have typed.
+    expect(
+      within(topBar()).queryByRole('button', { name: /browse/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(topBar()).getByRole('button', { name: /clear search/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('returns to browse when the query is cleared', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    await user.type(searchField(), 'violet');
+    await user.click(
+      within(topBar()).getByRole('button', { name: /clear search/i }),
+    );
+
+    // Back to the empty state, which is the browse page — not an empty results
+    // screen saying nothing matched a query that is no longer there.
+    expect(searchField()).toHaveValue('');
+    expect(
+      within(topBar()).getByRole('button', { name: /browse/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('filters results by kind, and keeps a way back to all of them', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    await user.type(searchField(), 'violet');
+
+    const filters = await screen.findByRole('group', {
+      name: /filter results/i,
+    });
+    const all = within(filters).getByRole('button', { name: 'All' });
+    const songs = within(filters).getByRole('button', { name: 'Songs' });
+
+    // `aria-pressed`, not `aria-selected`: these hide sections of one page
+    // rather than switching between four places with their own history.
+    expect(all).toHaveAttribute('aria-pressed', 'true');
+
+    // A track section, so the assertions below are about results going away
+    // and coming back rather than about the buttons' own styling. Checking
+    // only `aria-pressed` would pass against a filter that filters nothing —
+    // it did, when this was first written.
+    const songSection = () =>
+      screen.queryByRole('heading', { name: 'From the catalogue' });
+    expect(songSection()).toBeInTheDocument();
+
+    const artists = within(filters).getByRole('button', { name: 'Artists' });
+    await user.click(artists);
+    expect(artists).toHaveAttribute('aria-pressed', 'true');
+    expect(all).toHaveAttribute('aria-pressed', 'false');
+    expect(songSection()).not.toBeInTheDocument();
+
+    await user.click(songs);
+    expect(songSection()).toBeInTheDocument();
+
+    await user.click(all);
+    expect(all).toHaveAttribute('aria-pressed', 'true');
+    expect(songSection()).toBeInTheDocument();
+  });
+});
+
 describe('App shell', () => {
   it('puts navigation, search and window chrome on one bar', () => {
     renderWithProviders(<App />);

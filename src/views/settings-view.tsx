@@ -65,7 +65,7 @@ import { ViewShell, ViewTitle } from '@/views/view-shell';
 import { useSidebarLayout } from '@/components/common/sidebar-context';
 import { Grip } from '@/components/icons';
 import { backendAvailable } from '@/lib/convex-client';
-import { SIDEBAR_ITEMS, move, toggleHidden } from '@/lib/sidebar';
+import { BAR_EXCLUDES, SIDEBAR_ITEMS, move, toggleHidden } from '@/lib/sidebar';
 /**
  * The eight panels that live in `settings-extra`.
  *
@@ -1684,12 +1684,16 @@ export function SidebarSettings() {
     .map((id) => SIDEBAR_ITEMS.find((item) => item.id === id))
     .filter(
       (item): item is (typeof SIDEBAR_ITEMS)[number] => item !== undefined,
-    );
+    )
+    // Only what the bar can actually show. Search, browse, settings, liked
+    // songs and recently played each have their own control elsewhere, and
+    // offering to reorder one of those would be a row that does nothing.
+    .filter((item) => !BAR_EXCLUDES.has(item.id));
 
   return (
     <Group
-      title="Sidebar"
-      description="The destinations down the left. Hide what you never open; move what you open most to the top."
+      title="Navigation"
+      description="The destinations in the top bar. Hide what you never open; move what you open most to the front — the first few get an icon and the rest go in the menu."
     >
       {!ready ? (
         <div className="px-4 py-6 text-sm text-muted-foreground">

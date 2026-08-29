@@ -12,7 +12,7 @@ import { TrackList } from '@/components/library/track-list';
 import { useLibrary } from '@/components/library/library-context';
 import { useSettings } from '@/components/common/settings-context';
 import { useDebounced } from '@/hooks/use-debounced';
-import { Search, Sparkle } from '@/components/icons';
+import { Search } from '@/components/icons';
 import { usePlayer } from '@/components/player/player-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -38,6 +38,8 @@ import type { Route } from '@/lib/routes';
 import { cardTransition } from '@/lib/motion';
 import { m } from 'motion/react';
 import { ViewShell } from '@/views/view-shell';
+import { BrowseView } from '@/views/browse-view';
+import { cn } from '@/lib/utils';
 import { Pager } from '@/components/common/pager';
 import { pageOf } from '@/lib/paging';
 
@@ -54,13 +56,43 @@ import { pageOf } from '@/lib/paging';
  * relevance signal worth trusting, grouping by kind is more useful than a
  * single ranked list pretending to know which the user meant.
  */
+/**
+ * Which kind of result the screen is showing.
+ *
+ * # Why search and browse are one screen
+ *
+ * They answer the same question at different levels of certainty. Browse is
+ * what you want when you cannot name the thing yet; search is what you want
+ * when you can. Making them two destinations meant deciding *before you
+ * started typing* which of the two you were doing, and the answer is usually
+ * "I will know when I see it".
+ *
+ * So the field is the whole interface: focus it and you get the library laid
+ * out by genre, decade and tempo; type and that becomes results. This is what
+ * Spotify settled on after shipping Browse as its own tab for years, and what
+ * Apple Music does with its search chips — the empty state of a search field is
+ * the most valuable screen in a music app, and leaving it blank wastes it.
+ *
+ * # Why the scopes are a filter and not tabs
+ *
+ * Tabs would claim each kind is a separate place with its own history. These
+ * only ever hide sections of one page, so nothing is behind them that was not
+ * already on screen, and "All" is never more than one click away.
+ */
+type Scope = 'all' | 'songs' | 'albums' | 'artists';
+
+const SCOPES: { id: Scope; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'songs', label: 'Songs' },
+  { id: 'albums', label: 'Albums' },
+  { id: 'artists', label: 'Artists' },
+];
+
 export function SearchView({
   query,
-  onQueryChange,
   onOpen,
 }: {
   query: string;
-  onQueryChange: (value: string) => void;
   onOpen: (route: Route) => void;
 }) {
   const { root } = useLibrary();
@@ -77,6 +109,7 @@ export function SearchView({
    * a screen that says "3 results" above nothing at all.
    */
   const [paging, setPaging] = useState({ query: '', page: 1 });
+  const [scope, setScope] = useState<Scope>('all');
   // Keyed by the query it answers, so a stale result can never be shown
   // against a newer query and no effect has to null it out on the way through.
   const [answer, setAnswer] = useState<{
@@ -224,13 +257,13 @@ export function SearchView({
     })();
   }
 
-  if (!searching) {
-    return (
-      <ViewShell density="search">
-        <Browse onPick={onQueryChange} />
-      </ViewShell>
-    );
-  }
+  // Nothing typed yet: this *is* the browse page. See the note on `Scope`
+  // below for why the two are one screen rather than two destinations.
+  if (!searching) return <BrowseView />;
+
+  const showSongs = scope === 'all' || scope === 'songs';
+  const showAlbums = scope === 'all' || scope === 'albums';
+  const showArtists = scope === 'all' || scope === 'artists';
 
   const page = paging.query === deferred ? paging.page : 1;
   const shown = pageOf(catalogueResults.length, settings.paging, page);
@@ -256,6 +289,34 @@ export function SearchView({
               Reading this as: {describeQuery(parsed)}
             </p>
           )}
+
+          {/* A group, so a screen reader announces "Songs, 2 of 4" rather than
+              four unrelated buttons, and arrow keys are not needed to use it.
+              `aria-pressed` because these are toggles over one page, not links
+              to four different ones. */}
+          <div
+            role="group"
+            aria-label="Filter results"
+            className="mt-3 flex flex-wrap gap-2"
+          >
+            {SCOPES.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                aria-pressed={scope === entry.id}
+                onClick={() => setScope(entry.id)}
+                className={cn(
+                  'rounded-full border px-3.5 py-1 text-xs font-medium transition-colors duration-fast',
+                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  scope === entry.id
+                    ? 'border-transparent bg-primary text-primary-foreground'
+                    : 'border-border bg-card hover:bg-accent/40',
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {nothingAnywhere && (
@@ -267,7 +328,8 @@ export function SearchView({
 
         {results === null && <ResultSkeleton />}
 
-        {!settings.offlineOnly &&
+        {showArtists &&
+          !settings.offlineOnly &&
           found !== null &&
           found.artists.length > 0 && (
             <Shelf title="Artists">
@@ -289,7 +351,7 @@ export function SearchView({
             </Shelf>
           )}
 
-        {found !== null && found.albums.length > 0 && (
+        {showAlbums && found !== null && found.albums.length > 0 && (
           <Shelf title="Albums">
             <Stagger count={found.albums.length}>
               {found.albums.map((album) => (
@@ -306,7 +368,7 @@ export function SearchView({
           </Shelf>
         )}
 
-        {catalogueResults.length > 0 && (
+        {showSongs && catalogueResults.length > 0 && (
           <Shelf title="From the catalogue">
             {/* Paged rather than hard-capped at sixteen, which is what this was.
                 A cap is a silent refusal: the count above says "312 results"
@@ -339,7 +401,7 @@ export function SearchView({
           </Shelf>
         )}
 
-        {localArtists.length > 0 && (
+        {showArtists && localArtists.length > 0 && (
           <section>
             <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
               Artists on this machine
@@ -371,7 +433,7 @@ export function SearchView({
           </section>
         )}
 
-        {localAlbums.length > 0 && (
+        {showAlbums && localAlbums.length > 0 && (
           <section>
             <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
               Albums on this machine
@@ -404,7 +466,7 @@ export function SearchView({
           </section>
         )}
 
-        {localAsLocal.length > 0 && (
+        {showSongs && localAsLocal.length > 0 && (
           <section>
             <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
               Songs on this machine
@@ -417,7 +479,7 @@ export function SearchView({
             mixed in, because "this song contains that line" is a different
             claim from "this song is called that" and a reader deserves to
             know which one they are looking at. */}
-        {lyricMatches.length > 0 && (
+        {showSongs && lyricMatches.length > 0 && (
           <section>
             <h2 className="mb-1 font-display text-xl font-semibold tracking-tight">
               Found in lyrics
@@ -430,51 +492,6 @@ export function SearchView({
         )}
       </div>
     </ViewShell>
-  );
-}
-
-/** What the screen shows before anything has been typed. */
-const SUGGESTIONS = [
-  'Violet Static',
-  'Afterglow',
-  'Hollow Coast',
-  'Late night',
-  'Analog Heart',
-  'Marrow',
-];
-
-function Browse({ onPick }: { onPick: (value: string) => void }) {
-  return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Search
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Songs and artists from the catalogue, plus anything in your own
-          folder.
-        </p>
-      </div>
-
-      <section>
-        <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          <Sparkle className="size-3.5" />
-          Try
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTIONS.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => onPick(suggestion)}
-              className="rounded-full border border-border bg-card px-4 py-2 text-sm transition-colors duration-fast hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      </section>
-    </div>
   );
 }
 

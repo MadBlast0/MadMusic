@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Command,
+  Disc,
   Mic,
   Search,
   Settings,
@@ -51,6 +52,7 @@ export function TopBar({
   view,
   query,
   onQueryChange,
+  onBrowse,
   onNavigate,
   route,
   onOpenRoute,
@@ -68,6 +70,8 @@ export function TopBar({
   onOpenRoute: (route: Route) => void;
   query: string;
   onQueryChange: (value: string) => void;
+  /** Clears the query and shows the browse page, which is search with no query. */
+  onBrowse: () => void;
   onNavigate: (view: Tab) => void;
   onSubmit: () => void;
   onCommand: () => void;
@@ -165,8 +169,27 @@ export function TopBar({
           }}
           aria-label="Search music"
           placeholder="What do you want to play?"
-          className="h-full w-full rounded-full bg-transparent pr-16 pl-8 text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+          className="h-full w-full rounded-full bg-transparent pr-28 pl-8 text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
         />
+        {/* Browse lives in the field because browsing *is* the empty state of
+            searching — the search view with nothing typed is the browse page.
+            Labelled rather than a bare glyph: it is the one control here that
+            goes somewhere, and a disc icon alone reads as "album", not
+            "browse everything".
+
+            Hidden once there is a query, where the clear button takes the
+            space and browsing is not what you are doing. */}
+        {!query && (
+          <button
+            type="button"
+            onClick={onBrowse}
+            className="absolute right-16 flex h-6 items-center gap-1.5 rounded-full pr-2 pl-1.5 text-xs font-medium text-muted-foreground transition-colors duration-fast hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <Disc className="size-3.5" />
+            Browse
+          </button>
+        )}
+
         {/* Only where the engine exists. A microphone button that always
             fails is worse than no button. */}
         {voiceSearchAvailable() && !query && (

@@ -79,9 +79,6 @@ const DiagnosticsView = lazy(() =>
 const DownloadsView = lazy(() =>
   import('@/views/downloads-view').then((m) => ({ default: m.DownloadsView })),
 );
-const BrowseView = lazy(() =>
-  import('@/views/browse-view').then((m) => ({ default: m.BrowseView })),
-);
 const SmartPlaylistsView = lazy(() =>
   import('@/views/smart-playlists-view').then((m) => ({
     default: m.SmartPlaylistsView,
@@ -507,6 +504,10 @@ function App() {
           onOpenRoute={go}
           query={query}
           onQueryChange={setQuery}
+          onBrowse={() => {
+            setQuery('');
+            navigate('search');
+          }}
           onNavigate={navigate}
           onSubmit={() => navigate('search')}
           onCommand={() => setPaletteOpen(true)}
@@ -622,12 +623,11 @@ function App() {
                     {route.name === 'home' && (
                       <HomeView onBrowse={navigate} onOpen={go} />
                     )}
-                    {route.name === 'search' && (
-                      <SearchView
-                        query={query}
-                        onQueryChange={setQuery}
-                        onOpen={go}
-                      />
+                    {/* One screen for both. `browse` stays a route so existing
+                        links keep working, and it lands on the same view —
+                        which with nothing typed *is* the browse page. */}
+                    {(route.name === 'search' || route.name === 'browse') && (
+                      <SearchView query={query} onOpen={go} />
                     )}
                     {(route.name === 'library' ||
                       route.name === 'local-album' ||
@@ -668,7 +668,7 @@ function App() {
                     {route.name === 'diagnostics' && <DiagnosticsView />}
                     {route.name === 'legal' && <LegalView />}
                     {route.name === 'smart' && <SmartPlaylistsView />}
-                    {route.name === 'browse' && <BrowseView />}
+
                     {route.name === 'feed' && (
                       <FeedView
                         onOpenProfile={(handle) =>
