@@ -5,7 +5,7 @@
  *
  * `VITE_CONVEX_URL` is optional. Without it there is no backend, and the app is
  * exactly what it was before one existed: a local library, local playlists,
- * local history, no sync and no social half. That is not a degraded mode — it
+ * local history, no sync and no devices. That is not a degraded mode — it
  * is the mode `docs/roadmap.md` designed for, and the social features are the
  * addition rather than the baseline.
  *

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import { PlaylistSharing } from '@/components/common/playlist-sharing';
 import { toast } from 'sonner';
 
 import { PlaylistTrackList } from '@/components/library/playlist-track-list';
@@ -399,7 +398,6 @@ export function PlaylistView({
       )}
       {/* Last on the page: sharing is something you do once, and the track
           list is what the page is for. Renders nothing without a backend. */}
-      <PlaylistSharing playlist={playlist} />
     </DetailShell>
   );
 }

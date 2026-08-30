@@ -33,12 +33,27 @@ import {
 import { FolderManager } from '@/components/library/folder-manager';
 import { ImportPreview } from '@/components/common/import-preview';
 import { isNative } from '@/lib/native';
-import { useAccount } from '@/components/auth/auth-context';
+import {
+  useAccount,
+  type AccountSecurity,
+} from '@/components/auth/auth-context';
 import { useEssence } from '@/components/common/theme-context';
 import { useOffline } from '@/components/common/offline-context';
 import { useSaved } from '@/components/common/saved-context';
 import { useSettings } from '@/components/common/settings-context';
 import { useLibrary } from '@/components/library/library-context';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Slider } from '@/components/ui/slider';
@@ -361,10 +376,21 @@ function Choice<T extends string>({
 /**
  * Identity, and an honest account of what it is worth.
  *
- * The temptation with an auth screen is to imply more than it does. Signing in
- * here buys cross-device sync and nothing else: there is no MadMusic server, so
- * no entitlement, no quota and no private data live behind this. Saying that
- * plainly costs a paragraph and prevents a whole category of wrong assumption.
+ * The temptation with an auth screen is to imply more than it does — and for a
+ * long time this panel had the opposite problem, insisting there was no server
+ * at all. There is one now (`convex/schema.ts`), so the claims below are the
+ * current ones: signing in gets you sync across your machines and control of
+ * playback between your devices, and it still gets you no entitlement, no
+ * quota and no access to your files.
+ *
+ * # Why so much is read-only
+ *
+ * Everything under Security, and every address and connection, is *shown* here
+ * and *changed* in Clerk's own profile flow. Changing an email or turning on a
+ * second factor means re-verifying identity, and rebuilding those flows badly
+ * is the classic way to put a hole in an account system. So this panel is a
+ * status report with one button, and the button opens the thing that does it
+ * properly.
  */
 function AccountSettings() {
   const {
@@ -385,95 +411,282 @@ function AccountSettings() {
       >
         <Row
           label="Sign-in unavailable"
-          hint="No Clerk publishable key is set, so MadMusic runs without accounts. Everything except cross-device sync works exactly the same."
+          hint="No Clerk publishable key is set, so MadMusic runs without accounts. Everything except sync, shared playlists and playback across devices works exactly the same."
           control={null}
         />
       </Group>
     );
   }
 
+  if (loading) {
+    return (
+      <Group title="Account">
+        <Row label="Checking your session…" control={null} />
+      </Group>
+    );
+  }
+
+  if (!signedIn || !account) {
+    return (
+      <Group title="Account">
+        <Row
+          label="Not signed in"
+          hint="Sign in with email or Google. MadMusic works fully without an account — this adds sync between your machines and control of playback across your devices."
+          control={
+            <Button size="sm" onClick={signIn}>
+              Sign in
+            </Button>
+          }
+        />
+      </Group>
+    );
+  }
+
+  const { security } = account;
+
   return (
     <>
       <Group title="Account">
-        {loading ? (
-          <Row label="Checking your session…" control={null} />
-        ) : signedIn ? (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-sm font-semibold">
-                  {account?.imageUrl ? (
-                    <img
-                      decoding="async"
-                      src={account.imageUrl}
-                      alt=""
-                      className="size-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    (account?.name ?? '?').charAt(0).toUpperCase()
-                  )}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {account?.name}
-                  </p>
-                  {account?.email && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {account.email}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={manageAccount}>
-                  Manage
-                </Button>
-                <Button variant="ghost" size="sm" onClick={signOut}>
-                  Sign out
-                </Button>
-              </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-sm font-semibold">
+              {account.imageUrl ? (
+                <img
+                  decoding="async"
+                  src={account.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                account.name.charAt(0).toUpperCase()
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 truncate text-sm font-medium">
+                {account.name}
+                {/*
+                  A label, not a permission. `publicMetadata.role` rides in a
+                  token this machine holds, so it says what the instance thinks
+                  you are and decides nothing — every real check is in Convex.
+                */}
+                {account.role && (
+                  <Badge variant="secondary" className="capitalize">
+                    {account.role}
+                  </Badge>
+                )}
+              </p>
+              {account.username && (
+                <p className="truncate text-xs text-muted-foreground">
+                  @{account.username}
+                </p>
+              )}
+              {account.email && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {account.email}
+                </p>
+              )}
             </div>
-            <Row
-              label="Email, password and connected accounts"
-              hint="Handled by Clerk, including two-factor and revoking Google access."
-              control={
-                <Button variant="outline" size="sm" onClick={manageAccount}>
-                  Open
-                </Button>
-              }
-            />
-          </>
-        ) : (
-          <Row
-            label="Not signed in"
-            hint="Sign in with email or Google. MadMusic works fully without an account — this only adds sync."
-            control={
-              <Button size="sm" onClick={signIn}>
-                Sign in
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={manageAccount}>
+              Manage
+            </Button>
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              Sign out
+            </Button>
+          </div>
+        </div>
+
+        <Row
+          label="Email addresses"
+          hint={
+            account.emails.length === 0
+              ? 'This account signs in without an email address.'
+              : undefined
+          }
+          control={
+            account.emails.length === 0 ? (
+              <Button variant="outline" size="sm" onClick={manageAccount}>
+                Add
               </Button>
+            ) : (
+              <div className="flex flex-col items-end gap-1.5">
+                {account.emails.map((email) => (
+                  <div key={email.id} className="flex items-center gap-2">
+                    <span className="truncate text-sm text-muted-foreground">
+                      {email.address}
+                    </span>
+                    {email.primary && <Badge variant="outline">Primary</Badge>}
+                    {/*
+                      An unverified address is worth saying out loud: it is the
+                      one that will silently fail to receive a sign-in link.
+                    */}
+                    <Badge
+                      variant={email.verified ? 'secondary' : 'destructive'}
+                    >
+                      {email.verified ? 'Verified' : 'Unverified'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        />
+
+        {account.phoneNumbers.length > 0 && (
+          <Row
+            label="Phone"
+            control={
+              <span className="text-sm text-muted-foreground">
+                {account.phoneNumbers.join(', ')}
+              </span>
+            }
+          />
+        )}
+
+        <Row
+          label="Connected accounts"
+          hint="Sign-in providers linked to this account. Revoking one is done in the account manager, so an app bug cannot lock you out of your own login."
+          control={
+            account.connections.length === 0 ? (
+              <span className="text-sm text-muted-foreground">None</span>
+            ) : (
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {account.connections.map((connection) => (
+                  <Badge key={connection.id} variant="outline">
+                    {connection.label}
+                  </Badge>
+                ))}
+              </div>
+            )
+          }
+        />
+
+        {account.createdAt !== null && (
+          <Row
+            label="Account created"
+            control={
+              <span className="text-sm text-muted-foreground">
+                {formatDay(account.createdAt)}
+              </span>
+            }
+          />
+        )}
+        {account.lastSignInAt !== null && (
+          <Row
+            label="Last signed in"
+            hint="From Clerk, so it counts every device — a time you do not recognise is worth investigating."
+            control={
+              <span className="text-sm text-muted-foreground">
+                {formatMoment(account.lastSignInAt)}
+              </span>
+            }
+          />
+        )}
+        {account.legalAcceptedAt !== null && (
+          <Row
+            label="Terms accepted"
+            control={
+              <span className="text-sm text-muted-foreground">
+                {formatDay(account.legalAcceptedAt)}
+              </span>
             }
           />
         )}
       </Group>
 
       <Group
-        title="What signing in does"
-        description="Worth being precise about, because it is less than most apps imply."
+        title="Security"
+        description="Held by Clerk and reported here. Every change goes through the account manager, which re-verifies you first."
       >
         <Row
-          label="Does not sync"
-          hint="Likes, playlists and history stay on this machine. There is no MadMusic server to hold them, so instead of a switch that could never work there is a backup file — see Your data below."
+          label="Password"
+          hint={
+            security.password
+              ? undefined
+              : 'This account signs in by link or provider only, which is a legitimate setup — not a gap to close.'
+          }
+          control={
+            <Badge variant={security.password ? 'secondary' : 'outline'}>
+              {security.password ? 'Set' : 'Not set'}
+            </Badge>
+          }
+        />
+        <Row
+          label="Two-factor authentication"
+          hint={
+            security.twoFactor
+              ? describeFactors(security)
+              : 'Off. Worth turning on if this account holds playlists you would miss.'
+          }
+          control={
+            <div className="flex items-center gap-2">
+              <Badge variant={security.twoFactor ? 'secondary' : 'outline'}>
+                {security.twoFactor ? 'On' : 'Off'}
+              </Badge>
+              {!security.twoFactor && (
+                <Button variant="outline" size="sm" onClick={manageAccount}>
+                  Set up
+                </Button>
+              )}
+            </div>
+          }
+        />
+        <Row
+          label="Passkeys"
+          hint="Sign in with the device you are already holding, instead of a password."
+          control={
+            <div className="flex items-center gap-2">
+              <Badge variant={security.passkeys > 0 ? 'secondary' : 'outline'}>
+                {security.passkeys === 0
+                  ? 'None'
+                  : `${security.passkeys} registered`}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={manageAccount}>
+                {security.passkeys > 0 ? 'Manage' : 'Add'}
+              </Button>
+            </div>
+          }
+        />
+        <Row
+          label="Email, password and connected accounts"
+          hint="The full account manager, including revoking Google access and ending sessions on other devices."
+          control={
+            <Button variant="outline" size="sm" onClick={manageAccount}>
+              Open
+            </Button>
+          }
+        />
+      </Group>
+
+      <Group
+        title="What signing in does"
+        description="Worth being precise about, because it is both more and less than most apps imply."
+      >
+        <Row
+          label="Syncs what you have decided about music"
+          hint="Likes, ratings, playlists and history travel as a journal of changes, not as files. Turn it on or off under People."
           control={null}
         />
         <Row
-          label="Does not gate anything"
-          hint="There is no MadMusic server. Every check runs on your own machine, so signing in unlocks no content and restricts none — the catalogue and your folders behave identically either way."
+          label="Connects your devices"
+          hint="Another installation signed in to the same account appears as a device you can hand playback to, and shows what it is playing."
+          control={null}
+        />
+        <Row
+          label="Makes you findable only if you ask"
+          hint="Signing in creates no public presence. Nobody can search for you, follow you or see a single play until you create a public profile under People."
           control={null}
         />
         <Row
           label="Does not see your files"
           hint="Local folders are read on-device and never leave it. No path, filename or audio is sent anywhere."
+          control={null}
+        />
+        <Row
+          label="Does not gate anything"
+          hint="There is no paid tier and no quota. The catalogue and your folders behave identically signed in or out — signing in adds features, it never removes them."
           control={null}
         />
         {authInstance === 'test' && (
@@ -484,7 +697,128 @@ function AccountSettings() {
           />
         )}
       </Group>
+
+      {/*
+        Absent rather than disabled when the instance forbids self-deletion.
+        A greyed-out "Delete account" invites a support request; nothing at all
+        is the honest rendering of "not something you can do from here".
+      */}
+      {account.canDelete && <DeleteAccount />}
     </>
+  );
+}
+
+/** Which second factors are actually on, for the hint under the badge. */
+function describeFactors(security: AccountSecurity): string {
+  const factors = [
+    security.totp && 'an authenticator app',
+    security.backupCodes && 'backup codes',
+  ].filter(Boolean);
+
+  return factors.length > 0
+    ? `Protected by ${factors.join(' and ')}.`
+    : 'A second factor is active on this account.';
+}
+
+/** A date, in the reader's own locale. */
+function formatDay(millis: number): string {
+  return new Date(millis).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/** A date and time, for things where the hour matters. */
+function formatMoment(millis: number): string {
+  return new Date(millis).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Deleting the account, with the friction that deserves.
+ *
+ * # What this does and does not remove
+ *
+ * It deletes the account at Clerk. With no identity, every Convex row keyed to
+ * it is unreachable: the sync journal, the devices and anything they were
+ * playing. It does **not** touch this machine — the
+ * library, the local playlists and the downloaded audio are all still here,
+ * because they never depended on an account in the first place.
+ *
+ * Saying so is the point of the dialog. Somebody deleting an account to "start
+ * clean" needs to know their music is not what is at stake, and somebody
+ * deleting it to erase themselves needs to know the local database is not
+ * covered — Privacy has the button for that.
+ */
+function DeleteAccount() {
+  const { deleteAccount } = useAccount();
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await deleteAccount();
+      // No navigation and no success toast: the session ends with the account,
+      // so the app re-renders signed out on its own and that *is* the feedback.
+    } catch (error) {
+      toast.error('Could not delete the account', {
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Group
+      title="Danger zone"
+      description="Irreversible, and narrower than it sounds."
+    >
+      <Row
+        label="Delete this account"
+        hint="Removes your account, public profile, follows and anything shared. Your library, playlists and downloads on this machine are untouched — clear those under Privacy."
+        control={
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={busy}>
+                Delete account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Your profile, follows, comments and shared playlists go with
+                  it, and cannot be recovered. Your library, local playlists and
+                  downloads stay on this machine.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep my account</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={busy}
+                  onClick={(event) => {
+                    // The dialog would otherwise close on click, unmounting the
+                    // button mid-request and losing the error if one comes back.
+                    event.preventDefault();
+                    void confirm();
+                  }}
+                >
+                  {busy ? 'Deleting…' : 'Delete account'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        }
+      />
+    </Group>
   );
 }
 

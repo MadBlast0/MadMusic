@@ -7,15 +7,21 @@ import { v } from 'convex/values';
  * # Why there is a backend at all
  *
  * `docs/roadmap.md` ruled out a server, and that rule held for everything the
- * app does alone. It cannot hold for the things that are *about other people*:
- * a follow has two ends, a collaborative playlist has to reconcile two editors,
- * and a listening session that is not shared is just listening. Those features
- * were the deciding factor, and they need somewhere neutral for the data to sit.
+ * app does alone. It cannot hold for the one thing that is about *more than one
+ * machine*: two devices cannot see each other without something in the middle.
+ * Controlling playback on the desktop from a phone is the deciding feature, and
+ * it needs somewhere neutral for the data to sit.
+ *
+ * There was once a social half here too — profiles, follows, an activity feed,
+ * reposts, comments, shared playlists. It was removed rather than deployed: it
+ * had never been asked for, and a social graph is much harder to take out once
+ * it holds real rows than before it holds any.
  *
  * # What lives here and what does not
  *
- * **Here:** identity, the social graph, anything two people can both see, and
- * the sync journal that lets one person's two machines agree.
+ * **Here:** identity, the devices on an account and what they are playing, the
+ * sync journal that lets one person's two machines agree, and listening
+ * sessions.
  *
  * **Not here:** the library. Tracks, play counts, ratings, tags and folder
  * contents stay in SQLite on the machine. That is not squeamishness — it is
@@ -27,215 +33,26 @@ import { v } from 'convex/values';
  *
  * Clerk issues the token; Convex verifies it. `tokenIdentifier` is the subject
  * claim and is the only link between a row here and a person. Nothing stores an
- * email address: the profile carries a handle the user chose, and that is all
- * anybody else ever sees.
+ * email address, and with the profiles gone there is no public identity here at
+ * all — every row belongs to exactly one account and is visible to nobody else.
  */
 export default defineSchema({
   /**
    * One row per signed-in person.
    *
-   * Separate from the profile because a user exists the moment they sign in,
-   * and a profile exists only once they have chosen to be visible. Somebody who
-   * signs in purely to sync their own library never gets a profile row, and so
-   * never appears in a search.
+   * Created on first sign-in, and the anchor every other table hangs off. It
+   * carries no public identity: nothing here is discoverable by anybody else.
    */
   users: defineTable({
     /** Clerk's subject claim. The only identifier that crosses from auth. */
     tokenIdentifier: v.string(),
-    /** Display name from the identity provider, used until a profile exists. */
+    /** Display name from the identity provider. Shown only to its owner. */
     name: v.string(),
     imageUrl: v.string(),
     createdAt: v.number(),
-    /** Last seen, so a "friend activity" list can grey out the dormant. */
+    /** Last seen. Kept for housekeeping, not shown to anybody else. */
     lastSeenAt: v.number(),
   }).index('by_token', ['tokenIdentifier']),
-
-  /**
-   * A public identity: the thing other people can find and follow.
-   *
-   * Creating one is an explicit act. Until then a user is invisible to every
-   * query in this file, which is enforced by those queries reading `profiles`
-   * rather than `users`.
-   */
-  profiles: defineTable({
-    userId: v.id('users'),
-    /** Lowercase, unique, the thing in a share link. */
-    handle: v.string(),
-    displayName: v.string(),
-    bio: v.string(),
-    imageUrl: v.string(),
-    /**
-     * Whether the profile is listed and followable at all.
-     *
-     * A profile can exist and be private: the user wanted a share link for one
-     * playlist without appearing in search results.
-     */
-    discoverable: v.boolean(),
-    /** Whether plays are broadcast to followers as they happen. */
-    shareActivity: v.boolean(),
-    createdAt: v.number(),
-  })
-    .index('by_user', ['userId'])
-    .index('by_handle', ['handle'])
-    // Discoverable-first ordering, so browsing does not have to filter.
-    .index('by_discoverable', ['discoverable', 'createdAt'])
-    .searchIndex('search_profiles', {
-      searchField: 'displayName',
-      filterFields: ['discoverable'],
-    }),
-
-  /**
-   * The social graph.
-   *
-   * One row per direction. Storing the reverse edge as well would make
-   * "followers of" a single index read instead of two, and would double every
-   * write — for a music app's follow counts, two reads is the better trade.
-   */
-  follows: defineTable({
-    followerId: v.id('users'),
-    followingId: v.id('users'),
-    createdAt: v.number(),
-  })
-    .index('by_follower', ['followerId', 'createdAt'])
-    .index('by_following', ['followingId', 'createdAt'])
-    // The uniqueness check before an insert, and the un-follow lookup.
-    .index('by_pair', ['followerId', 'followingId']),
-
-  /**
-   * What people did, for the feed.
-   *
-   * Denormalised on purpose: an entry carries the track's title and artist
-   * rather than a reference. There is nothing to reference — the track lives in
-   * a catalogue this backend has never seen, and a feed that renders only for
-   * people who happen to have the same library is not a feed.
-   */
-  activity: defineTable({
-    userId: v.id('users'),
-    kind: v.union(
-      v.literal('played'),
-      v.literal('liked'),
-      v.literal('reposted'),
-      v.literal('playlisted'),
-      v.literal('followed'),
-    ),
-    /** The catalogue handle, so a reader can play the same thing. */
-    trackHandle: v.string(),
-    title: v.string(),
-    artist: v.string(),
-    artworkUrl: v.string(),
-    /** Set for `playlisted` and `reposted`. */
-    playlistId: v.optional(v.id('sharedPlaylists')),
-    /** Set for `followed`: who was followed. */
-    subjectId: v.optional(v.id('users')),
-    createdAt: v.number(),
-  })
-    .index('by_user', ['userId', 'createdAt'])
-    .index('by_created', ['createdAt']),
-
-  /**
-   * A repost: somebody putting a track in front of their own followers.
-   *
-   * Its own table rather than a kind of activity, because a repost is a
-   * *standing* statement that lives on a profile, while an activity entry is a
-   * moment that scrolls away.
-   */
-  reposts: defineTable({
-    userId: v.id('users'),
-    trackHandle: v.string(),
-    title: v.string(),
-    artist: v.string(),
-    artworkUrl: v.string(),
-    note: v.string(),
-    createdAt: v.number(),
-  })
-    .index('by_user', ['userId', 'createdAt'])
-    .index('by_track', ['trackHandle', 'createdAt'])
-    .index('by_pair', ['userId', 'trackHandle']),
-
-  /**
-   * A comment pinned to a moment in a track.
-   *
-   * The SoundCloud idea, and the only one of these features that changes how
-   * people listen rather than what they listen to. `atSeconds` is the whole
-   * point; a comment with no position is a comment on the wrong website.
-   */
-  comments: defineTable({
-    userId: v.id('users'),
-    trackHandle: v.string(),
-    atSeconds: v.number(),
-    body: v.string(),
-    createdAt: v.number(),
-    /** Set when the author edits, so a reader can tell. */
-    editedAt: v.optional(v.number()),
-  })
-    .index('by_track', ['trackHandle', 'atSeconds'])
-    .index('by_user', ['userId', 'createdAt']),
-
-  /**
-   * A playlist that exists on the server because more than one person touches
-   * it.
-   *
-   * Ordinary playlists never come here. Only two things promote one: making it
-   * collaborative, or sharing it by link. The `localId` field is what ties it
-   * back to the SQLite row on each machine, so a playlist does not become two
-   * playlists the moment it is shared.
-   */
-  sharedPlaylists: defineTable({
-    ownerId: v.id('users'),
-    /** The id this playlist has in every member's local database. */
-    localId: v.string(),
-    name: v.string(),
-    description: v.string(),
-    coverA: v.string(),
-    coverB: v.string(),
-    collaborative: v.boolean(),
-    /** Anybody with the link may read. Editing still needs membership. */
-    linkVisible: v.boolean(),
-    updatedAt: v.number(),
-    createdAt: v.number(),
-  })
-    .index('by_owner', ['ownerId', 'updatedAt'])
-    .index('by_local', ['ownerId', 'localId']),
-
-  /** Who may edit a shared playlist. The owner is not listed; they are implied. */
-  playlistMembers: defineTable({
-    playlistId: v.id('sharedPlaylists'),
-    userId: v.id('users'),
-    role: v.union(v.literal('editor'), v.literal('viewer')),
-    addedAt: v.number(),
-  })
-    .index('by_playlist', ['playlistId'])
-    .index('by_user', ['userId', 'addedAt'])
-    .index('by_pair', ['playlistId', 'userId']),
-
-  /**
-   * The entries of a shared playlist.
-   *
-   * A row per track rather than an array on the playlist, for one reason: two
-   * people adding at the same time. An array is one document and one writer
-   * wins; rows are independent inserts and both land.
-   */
-  playlistItems: defineTable({
-    playlistId: v.id('sharedPlaylists'),
-    trackHandle: v.string(),
-    title: v.string(),
-    artist: v.string(),
-    artworkUrl: v.string(),
-    duration: v.number(),
-    /**
-     * A fractional position.
-     *
-     * Integers would need every later row rewritten on an insert in the middle,
-     * which is both slow and a write conflict waiting to happen. A fraction
-     * between the neighbours is one write, always.
-     */
-    position: v.number(),
-    addedBy: v.id('users'),
-    addedAt: v.number(),
-    note: v.string(),
-  })
-    .index('by_playlist', ['playlistId', 'position'])
-    .index('by_pair', ['playlistId', 'trackHandle']),
 
   /**
    * The sync journal: one row per change a device made.
@@ -251,7 +68,7 @@ export default defineSchema({
   syncEvents: defineTable({
     userId: v.id('users'),
     seq: v.number(),
-    /** `like` | `playlist` | `playlistItem` | `rating` | `play` | `follow` */
+    /** `like` | `playlist` | `playlistItem` | `rating` | `play` */
     entity: v.string(),
     entityId: v.string(),
     op: v.union(v.literal('put'), v.literal('delete')),

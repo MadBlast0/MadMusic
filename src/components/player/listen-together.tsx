@@ -7,7 +7,6 @@ import {
 } from '@/components/player/player-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Users } from '@/components/icons';
-import { backend, type PublicProfile, type Session } from '@/lib/backend-api';
+import { backend, type Session } from '@/lib/backend-api';
 import { backendAvailable } from '@/lib/convex-client';
 import { cn } from '@/lib/utils';
 
@@ -78,11 +77,6 @@ function ListenTogetherPanel() {
     backend.sessions.get,
     sessionId ? { id: sessionId } : 'skip',
   ) as Session | null | undefined;
-
-  const listeners = useQuery(
-    backend.sessions.listeners,
-    sessionId && session?.isHost ? { id: sessionId } : 'skip',
-  ) as PublicProfile[] | undefined;
 
   /**
    * The host publishes.
@@ -253,25 +247,14 @@ function ListenTogetherPanel() {
                   listening.
                 </p>
 
-                {listeners && listeners.length > 0 && (
-                  <ul className="flex flex-wrap gap-1">
-                    {listeners.map((listener) => (
-                      <li key={listener.userId} title={listener.displayName}>
-                        <Avatar className="size-6">
-                          <AvatarImage src={listener.imageUrl} alt="" />
-                          <AvatarFallback className="text-[10px]">
-                            {listener.displayName.slice(0, 1)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {/* A count, not a list of faces. Naming the listeners needed
+                    the public profiles, and those were removed — a session is
+                    now a code you share with people who already know you. */}
               </>
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
-                  Following {session?.host?.displayName ?? 'the host'}.
+                  Following the host.
                 </p>
                 {session && !session.open && (
                   <p className="text-xs text-amber-600 dark:text-amber-500">

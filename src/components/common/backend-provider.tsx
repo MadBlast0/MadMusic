@@ -2,7 +2,6 @@ import { useMemo, type ReactNode } from 'react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { useAuth } from '@clerk/react';
 
-import { ActivityRecorder } from '@/components/common/activity-recorder';
 import { SyncWorkerMount } from '@/components/common/sync-worker-mount';
 import { backendAvailable, convexClient } from '@/lib/convex-client';
 
@@ -49,7 +48,6 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       <SyncWorkerMount />
       {/* Also inside the provider, and for the same reason: it needs the
           client, and mounting it here means it cannot exist without one. */}
-      <ActivityRecorder />
       {children}
     </ConvexProviderWithClerk>
   );

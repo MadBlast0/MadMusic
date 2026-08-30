@@ -372,7 +372,7 @@ function AddShow({ onAdded }: { onAdded: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button animate size="sm">
           <Plus className="size-4" />
           Add a show
         </Button>

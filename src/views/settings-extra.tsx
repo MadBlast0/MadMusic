@@ -835,7 +835,7 @@ function SchemeEditor() {
 /* ═════════════════════════ people ═════════════════════════ */
 
 /**
- * The backend, sync, and the social half.
+ * The backend, sync, and the devices on this account.
  *
  * The first thing this section does is say whether there is a backend at all,
  * because without one every control below it is inert — and a screen full of
@@ -917,18 +917,16 @@ export function PeopleSettings() {
         />
       </Group>
 
-      <Group title="Sharing" description="What other people can see.">
-        <Row
-          label="Share what I play"
-          hint="Publishes plays to your followers. Off by default, and it needs a public profile — without one, nothing is published whatever this says."
-          control={
-            <Switch
-              checked={settings.shareActivity}
-              onCheckedChange={(value) => set('shareActivity', value)}
-            />
-          }
-        />
-      </Group>
+      {/*
+        The profile editor, rather than a local "share what I play" switch.
+
+        That switch used to live here, writing `settings.shareActivity` — a
+        preference nothing read. Publishing is gated by the *profile's*
+        `shareActivity` flag, checked inside `social.record` on the server, so
+        the local one could be on while nothing was published and off while
+        everything was. It is gone, and the real control is one of the two in
+        Visibility below.
+      */}
     </>
   );
 }

@@ -207,8 +207,14 @@ export type Settings = {
   /* ── privacy ────────────────────────────────────────────────── */
   keepHistory: boolean;
   scrobble: boolean;
-  /** Publish plays to followers. Only meaningful with a backend and a profile. */
-  shareActivity: boolean;
+  /*
+    There is deliberately no `shareActivity` here.
+
+    There was, and it did nothing: publishing was gated on the server, and a
+    local mirror of a server-side permission is a control that can disagree
+    with reality in both directions. The whole social half has since been
+    removed, so there is nothing left to publish and nothing left to gate.
+  */
   /** Keep the library in step across devices. */
   syncEnabled: boolean;
 };
@@ -278,7 +284,6 @@ export const DEFAULT_SETTINGS: Settings = {
 
   keepHistory: true,
   scrobble: false,
-  shareActivity: false,
   syncEnabled: false,
 };
 

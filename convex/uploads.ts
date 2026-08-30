@@ -2,15 +2,7 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import {
-  clean,
-  currentUser,
-  ensureUser,
-  LIMITS,
-  profileFor,
-  publicProfile,
-  requireUser,
-} from './lib';
+import { clean, currentUser, ensureUser, LIMITS, requireUser } from './lib';
 
 /**
  * Tracks people upload themselves — the SoundCloud half of the app.
@@ -40,14 +32,6 @@ import {
  * storage as a file host, and that is a bill rather than a feature.
  */
 
-const profileShape = v.object({
-  userId: v.id('users'),
-  handle: v.string(),
-  displayName: v.string(),
-  bio: v.string(),
-  imageUrl: v.string(),
-});
-
 const uploadShape = v.object({
   id: v.id('uploads'),
   title: v.string(),
@@ -67,7 +51,6 @@ const uploadShape = v.object({
   /** Generated per read; never stored. Null when the file has gone. */
   audioUrl: v.union(v.null(), v.string()),
   artworkUrl: v.union(v.null(), v.string()),
-  by: v.union(v.null(), profileShape),
   mine: v.boolean(),
 });
 
@@ -242,8 +225,6 @@ async function describe(
   upload: Doc<'uploads'>,
   viewerId: Id<'users'> | null,
 ) {
-  const profile = await profileFor(ctx, upload.userId);
-
   return {
     id: upload._id,
     title: upload.title,
@@ -264,7 +245,6 @@ async function describe(
     artworkUrl: upload.artworkId
       ? await ctx.storage.getUrl(upload.artworkId)
       : null,
-    by: profile ? publicProfile(profile) : null,
     mine: viewerId !== null && viewerId === upload.userId,
   };
 }
@@ -288,6 +268,32 @@ export const get = query({
 });
 
 /** Somebody's uploads. */
+/**
+ * The caller's own uploads.
+ *
+ * Takes no user id. It used to be reached by asking `profiles.mine` for one and
+ * passing it back in, which was a round trip to learn something the server
+ * already knew from the token — and it stopped working when the profiles half
+ * was removed. Deriving the caller here is both shorter and the rule every
+ * other function in this backend follows.
+ */
+export const mine = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(uploadShape),
+  handler: async (ctx, args) => {
+    const user = await currentUser(ctx);
+    if (!user) return [];
+
+    const rows = await ctx.db
+      .query('uploads')
+      .withIndex('by_user', (q) => q.eq('userId', user._id))
+      .order('desc')
+      .take(Math.min(args.limit ?? 50, 100));
+
+    return await Promise.all(rows.map((row) => describe(ctx, row, user._id)));
+  },
+});
+
 export const byUser = query({
   args: { userId: v.id('users'), limit: v.optional(v.number()) },
   returns: v.array(uploadShape),

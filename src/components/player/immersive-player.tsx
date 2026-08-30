@@ -11,9 +11,7 @@ import { Visualiser } from '@/components/player/visualiser';
 import { VISUALISER_MODES, type VisualiserMode } from '@/lib/visualiser';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAppearance } from '@/components/common/appearance-context';
-import { CommentsPanel } from '@/components/player/comments-panel';
 import { LyricsPanel } from '@/components/player/lyrics-panel';
-import { backendAvailable } from '@/lib/convex-client';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Pause, Play, SkipBack, SkipForward, X } from '@/components/icons';
@@ -45,7 +43,6 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
   const { progress } = usePlayerProgress();
   const { swatch } = useAppearance();
   const [scrubbing, setScrubbing] = useState<number | null>(null);
-  const [side, setSide] = useState<'lyrics' | 'comments'>('lyrics');
   /**
    * Which visualiser is running.
    *
@@ -274,29 +271,10 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
             'hidden min-h-0 flex-1 flex-col rounded-2xl border bg-background/40 backdrop-blur-sm lg:flex',
           )}
         >
-          {/* Only offered where there is a backend. A tab that leads to an
-              explanation of why the feature is absent is worse than no tab. */}
-          {backendAvailable && (
-            <div className="flex shrink-0 gap-1 border-b p-2">
-              {(['lyrics', 'comments'] as const).map((option) => (
-                <Button
-                  key={option}
-                  size="sm"
-                  variant={side === option ? 'secondary' : 'ghost'}
-                  onClick={() => setSide(option)}
-                  className="capitalize"
-                >
-                  {option}
-                </Button>
-              ))}
-            </div>
-          )}
-
-          {side === 'lyrics' || !backendAvailable ? (
-            <LyricsPanel />
-          ) : (
-            <CommentsPanel />
-          )}
+          {/* Lyrics, and only lyrics. This was a two-tab strip until the
+              comments half was removed, and one tab that cannot be switched
+              away from is a control that does nothing. */}
+          <LyricsPanel />
         </section>
       </div>
     </div>

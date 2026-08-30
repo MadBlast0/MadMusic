@@ -277,12 +277,6 @@ export function CommandPalette({
               {backendAvailable && (
                 <>
                   <CommandItem
-                    value="go friend activity feed"
-                    onSelect={() => run(() => onOpen({ name: 'feed' }))}
-                  >
-                    Friend activity
-                  </CommandItem>
-                  <CommandItem
                     value="go uploads"
                     onSelect={() => run(() => onOpen({ name: 'uploads' }))}
                   >

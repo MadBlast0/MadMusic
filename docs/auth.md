@@ -40,18 +40,22 @@ npx clerk config pull       # the full instance configuration
 
 ## What signing in actually buys
 
-Worth stating precisely, because it is less than most apps imply.
+Worth stating precisely, because it is both more and less than most apps imply.
+This section used to say there was no server at all; there is one now — see
+[auth-and-devices.md](auth-and-devices.md) and `convex/schema.ts`.
 
-|              |                                                                                                                                                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Does**     | Establish identity, so playlists and likes can follow you between devices.                                                                                                                                          |
-| **Does not** | Gate anything. There is no MadMusic server — [music-sources.md](music-sources.md) rules one out by name — so every check runs on the user's own machine, in a webview they control, against a bundle they can edit. |
-| **Does not** | See your files. Local folders are read on-device; no path, filename or audio leaves it.                                                                                                                             |
+|              |                                                                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Does**     | Establish identity, which is what lets Convex recognise you — sync between your machines and playback across your devices both follow from it.           |
+| **Does not** | Give you a public presence. Signing in creates a `users` row, not a `profiles` row, and every query that can show you to somebody else reads `profiles`. |
+| **Does not** | Gate anything. There is no paid tier and no quota; the catalogue and your folders behave identically signed in or out.                                   |
+| **Does not** | See your files. Local folders are read on-device; no path, filename or audio leaves it.                                                                  |
 
-**Clerk here is authentication, not authorization.** If a paid tier, a quota or
-a rate limit is ever wanted, the enforcement has to live somewhere the user does
-not control — which today means it cannot exist at all. Do not add a feature
-that assumes otherwise without first adding a server to enforce it.
+**Clerk here is authentication, not authorization.** Nothing checked in the
+webview is a boundary — it is a bundle the user can edit, and `account.role` is
+a label rather than a permission. Authorization lives in `convex/lib.ts`, which
+verifies the token itself and derives the caller from it, never from an
+argument. Do not add a feature whose enforcement lives in the frontend.
 
 ## Before shipping
 

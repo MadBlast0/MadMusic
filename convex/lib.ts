@@ -1,5 +1,5 @@
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Doc } from './_generated/dataModel';
 
 /**
  * The identity checks every other function starts with.
@@ -88,101 +88,6 @@ export async function ensureUser(ctx: MutationCtx): Promise<Doc<'users'>> {
   return created;
 }
 
-/**
- * A profile by user id, or null.
- *
- * Used by every read that shows somebody: the absence of a profile is what
- * "this person has not chosen to be visible" looks like, and returning null is
- * how that stays true rather than becoming a leak.
- */
-export async function profileFor(
-  ctx: QueryCtx,
-  userId: Id<'users'>,
-): Promise<Doc<'profiles'> | null> {
-  return await ctx.db
-    .query('profiles')
-    .withIndex('by_user', (q) => q.eq('userId', userId))
-    .unique();
-}
-
-/** What a reader is shown about somebody else. Never more than this. */
-export type PublicProfile = {
-  userId: Id<'users'>;
-  handle: string;
-  displayName: string;
-  bio: string;
-  imageUrl: string;
-};
-
-/**
- * Reduces a profile to what may be shown.
- *
- * A function rather than a convention, so adding a private field to `profiles`
- * does not silently start publishing it. Anything not listed here does not
- * leave the backend.
- */
-export function publicProfile(profile: Doc<'profiles'>): PublicProfile {
-  return {
-    userId: profile.userId,
-    handle: profile.handle,
-    displayName: profile.displayName,
-    bio: profile.bio,
-    imageUrl: profile.imageUrl,
-  };
-}
-
-/**
- * Whether the caller may edit a shared playlist.
- *
- * The owner always may. Anybody else must be a member with the editor role, and
- * only while the playlist is still marked collaborative — revoking that has to
- * take the ability away immediately, not at the next membership change.
- */
-export async function canEditPlaylist(
-  ctx: QueryCtx,
-  playlist: Doc<'sharedPlaylists'>,
-  userId: Id<'users'>,
-): Promise<boolean> {
-  if (playlist.ownerId === userId) return true;
-  if (!playlist.collaborative) return false;
-
-  const membership = await ctx.db
-    .query('playlistMembers')
-    .withIndex('by_pair', (q) =>
-      q.eq('playlistId', playlist._id).eq('userId', userId),
-    )
-    .unique();
-
-  return membership?.role === 'editor';
-}
-
-/** Whether the caller may read a shared playlist. */
-export async function canReadPlaylist(
-  ctx: QueryCtx,
-  playlist: Doc<'sharedPlaylists'>,
-  userId: Id<'users'> | null,
-): Promise<boolean> {
-  if (playlist.linkVisible) return true;
-  if (!userId) return false;
-  if (playlist.ownerId === userId) return true;
-
-  const membership = await ctx.db
-    .query('playlistMembers')
-    .withIndex('by_pair', (q) =>
-      q.eq('playlistId', playlist._id).eq('userId', userId),
-    )
-    .unique();
-
-  return membership !== null;
-}
-
-/**
- * Trims and caps a piece of text the user typed.
- *
- * Applied to every free-text field before it is stored. Not sanitisation —
- * nothing here is ever rendered as markup — but a bound, because a field with
- * no limit is a field somebody will put a megabyte in.
- */
 export function clean(text: string, max: number): string {
   return text.trim().slice(0, max);
 }

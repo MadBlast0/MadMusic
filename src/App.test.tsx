@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -92,22 +92,26 @@ describe('browsing and searching on one screen', () => {
     // and coming back rather than about the buttons' own styling. Checking
     // only `aria-pressed` would pass against a filter that filters nothing —
     // it did, when this was first written.
+    // Waited for rather than read once: the catalogue search is debounced and
+    // asynchronous, so a synchronous read here passes or fails depending on how
+    // loaded the machine is. This test flaked exactly that way under a full
+    // suite run before the waits were added.
     const songSection = () =>
       screen.queryByRole('heading', { name: 'From the catalogue' });
-    expect(songSection()).toBeInTheDocument();
+    await waitFor(() => expect(songSection()).toBeInTheDocument());
 
     const artists = within(filters).getByRole('button', { name: 'Artists' });
     await user.click(artists);
     expect(artists).toHaveAttribute('aria-pressed', 'true');
     expect(all).toHaveAttribute('aria-pressed', 'false');
-    expect(songSection()).not.toBeInTheDocument();
+    await waitFor(() => expect(songSection()).not.toBeInTheDocument());
 
     await user.click(songs);
-    expect(songSection()).toBeInTheDocument();
+    await waitFor(() => expect(songSection()).toBeInTheDocument());
 
     await user.click(all);
     expect(all).toHaveAttribute('aria-pressed', 'true');
-    expect(songSection()).toBeInTheDocument();
+    await waitFor(() => expect(songSection()).toBeInTheDocument());
   });
 });
 

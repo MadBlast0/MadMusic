@@ -29,7 +29,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Play, Plus, X } from '@/components/icons';
 import { usePlayer } from '@/components/player/player-context';
 import { backend, type Upload } from '@/lib/backend-api';
@@ -101,13 +100,10 @@ function Uploads() {
 
   const quota = useQuery(backend.uploads.quota, {}) as
     { usedBytes: number; limitBytes: number; count: number } | undefined;
-  const profile = useQuery(backend.profiles.mine, {});
-  const mine = useQuery(
-    backend.uploads.byUser,
-    profile
-      ? { userId: (profile as { userId: string }).userId, limit: 100 }
-      : 'skip',
-  ) as Upload[] | undefined;
+  // The server derives the caller from the token, so this asks for "mine"
+  // rather than fetching an id first and handing it back.
+  const mine = useQuery(backend.uploads.mine, { limit: 100 }) as
+    Upload[] | undefined;
 
   const used = quota ? quota.usedBytes / quota.limitBytes : 0;
 
@@ -135,16 +131,6 @@ function Uploads() {
             </p>
           )}
         </div>
-      )}
-
-      {profile === null && (
-        <Alert className="mb-6">
-          <AlertTitle>Uploads are attached to a profile</AlertTitle>
-          <AlertDescription>
-            Anything you make public will be shown under your handle. Create a
-            profile in Settings first if you want people to be able to find it.
-          </AlertDescription>
-        </Alert>
       )}
 
       {mine === undefined ? (
@@ -383,7 +369,12 @@ function UploadDialog({ disabled }: { disabled: boolean }) {
 
   if (!open) {
     return (
-      <Button size="sm" disabled={disabled} onClick={() => setOpen(true)}>
+      <Button
+        animate
+        size="sm"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
         <Plus className="size-4" />
         Upload
       </Button>

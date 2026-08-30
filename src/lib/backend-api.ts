@@ -167,44 +167,6 @@ export type SyncEventWire = {
  * would produce.
  */
 export const backend = {
-  profiles: {
-    mine: anyApi.profiles.mine,
-    byHandle: anyApi.profiles.byHandle,
-    handleAvailable: anyApi.profiles.handleAvailable,
-    save: anyApi.profiles.save,
-    remove: anyApi.profiles.remove,
-    search: anyApi.profiles.search,
-    recent: anyApi.profiles.recent,
-  },
-  social: {
-    toggleFollow: anyApi.social.toggleFollow,
-    followState: anyApi.social.followState,
-    followers: anyApi.social.followers,
-    following: anyApi.social.following,
-    record: anyApi.social.record,
-    feed: anyApi.social.feed,
-    activityFor: anyApi.social.activityFor,
-    toggleRepost: anyApi.social.toggleRepost,
-    repostsBy: anyApi.social.repostsBy,
-    commentsOn: anyApi.social.commentsOn,
-    comment: anyApi.social.comment,
-    editComment: anyApi.social.editComment,
-    deleteComment: anyApi.social.deleteComment,
-  },
-  playlists: {
-    share: anyApi.playlists.share,
-    unshare: anyApi.playlists.unshare,
-    get: anyApi.playlists.get,
-    mine: anyApi.playlists.mine,
-    items: anyApi.playlists.items,
-    addItem: anyApi.playlists.addItem,
-    removeItem: anyApi.playlists.removeItem,
-    moveItem: anyApi.playlists.moveItem,
-    noteItem: anyApi.playlists.noteItem,
-    join: anyApi.playlists.join,
-    leave: anyApi.playlists.leave,
-    members: anyApi.playlists.members,
-  },
   sync: {
     push: anyApi.sync.push,
     pull: anyApi.sync.pull,
@@ -219,7 +181,6 @@ export const backend = {
     join: anyApi.sessions.join,
     leave: anyApi.sessions.leave,
     get: anyApi.sessions.get,
-    listeners: anyApi.sessions.listeners,
     heartbeat: anyApi.sessions.heartbeat,
   },
   desktopAuth: {
@@ -236,6 +197,7 @@ export const backend = {
     consume: anyApi.devices.consume,
   },
   uploads: {
+    mine: anyApi.uploads.mine,
     uploadUrl: anyApi.uploads.uploadUrl,
     publish: anyApi.uploads.publish,
     edit: anyApi.uploads.edit,

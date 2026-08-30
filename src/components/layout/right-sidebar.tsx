@@ -30,11 +30,6 @@ import { cn } from '@/lib/utils';
  * It is remembered per session and no further. A panel that switches itself to
  * Lyrics because the last track had them, and back to Queue because this one
  * does not, is a panel that moves under the reader's hands.
- *
- * # Comments
- *
- * Only with a backend. A tab that always says "sign in to see comments" is a
- * tab that only ever wastes a click.
  */
 const LyricsPanel = lazy(() =>
   import('@/components/player/lyrics-panel').then((m) => ({
@@ -46,13 +41,8 @@ const TranscriptPanel = lazy(() =>
     default: m.TranscriptPanel,
   })),
 );
-const CommentsPanel = lazy(() =>
-  import('@/components/player/comments-panel').then((m) => ({
-    default: m.CommentsPanel,
-  })),
-);
 
-type PanelTab = 'queue' | 'now' | 'lyrics' | 'comments';
+type PanelTab = 'queue' | 'now' | 'lyrics';
 
 /**
  * The tabs, and what the words tab is called.
@@ -69,7 +59,6 @@ function tabsFor(episode: boolean): {
     { id: 'queue', label: 'Queue' },
     { id: 'now', label: 'Now playing' },
     { id: 'lyrics', label: episode ? 'Transcript' : 'Lyrics' },
-    { id: 'comments', label: 'Comments', backend: true },
   ];
 }
 
@@ -177,7 +166,6 @@ export function RightSidebar({
                       separate tabs would mean one of them is always empty. */}
                   {tab === 'lyrics' &&
                     (episode ? <TranscriptPanel /> : <LyricsPanel compact />)}
-                  {tab === 'comments' && <CommentsPanel />}
                 </Suspense>
               </div>
             </div>

@@ -33,7 +33,6 @@ export type SidebarItemId =
   | 'statistics'
   | 'smart'
   | 'browse'
-  | 'feed'
   | 'uploads'
   | 'settings';
 
@@ -134,13 +133,6 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     needsDesktop: false,
   },
   {
-    id: 'feed',
-    label: 'Friend activity',
-    required: false,
-    needsBackend: true,
-    needsDesktop: false,
-  },
-  {
     id: 'uploads',
     label: 'Your uploads',
     required: false,
@@ -185,11 +177,10 @@ export const DEFAULT_LAYOUT: SidebarLayout = {
     'podcasts',
     'radio',
     'statistics',
-    'feed',
     'uploads',
     'settings',
   ],
-  hidden: ['podcasts', 'radio', 'statistics', 'feed', 'uploads'],
+  hidden: ['podcasts', 'radio', 'statistics', 'uploads'],
 };
 
 /**

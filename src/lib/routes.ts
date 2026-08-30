@@ -45,10 +45,6 @@ export type Route =
   | { name: 'podcast'; id: string; title: string }
   /** Internet radio: browse, and one station playing. */
   | { name: 'radio' }
-  /** What the people you follow have been playing. */
-  | { name: 'feed' }
-  /** Somebody's public profile, by handle. */
-  | { name: 'profile'; handle: string }
   /** Your own uploads. */
   | { name: 'uploads' }
   /** A rule-driven playlist. */
@@ -78,8 +74,6 @@ export function routeKey(route: Route): string {
       return `playlist:${route.id}`;
     case 'podcast':
       return `podcast:${route.id}`;
-    case 'profile':
-      return `profile:${route.handle}`;
     case 'smart':
       return `smart:${route.id}`;
     default:
@@ -144,7 +138,6 @@ export function sidebarKeyFor(route: Route): string | null {
     case 'settings':
     case 'downloads':
     case 'statistics':
-    case 'feed':
     case 'uploads':
     case 'radio':
     case 'browse':
@@ -197,16 +190,12 @@ export function routeLabel(route: Route): string {
       return route.artistName || 'Artist';
     case 'podcast':
       return route.title || 'Show';
-    case 'profile':
-      return `@${route.handle}`;
     case 'saved':
       return route.kind === 'liked' ? 'Liked songs' : 'Recently played';
     case 'playlist':
       return 'Playlist';
     case 'smart':
       return 'Smart playlists';
-    case 'feed':
-      return 'Friend activity';
     case 'uploads':
       return 'Your uploads';
     case 'podcasts':

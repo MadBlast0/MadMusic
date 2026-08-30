@@ -1,13 +1,6 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import {
-  clean,
-  currentUser,
-  ensureUser,
-  profileFor,
-  publicProfile,
-  requireUser,
-} from './lib';
+import { clean, currentUser, ensureUser, requireUser } from './lib';
 
 /**
  * Listening together.
@@ -39,14 +32,6 @@ import {
  * session silently stalling for everybody.
  */
 
-const memberShape = v.object({
-  userId: v.id('users'),
-  handle: v.string(),
-  displayName: v.string(),
-  bio: v.string(),
-  imageUrl: v.string(),
-});
-
 const sessionShape = v.object({
   id: v.id('sessions'),
   code: v.string(),
@@ -58,7 +43,6 @@ const sessionShape = v.object({
   playing: v.boolean(),
   open: v.boolean(),
   updatedAt: v.number(),
-  host: v.union(v.null(), memberShape),
   isHost: v.boolean(),
   listeners: v.number(),
 });
@@ -97,13 +81,11 @@ export const start = mutation({
   args: {},
   returns: v.object({ id: v.id('sessions'), code: v.string() }),
   handler: async (ctx) => {
+    // No profile required any more. Hosting used to need a public identity so
+    // followers knew whose session it was; with the profiles half removed there
+    // is no public identity to require, and a session is now a code you share
+    // with people who already know who you are.
     const user = await ensureUser(ctx);
-    const profile = await profileFor(ctx, user._id);
-    if (!profile) {
-      throw new Error(
-        'Hosting a session needs a public profile, so people know whose it is.',
-      );
-    }
 
     // An existing open session is reused rather than replaced. Pressing the
     // button twice should not strand everybody who joined the first one.
@@ -287,7 +269,6 @@ export const get = query({
     const session = await ctx.db.get(args.id);
     if (!session) return null;
 
-    const host = await profileFor(ctx, session.hostId);
     const listeners = await ctx.db
       .query('sessionMembers')
       .withIndex('by_session', (q) => q.eq('sessionId', args.id))
@@ -306,31 +287,9 @@ export const get = query({
       // ended" rather than showing a track frozen at 1:42 forever.
       open: session.open && Date.now() - session.updatedAt < STALE_MS,
       updatedAt: session.updatedAt,
-      host: host ? publicProfile(host) : null,
       isHost: user?._id === session.hostId,
       listeners: listeners.length,
     };
-  },
-});
-
-/** Who is listening, for the host's panel. */
-export const listeners = query({
-  args: { id: v.id('sessions') },
-  returns: v.array(memberShape),
-  handler: async (ctx, args) => {
-    const rows = await ctx.db
-      .query('sessionMembers')
-      .withIndex('by_session', (q) => q.eq('sessionId', args.id))
-      .take(200);
-
-    const profiles = await Promise.all(
-      rows.map((row) => profileFor(ctx, row.userId)),
-    );
-    return profiles
-      .filter(
-        (profile): profile is NonNullable<typeof profile> => profile !== null,
-      )
-      .map(publicProfile);
   },
 });
 

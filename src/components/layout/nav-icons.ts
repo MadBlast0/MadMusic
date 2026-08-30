@@ -12,7 +12,6 @@ import {
   Sparkle,
   StaticClock,
   Upload,
-  Users,
 } from '@/components/icons';
 import type { SidebarItemId } from '@/lib/sidebar';
 
@@ -36,7 +35,6 @@ export const NAV_ICONS: Record<SidebarItemId, typeof Home> = {
   statistics: Chart,
   smart: Sparkle,
   browse: Disc,
-  feed: Users,
   uploads: Upload,
   settings: Settings,
 };

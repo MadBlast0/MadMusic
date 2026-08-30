@@ -84,17 +84,11 @@ const SmartPlaylistsView = lazy(() =>
     default: m.SmartPlaylistsView,
   })),
 );
-const FeedView = lazy(() =>
-  import('@/views/feed-view').then((m) => ({ default: m.FeedView })),
-);
 const PodcastsView = lazy(() =>
   import('@/views/podcasts-view').then((m) => ({ default: m.PodcastsView })),
 );
 const PodcastView = lazy(() =>
   import('@/views/podcasts-view').then((m) => ({ default: m.PodcastView })),
-);
-const ProfileView = lazy(() =>
-  import('@/views/profile-view').then((m) => ({ default: m.ProfileView })),
 );
 const RadioView = lazy(() =>
   import('@/views/radio-view').then((m) => ({ default: m.RadioView })),
@@ -351,9 +345,6 @@ function App() {
             return;
           case 'playlist':
             go({ name: 'playlist', id: target.id });
-            return;
-          case 'profile':
-            go({ name: 'profile', handle: target.id });
             return;
         }
       }
@@ -669,16 +660,6 @@ function App() {
                     {route.name === 'legal' && <LegalView />}
                     {route.name === 'smart' && <SmartPlaylistsView />}
 
-                    {route.name === 'feed' && (
-                      <FeedView
-                        onOpenProfile={(handle) =>
-                          go({ name: 'profile', handle })
-                        }
-                      />
-                    )}
-                    {route.name === 'profile' && (
-                      <ProfileView handle={route.handle} onBack={back} />
-                    )}
                     {/* One component for both, because a show's episode list is the
                     podcasts screen with a detail open — the same arrangement a
                     local album has with the library. */}
