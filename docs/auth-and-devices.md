@@ -10,15 +10,34 @@ arguable rather than implied.
 
 ## Where things stand
 
-| Piece               | State                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Web build           | **Works today.** Same bundle; `isNative()` reads Tauri's injected globals at runtime, `store/web.ts` backs the library with `localStorage`, and every backend screen degrades when there is no Convex. |
-| Clerk               | Configured — development instance, publishable key in `.env.local`.                                                                                                                                    |
-| Convex              | **Written, not deployed.** 349-line schema and eight function files, but no `VITE_CONVEX_URL`, so `backendAvailable` is `false` and none of it runs.                                                   |
-| Server-side secrets | **None.** `.env.local` says so outright: "There is no MadMusic server, so the secret key has nothing to sign or verify."                                                                               |
+| Piece               | State                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web build           | **Works today.** Same bundle; `isNative()` reads Tauri's injected globals at runtime, `store/web.ts` backs the library with `localStorage`, and every backend screen degrades when there is no Convex. Verified: no static `@tauri-apps` import exists anywhere in `src`, and of 68 built chunks only the attributions page names one, as licence text. |
+| Clerk               | Configured — development instance, publishable key in `.env.local`. Sign-in works. The Convex handshake does not yet exist; those are different things, and the section at the end says why.                                                                                                                                                            |
+| Convex              | **Written, compiles, runs under test — not deployed.** No `VITE_CONVEX_URL`, so `backendAvailable` is `false` and none of it runs against a real deployment.                                                                                                                                                                                            |
+| Server-side secrets | **None in this repository, deliberately.** `CLERK_SECRET_KEY` belongs to the Convex deployment's environment.                                                                                                                                                                                                                                           |
 
-That last row is the blocker. Both features below need something holding
-`CLERK_SECRET_KEY`, and Convex is the natural home for it.
+### What is proven, and how
+
+Worth separating, because "the code exists" and "the code works" are not the
+same claim, and this document made the first one for a long time while reading
+like the second.
+
+| Claim                                              | Proven by                                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| The backend compiles against its own schema        | `pnpm typecheck` now covers `convex/`; a bad table, index or field fails            |
+| The 40 function names the app calls resolve        | `src/lib/backend-api.test.ts`                                                       |
+| Devices list, report, command, transfer, isolation | `convex/devices.test.ts` — the real functions, executed                             |
+| The ticket mint refuses and signs correctly        | `convex/desktopAuth.test.ts` — including that it mints only for the verified caller |
+| A ticket arriving before the app is running        | `src-tauri/src/cli.rs` tests — held and drained exactly once                        |
+
+| Still unproven                              | Why it cannot be proven here                                     |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| Two real machines seeing each other         | Needs a server between them. No in-memory harness is a network.  |
+| Clerk's token accepted by Convex            | Needs the JWT template below, and a deployment to verify against |
+| The OAuth round trip through a real browser | Needs the hosted page at `VITE_WEB_ORIGIN`                       |
+
+That last table is the blocker, and every row of it is one deployment away.
 
 ---
 
@@ -201,19 +220,104 @@ is unrelated and already exists: `engine.rs` enumerates outputs and
 
 ## What has to happen outside this repository
 
-These are yours; none can be done from the codebase.
+None of this can be done from the codebase — it is all account and dashboard
+work. About fifteen minutes.
 
-1. **Deploy Convex.** `npx convex dev` — creates the project, writes
-   `VITE_CONVEX_URL` into `.env.local`, and turns `backendAvailable` true.
-   Nothing in section 2 runs until this is done.
-2. **Set the Clerk JWT issuer** so Convex trusts Clerk:
-   `npx convex env set CLERK_JWT_ISSUER_DOMAIN https://<instance>.clerk.accounts.dev`,
-   and create a JWT template named exactly `convex` in the Clerk dashboard.
-3. **Set the Clerk secret key on Convex**, for minting tickets:
-   `npx convex env set CLERK_SECRET_KEY sk_test_…`. It belongs to the
-   deployment's environment and must never enter this repository.
-4. **Allow the desktop origin** in Clerk — `http://tauri.localhost` — or the
-   in-app fallback sign-in keeps failing the way it already does.
-5. **Enable email verification codes** in the Clerk dashboard if you want OTP.
-6. **Host the web build** somewhere the browser can reach for step 1 of the
-   sign-in flow. Any static host serves `dist/`.
+### First, the confusing part: why Clerk needs a JWT template
+
+Clerk already proves who you are **to the app**. That is the sign-in that works
+today, and it is genuinely finished.
+
+It does not prove anything **to Convex**. The app runs on the user's own
+machine, in a webview they control, against a bundle they can edit — so when it
+tells a server "I am this user", the server has no reason to believe it. A
+backend that trusted that claim would let anybody read anybody's data by
+editing one line of JavaScript.
+
+A JWT template is how Clerk hands the app a **signed token** that Convex can
+verify by itself, against Clerk's public keys, without asking the app anything
+at all. Convex then derives the caller's identity from the signature. That is
+why every function in `convex/` reads the user from `ctx.auth` and never from an
+argument, and why `mintTicket` takes no arguments whatsoever.
+
+It must be named exactly `convex`, lower case. That is not a label — it is the
+key the Convex client asks Clerk for by name. A template called `Convex` or
+`convex-jwt` is the same as no template at all.
+
+**Symptom if you skip it:** sign-in appears to work, and then every backend call
+from a signed-in user fails authentication. Devices never appear, and nothing on
+screen says why.
+
+### The steps
+
+1. **Deploy Convex.** `npx convex dev` from the repo root. It creates the
+   project, writes `CONVEX_DEPLOYMENT` and `VITE_CONVEX_URL` into `.env.local`,
+   generates `convex/_generated`, and turns `backendAvailable` true.
+
+   It creates a **new project** under whichever team you choose, and does not
+   touch existing ones.
+
+2. **Create the JWT template.** Clerk dashboard → **Configure** → **JWT
+   Templates** → **New template** → choose the **Convex** preset. Name it
+   exactly `convex`. Save, and copy the **Issuer** URL it shows — it looks like
+   `https://something-here.clerk.accounts.dev`.
+
+3. **Tell Convex which issuer to trust:**
+
+   ```
+   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://something-here.clerk.accounts.dev
+   ```
+
+   This is what `convex/auth.config.ts` reads. Left unset it defaults to an
+   empty string, which fails closed: no token verifies, so nothing is exposed to
+   an unauthenticated caller.
+
+4. **Give Convex the Clerk secret key**, which is what mints sign-in tickets:
+
+   ```
+   npx convex env set CLERK_SECRET_KEY sk_test_...
+   ```
+
+   From Clerk → **API keys** → Secret key.
+
+   **It must never enter this repository.** A secret key inside a desktop binary
+   is not a secret: anybody with the app has it, and with it can mint a session
+   for _any user in the instance_. It belongs to the deployment's environment
+   and nowhere else. `convex/desktopAuth.test.ts` asserts the function fails
+   loudly, and by name, when it is missing — rather than producing something
+   broken further down.
+
+5. **Allow the desktop origin.** Clerk → **Domains** (allowed origins) → add
+   `http://tauri.localhost`. Without it the in-app fallback sign-in fails on the
+   OAuth return trip, which looks like a broken account rather than a missing
+   setting.
+
+6. **Enable email codes**, if you want OTP. Clerk → **User & Authentication** →
+   **Email, Phone, Username** → Email address → turn on **Email verification
+   code**. There is nothing to write here: `<SignIn />` renders the entire OTP
+   flow once the instance offers it, which is why no code in this repository
+   implements one.
+
+7. **Host the web build** and point the app at it:
+
+   ```
+   pnpm build
+   ```
+
+   Deploy `dist/` to any static host, then set `VITE_WEB_ORIGIN` to that URL.
+   This is the page the desktop app opens in the browser (`/desktop-link`), and
+   step 1 of the sign-in flow does not exist without it.
+
+### How to tell it worked
+
+- `backendAvailable` becomes true, so the devices control appears in the
+  now-playing bar instead of staying hidden.
+- Open the app on two machines — or one desktop and one browser tab — signed
+  into the same account. Play something on one; the other should name the track
+  and show "Playing on _that device_".
+- Press pause on the second. The first should stop, and the second should never
+  start playing. That is the single-writer rule, and it is exactly what
+  `convex/devices.test.ts` checks in memory.
+- Sign out, close the app entirely, and sign in from the browser page. The app
+  should open already signed in — that is the cold-start path fixed in
+  `cli.rs`, and the one that used to drop the ticket silently.
