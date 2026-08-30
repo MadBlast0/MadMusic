@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { m } from 'motion/react';
 import { toast } from 'sonner';
 
 import { useAsyncValue } from '@/hooks/use-async-value';
 import { fallbackCover } from '@/lib/library-model';
 import { drawLyricImage } from '@/lib/lyric-image';
 import { romaniseLyrics, setTranslation, shareableExcerpt } from '@/lib/lyrics';
+import type { Line } from '@/lib/lyrics';
 import { canRomanise } from '@/lib/romanise';
 import { safeFileName, saveDataUrl } from '@/lib/save-file';
 
@@ -139,10 +141,17 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
     if (!source) return lyrics.lines;
 
     const replacements = source.split('\n');
-    return lyrics.lines.map((line, index) => ({
-      ...line,
-      text: replacements[index] ?? line.text,
-    }));
+    return lyrics.lines.map((line, index) => {
+      const text = replacements[index];
+      if (text === undefined) return line;
+
+      // The word timings belong to the original words and cannot survive a
+      // translation — "fall in love" is not three words in every language, and
+      // highlighting the fourth word of a line that no longer has four is
+      // worse than not highlighting at all. The line's own timing is kept, so
+      // the scroll still follows the song.
+      return { at: line.at, text };
+    });
   }, [showing, lyrics]);
 
   /** Generates a romanisation, where one can honestly be produced. */
@@ -237,35 +246,20 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
     return (
       <div className="space-y-3">
         {shownLines.map((line, index) => (
-          <p
+          <LyricLine
             key={`${line.at}-${index}`}
-            data-line={index}
-            role="button"
-            tabIndex={0}
-            // Clicking a line seeks to it. Every lyrics view that offers this
-            // gets used for it constantly, and it costs one handler.
-            onClick={() => seek(line.at)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') seek(line.at);
-            }}
-            // Right-click shares the line and the two around it as an image.
-            // A context menu rather than a visible button per line: the action
-            // is occasional, and a share icon on every line of every song
-            // would be noise on the screen people came here to read.
-            onContextMenu={(event) => {
-              event.preventDefault();
-              void shareLine(index);
-            }}
-            className={cn(
-              'cursor-pointer text-balance transition-colors',
-              compact ? 'text-base' : 'text-2xl font-semibold',
-              index === active
-                ? 'text-foreground'
-                : 'text-muted-foreground/60 hover:text-muted-foreground',
-            )}
-          >
-            {line.text || '♪'}
-          </p>
+            line={line}
+            index={index}
+            active={index === active}
+            // Only the line being sung counts its words. Every other line is
+            // handed 0 and, being memoised, does not re-render at all while
+            // the position ticks.
+            sung={index === active ? sungWords(line, progress) : 0}
+            compact={compact}
+            still={settings.reduceMotion}
+            onSeek={seek}
+            onShare={shareLine}
+          />
         ))}
       </div>
     );
@@ -276,9 +270,11 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
     loading,
     lyrics,
     active,
+    progress,
     compact,
     seek,
     shareLine,
+    settings.reduceMotion,
   ]);
 
   return (
@@ -447,3 +443,138 @@ function TranslationDialog({
     </Dialog>
   );
 }
+
+/**
+ * How many of a line's words have been sung by now.
+ *
+ * Returned as a count rather than a set of flags because it is what makes the
+ * line cheap: the panel re-renders about twenty times a second, and a count
+ * that has not changed since the last tick means `memo` can skip the line
+ * entirely. A word only arrives two or three times a second, so most ticks
+ * change nothing and cost nothing.
+ */
+function sungWords(line: Line, position: number): number {
+  const words = line.words;
+  if (!words) return 0;
+
+  let count = 0;
+  // A short linear walk beats a binary search here: a line is a handful of
+  // words, and this runs on lines that are already on screen.
+  while (count < words.length && words[count].at <= position) count += 1;
+  return count;
+}
+
+/**
+ * One line of lyrics, lighting up as it is sung.
+ *
+ * # Why Motion rather than anime.js
+ *
+ * Both are already dependencies. Motion wins here because every other
+ * animation in this app is Motion, because it animates React state
+ * declaratively — a word's appearance is a function of whether it has been
+ * sung, which is exactly what `animate` takes — and because it interrupts
+ * cleanly when someone seeks backwards mid-line. anime.js would want an
+ * imperative timeline per line, torn down and rebuilt on every seek.
+ *
+ * # Why only the current line is animated
+ *
+ * Because a Motion component per word of every line is a Motion component per
+ * word of every line: an eighty-line song is around five hundred of them, all
+ * mounted, all subscribing, for the six that anybody can see lighting up. The
+ * first version of this did exactly that and cost 156 ms per tick — measured
+ * in `lyrics-scroll.bench.test.tsx`, which is why the benchmark was written
+ * before the feature was called done. Every other line is plain text.
+ *
+ * # Why the animation is opacity and transform only
+ *
+ * Those two are the properties a browser can animate on the compositor,
+ * without laying out or painting the line again. A colour transition would
+ * repaint every word on every frame of the fade, which on a fast verse is the
+ * one place this screen could plausibly drop frames. The colour is a class
+ * that flips once; the motion is what carries the eye.
+ */
+const LyricLine = memo(function LyricLine({
+  line,
+  index,
+  active,
+  sung,
+  compact,
+  still,
+  onSeek,
+  onShare,
+}: {
+  line: Line;
+  index: number;
+  active: boolean;
+  /** How many words are already sung; 0 for any line that is not current. */
+  sung: number;
+  compact: boolean;
+  /** The reduced-motion setting: the highlight stays, the movement goes. */
+  still: boolean;
+  onSeek: (at: number) => void;
+  onShare: (index: number) => void;
+}) {
+  return (
+    <p
+      data-line={index}
+      role="button"
+      tabIndex={0}
+      // Clicking a line seeks to it. Every lyrics view that offers this gets
+      // used for it constantly, and it costs one handler.
+      onClick={() => onSeek(line.at)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onSeek(line.at);
+      }}
+      // Right-click shares the line and the two around it as an image. A
+      // context menu rather than a visible button per line: the action is
+      // occasional, and a share icon on every line of every song would be
+      // noise on the screen people came here to read.
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onShare(index);
+      }}
+      className={cn(
+        'cursor-pointer text-balance transition-colors duration-base',
+        compact ? 'text-base' : 'text-2xl font-semibold',
+        active
+          ? 'text-foreground'
+          : 'text-muted-foreground/60 hover:text-muted-foreground',
+      )}
+    >
+      {active && line.words && line.words.length > 0 ? (
+        // A word at a time, where the file carries the timings for it.
+        line.words.map((word, at) => (
+          <m.span
+            key={`${word.at}-${at}`}
+            className="inline-block will-change-transform"
+            animate={
+              still
+                ? { opacity: at < sung ? 1 : 0.55 }
+                : {
+                    opacity: at < sung ? 1 : 0.45,
+                    // A small lift as the word lands, and nothing else. Enough
+                    // to read as alive next to the voice; not enough to make a
+                    // verse jump about while somebody is trying to read it.
+                    y: at < sung ? -1.5 : 0,
+                    scale: at < sung ? 1.02 : 1,
+                  }
+            }
+            transition={
+              still
+                ? { duration: 0 }
+                : // A spring, because a word being sung is a physical event and
+                  // an eased fade reads as a slideshow. Stiff and well damped:
+                  // it settles inside the gap between two sung words.
+                  { type: 'spring', stiffness: 520, damping: 34, mass: 0.5 }
+            }
+          >
+            {word.text}
+            {at < line.words!.length - 1 ? ' ' : ''}
+          </m.span>
+        ))
+      ) : (
+        <>{line.text || '♪'}</>
+      )}
+    </p>
+  );
+});

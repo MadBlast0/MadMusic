@@ -20,8 +20,24 @@ import { store } from '@/lib/store';
 import type { Lyrics } from '@/lib/store/types';
 import { isNative, tryInvoke } from '@/lib/native';
 
+/** One word of a line, with when it is sung. */
+export type Word = { at: number; text: string };
+
 /** One line, with when it starts. */
-export type Line = { at: number; text: string };
+export type Line = {
+  at: number;
+  text: string;
+  /**
+   * Per-word timings, where the file carries them.
+   *
+   * Enhanced LRC puts a `<mm:ss.xx>` before each word. Undefined for an
+   * ordinary file, which is most of them — the panel highlights whole lines
+   * when this is absent and words when it is present.
+   */
+  words?: Word[];
+  /** When the last word ends, from the marker enhanced files close a line with. */
+  until?: number;
+};
 
 /** What a lyrics view needs. */
 export type TrackLyrics = {
@@ -90,12 +106,84 @@ export function parseLrc(lrc: string): Line[] {
       rest = rest.slice(close + 1);
     }
 
-    const text = rest.trim();
-    for (const at of stamps) lines.push({ at, text });
+    const { text, words, until } = parseWords(rest);
+
+    // A file that carries word timings but no line timestamp still knows when
+    // the line starts — its first word does. Without this those lines were
+    // dropped for having no `[mm:ss]` of their own.
+    if (stamps.length === 0 && words && words.length > 0) {
+      lines.push({ at: words[0].at, text, words, until });
+      continue;
+    }
+
+    for (const at of stamps) lines.push({ at, text, words, until });
   }
 
   // Multi-timestamp lines arrive out of order by definition.
   return lines.sort((a, b) => a.at - b.at);
+}
+
+/**
+ * Splits a line's text into words, on the `<mm:ss.xx>` markers enhanced LRC
+ * uses.
+ *
+ * # Why this exists
+ *
+ * Because without it the markers are text. The parser read the `[mm:ss.xx]` at
+ * the head of a line and left everything after it alone, so a word-timed file
+ * rendered as `<00:11.92> Fall <00:12.17> in` — the timings printed on screen,
+ * in the middle of the words they were supposed to be timing.
+ *
+ * # What the empty chunks mean
+ *
+ * A marker is not always followed by a word. Two in a row is a gap the singer
+ * leaves, and a trailing one is the moment the line finishes — which is worth
+ * keeping as `until`, because it is what lets a view stop highlighting the last
+ * word at the right time rather than holding it until the next line starts.
+ * Neither is a word, so neither becomes one.
+ */
+function parseWords(raw: string): {
+  text: string;
+  words?: Word[];
+  until?: number;
+} {
+  const trimmed = raw.trim();
+  if (!trimmed.includes('<')) return { text: trimmed };
+
+  const words: Word[] = [];
+  let until: number | undefined;
+  let matched = false;
+
+  const pattern = /<([^<>]*)>([^<]*)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(trimmed)) !== null) {
+    const at = parseStamp(match[1]);
+    // Not a timestamp — `<i>` in a file someone hand-edited, say. Left as text
+    // rather than silently swallowed.
+    if (at === null) continue;
+
+    matched = true;
+    const text = match[2].trim();
+    if (text) words.push({ at, text });
+    else until = at;
+  }
+
+  if (!matched) return { text: trimmed };
+
+  // Anything before the first marker belongs to the line but has no timing of
+  // its own, so it joins the text without becoming a word.
+  const lead = trimmed.slice(0, trimmed.indexOf('<')).trim();
+  const text = [lead, ...words.map((word) => word.text)]
+    .filter(Boolean)
+    .join(' ');
+
+  // `until` is only the end of the line when it comes after the last word; a
+  // marker in the middle is a gap, and the ones before it have been consumed.
+  const last = words[words.length - 1];
+  if (until !== undefined && last && until < last.at) until = undefined;
+
+  return { text, words: words.length > 0 ? words : undefined, until };
 }
 
 function parseStamp(text: string): number | null {

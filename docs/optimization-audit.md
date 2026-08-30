@@ -462,6 +462,56 @@ browser profile before it is called a win.
 
 ---
 
+### P1-6. Word-timed lyrics, and a benchmark that lied
+
+The lyrics panel gained per-word highlighting, which puts it on the hottest
+path in the app: the position ticks about twenty times a second and the panel
+re-renders on each one. `lyrics-scroll.bench.test.tsx` was written before the
+feature was called done, and immediately reported **156 ms per tick**.
+
+**That number was wrong, and the way it was wrong is worth keeping.** The
+benchmark's `usePlayer` mock built a fresh object — and a fresh `seek` — on
+every call, so `LyricLine`'s `memo` compared unequal props every tick and
+re-rendered all eighty lines. The real `PlayerContext` is memoised and split
+from `PlayerProgressContext`, which is P1-1's work: `seek` and `current` are
+stable across ticks, and the app never paid this. Hoisting the mock's objects
+gives **3.25 ms average, 8.68 ms worst**.
+
+This is the second harness in this file to be caught reporting a cost the
+application does not have — P1-2's was a setter captured during render. Both
+were caught by the number being implausible rather than by review. A benchmark
+whose mock is less stable than the context it stands in for measures the mock.
+
+What the mistake concealed: the first version animated the words of _every_
+line, so an eighty-line song mounted around five hundred Motion components for
+the six a reader can see. Fixed, and worth **4.02 ms → 3.25 ms** per tick on
+its own — a small number in jsdom, which does not run Motion's style writes or
+lay anything out, and a much larger one in a browser. It is also the same
+mistake the queue makes, noted in P1-5 and still open there.
+
+### P1-7. A context menu per sidebar row doubled the collapse
+
+Measured after the playlist context menus landed, with the P1-5 benchmark:
+
+|                           | before menus | after menus                                   |
+| ------------------------- | ------------ | --------------------------------------------- |
+| collapse, blocking commit | 54.9 ms      | ~110 ms (107.5, 110.1, 124.6 over three runs) |
+| expand, blocking commit   | 74.5 ms      | ~50 ms                                        |
+
+Every playlist row now mounts a Radix `ContextMenu` root and trigger — sixty of
+them — on top of the tooltip the rail already gives each one. `ContextMenuContent`
+is portalled and does not render until opened, so this is the root and trigger
+cost alone, and `memo` cannot help: a collapse unmounts and remounts the rows,
+and mounting is the cost.
+
+The fix is one menu for the whole list rather than one per row: catch
+`contextmenu` on the list, position a single menu at the pointer, and hand it
+the row that was hit. That is how the cost stops scaling with the number of
+playlists. **Not done** — it is a refactor of a feature written after this
+audit entry, and it wants the person who wrote it.
+
+---
+
 ---
 
 ## P2 — Bundle and dead code
