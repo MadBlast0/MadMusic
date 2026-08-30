@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { m } from 'motion/react';
 
 import {
@@ -105,6 +105,51 @@ export function Shelf({
       start: element.scrollLeft > 4,
       end: element.scrollLeft < max - 4,
     });
+  }, []);
+
+  /**
+   * A vertical wheel over the shelf scrolls it sideways.
+   *
+   * # Why a native listener rather than `onWheel`
+   *
+   * React attaches wheel handlers passively, and a passive listener may not
+   * call `preventDefault` — so the page would scroll down *as well*, and the
+   * shelf would drift sideways while the reader lost their place. Registering
+   * it here with `passive: false` is the only way to take the gesture over.
+   *
+   * # Why it hands the gesture back at the ends
+   *
+   * A shelf that swallowed every wheel event would trap the page: a reader
+   * whose pointer happened to be over a shelf could not scroll past it. So the
+   * event is only claimed while this shelf can still move in the direction
+   * asked for; at either end it is left alone and the page scrolls as usual.
+   *
+   * A trackpad's horizontal component is left alone too — `deltaX` means the
+   * user is already scrolling sideways and the browser handles it natively.
+   */
+  useEffect(() => {
+    const element = rail.current;
+    if (!element) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0 || Math.abs(event.deltaX) > Math.abs(event.deltaY))
+        return;
+
+      const max = element.scrollWidth - element.clientWidth;
+      if (max <= 0) return;
+
+      const forward = event.deltaY > 0;
+      const room = forward
+        ? element.scrollLeft < max - 1
+        : element.scrollLeft > 1;
+      if (!room) return;
+
+      event.preventDefault();
+      element.scrollLeft += event.deltaY;
+    };
+
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
   const nudge = useCallback((direction: 1 | -1) => {

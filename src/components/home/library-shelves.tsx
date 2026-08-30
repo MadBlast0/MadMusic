@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Shelf, Stagger } from '@/components/home/shelves';
 import { MixCard } from '@/components/home/mix-card';
+import { Button } from '@/components/ui/button';
 import { usePlayer } from '@/components/player/player-context';
 import { fallbackCover } from '@/lib/library-model';
 import { toPlayerTrackRow } from '@/lib/player-track';
@@ -45,7 +46,7 @@ function byAlbum(tracks: TrackRow[], limit = 12): TrackRow[] {
   return out;
 }
 
-export function LibraryShelves() {
+export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
   const { play } = usePlayer();
   const [shelves, setShelves] = useState<LibraryShelf[] | null>(null);
 
@@ -120,7 +121,20 @@ export function LibraryShelves() {
   return (
     <>
       {shelves.map((shelf) => (
-        <Shelf key={shelf.id} title={shelf.title} blurb={shelf.blurb}>
+        <Shelf
+          key={shelf.id}
+          title={shelf.title}
+          blurb={shelf.blurb}
+          // Each of these is a slice of the library — the newest, the least
+          // played — so the whole of it is where "all" leads.
+          action={
+            onViewAll && (
+              <Button variant="ghost" size="sm" onClick={onViewAll}>
+                View all
+              </Button>
+            )
+          }
+        >
           <Stagger count={shelf.tracks.length}>
             {shelf.tracks.map((track) => (
               <MixCard

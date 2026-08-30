@@ -126,7 +126,22 @@ export function HomeView({
             listening to is more likely to be what you came back for than
             anything a chart can offer. */}
         {history.length > 0 && (
-          <Shelf title="Jump back in" blurb="Where you left off">
+          <Shelf
+            title="Jump back in"
+            blurb="Where you left off"
+            // The shelf shows twelve; the history is everything. Without a way
+            // through to the rest, the thirteenth track back is unreachable
+            // from the screen that is about picking up where you left off.
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpen({ name: 'saved', kind: 'history' })}
+              >
+                View all
+              </Button>
+            }
+          >
             <Stagger count={history.length}>
               {history.slice(0, 12).map((track, index) => (
                 <TrackCard
@@ -157,7 +172,7 @@ export function HomeView({
             catalogue. A generated mix that knows what you actually play beats
             a chart that does not, and on a first run these render nothing at
             all rather than pretending otherwise. */}
-        <LibraryShelves />
+        <LibraryShelves onViewAll={() => onBrowse('library')} />
         <MixShelves />
         <ReleaseRadarShelf />
 

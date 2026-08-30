@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { CatalogueTrackList } from '@/components/catalogue/catalogue-track-list';
 import { useSaved } from '@/components/common/saved-context';
+import { Pager } from '@/components/common/pager';
+import { pageOf } from '@/lib/paging';
 import { useSettings } from '@/components/common/settings-context';
 import { Heart, Play, Shuffle } from '@/components/icons';
 import { usePlayer } from '@/components/player/player-context';
@@ -37,7 +39,29 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
 
   const tracks = kind === 'liked' ? liked : history;
   const queue = useMemo(() => tracks.map(fromSaved), [tracks]);
-  const rows = useMemo(() => asCatalogueTracks(tracks), [tracks]);
+  const all = useMemo(() => asCatalogueTracks(tracks), [tracks]);
+
+  /**
+   * Fifty at a time, like every other long list here.
+   *
+   * A history is unbounded — it grows for as long as the app is used — and
+   * this screen was rendering every row of it on arrival. `PAGE_SIZE` and the
+   * `Pager` are the app's existing answer to that, already used by the search
+   * results, and the mode is the user's own setting rather than a choice made
+   * here: show-more for people who browse, numbered pages for people who want
+   * to keep their place.
+   */
+  const [page, setPage] = useState(1);
+  const shown = pageOf(all.length, settings.paging, page);
+  const rows = useMemo(
+    () => all.slice(shown.from, shown.to),
+    [all, shown.from, shown.to],
+  );
+
+  // No clamping here: a list that shrinks under the reader — clearing the
+  // history is the obvious way — cannot strand them on a page that no longer
+  // exists, because `pageOf` clamps the number it is given against the count
+  // it just computed. State that is briefly out of range renders in range.
 
   const title = kind === 'liked' ? 'Liked Songs' : 'Recently played';
 
@@ -88,7 +112,10 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
       {tracks.length === 0 ? (
         <EmptyState kind={kind} keepHistory={settings.keepHistory} />
       ) : (
-        <CatalogueTrackList tracks={rows} />
+        <>
+          <CatalogueTrackList tracks={rows} />
+          <Pager mode={settings.paging} page={shown} onShow={setPage} />
+        </>
       )}
     </ViewShell>
   );
