@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Music2 } from 'lucide-react';
 
 import { fallbackCover } from '@/lib/library-model';
@@ -99,7 +99,20 @@ export function CoverArt({
   rounded?: string;
 }) {
   const embedded = useArtwork(track);
-  const url = embedded ?? (src || null);
+  /**
+   * The one url that has already failed to load.
+   *
+   * A catalogue thumbnail is a remote URL somebody else's server decides to
+   * keep or drop, and a dead one used to paint the webview's broken-image
+   * glyph — a torn page in a list of album covers, which is worse than the
+   * gradient this component was written to fall back to. Holding the failed
+   * url rather than a flag is what lets the next track through: the component
+   * is reused as a list scrolls, and a bare `failed` boolean would condemn
+   * every later cover that landed on it.
+   */
+  const [failed, setFailed] = useState<string | null>(null);
+  const wanted = embedded ?? (src || null);
+  const url = wanted === failed ? null : wanted;
   const [from, to] = fallbackCover(seed);
 
   return (
@@ -125,6 +138,7 @@ export function CoverArt({
           loading="lazy"
           className="size-full object-cover"
           draggable={false}
+          onError={() => setFailed(url)}
         />
       ) : (
         <Music2 className="absolute inset-0 m-auto size-1/4 text-white/35" />

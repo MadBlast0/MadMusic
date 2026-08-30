@@ -18,6 +18,15 @@ import { cn } from '@/lib/utils';
  * Clicking the star that is already set clears the rating. That is the only
  * way to unset one without a second control, and it is what every rating widget
  * that offers clearing at all does.
+ *
+ * # Why spans rather than buttons
+ *
+ * Because a track row is itself a `button`, and a `button` inside a `button` is
+ * invalid HTML — React says so in the console, and the browser's own repair of
+ * the nesting is what made a star click land on the row and play the track. The
+ * `radiogroup` and `radio` roles are what a screen reader announces either way,
+ * so the roles stay and the tag changes; the keyboard handling a `button` gave
+ * for free is put back by hand below.
  */
 export function StarRating({
   value,
@@ -43,10 +52,10 @@ export function StarRating({
       onMouseLeave={() => setHovered(0)}
     >
       {[1, 2, 3, 4, 5].map((star) => (
-        <button
+        <span
           key={star}
-          type="button"
           role="radio"
+          tabIndex={0}
           aria-checked={value === star}
           aria-label={`${star} ${star === 1 ? 'star' : 'stars'}`}
           onMouseEnter={() => setHovered(star)}
@@ -55,6 +64,14 @@ export function StarRating({
           // Clicking the current rating clears it.
           onClick={() => onChange(value === star ? 0 : star)}
           onKeyDown={(event) => {
+            // Enter and space, which a `button` would have given us for free.
+            // A span does not, and a rating that cannot be set from the
+            // keyboard is the thing the radio roles are promising.
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onChange(value === star ? 0 : star);
+              return;
+            }
             // Arrow keys move the rating, which is what a radio group does and
             // what a keyboard user will try.
             if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
@@ -67,7 +84,10 @@ export function StarRating({
             }
           }}
           className={cn(
-            'rounded-sm transition-colors',
+            // `cursor-pointer` and the focus ring are the other two things a
+            // `button` was giving us.
+            'cursor-pointer rounded-sm transition-colors',
+            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
             size === 'small' ? 'p-0' : 'p-0.5',
             star <= showing
               ? 'text-amber-500'
@@ -78,7 +98,7 @@ export function StarRating({
             filled={star <= showing}
             className={size === 'small' ? 'size-3' : 'size-4'}
           />
-        </button>
+        </span>
       ))}
     </div>
   );

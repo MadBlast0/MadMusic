@@ -162,9 +162,10 @@ const TrackRowContent = memo(function TrackRowContent({
         </span>
       )}
 
-      {/* A `div` inside the row button would nest interactive
-        elements, so the stars sit in a span that stops the click
-        from also starting the track. */}
+      {/* The row is a `button`, so everything in here is a span: the stars
+        carry `radio` roles rather than being buttons of their own. This
+        wrapper stops a star's click and keys from also reaching the row and
+        starting the track. */}
       <span
         className="hidden lg:flex"
         onClick={(event) => event.stopPropagation()}
