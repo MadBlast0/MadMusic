@@ -1,4 +1,11 @@
 {
+  // Describes the runtime these functions actually get, which the default did
+  // not. Convex runs a modern V8 isolate: `Array.prototype.at` exists (ES2022,
+  // not the ES2021 this claimed), and `process.env` is how a function reads its
+  // deployment environment — the documented way to hold a Clerk secret, and the
+  // reason none of it is in this repository.
+  //
+  // Both were found the first time this directory was ever compiled.
   "compilerOptions": {
     "allowJs": true,
     "strict": true,
@@ -7,11 +14,12 @@
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "target": "ESNext",
-    "lib": ["ES2021", "dom"],
+    "lib": ["ES2022", "dom"],
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": ["./**/*"],
   "exclude": ["./_generated"]

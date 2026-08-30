@@ -12,7 +12,7 @@ export default tseslint.config(
   // reports a parse error per file, which makes `pnpm verify` fail for anyone
   // who has ever run a release build. The lint result must not depend on
   // whether a build directory happens to exist.
-  // `src-tauri/gen` is likewise generated (the Android/iOS projects).
+  // `src-tauri/gen` and `convex/_generated` are likewise generated.
   // `.prettierignore` already lists both; this keeps the two tools agreed.
   {
     ignores: [
@@ -21,6 +21,9 @@ export default tseslint.config(
       'coverage',
       'src-tauri/target',
       'src-tauri/gen',
+      // Convex's codegen output. Generated, and it carries its own
+      // `eslint-disable` banner that this config then reports as unused.
+      'convex/_generated',
     ],
   },
   {
