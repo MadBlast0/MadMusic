@@ -19,7 +19,7 @@
     "module": "ESNext",
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": ["./**/*"],
   "exclude": ["./_generated"]
