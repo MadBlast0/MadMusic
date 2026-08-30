@@ -115,14 +115,18 @@ export function ResizeHandle({
         }
       }}
       className={cn(
-        // Wider than it looks: the visible line is one pixel, the target is
-        // eight, which is the difference between a handle people can hit and
-        // one they chase.
-        'group relative w-2 shrink-0 cursor-col-resize touch-none',
+        // Wider than it looks: the visible line is one pixel, the strip is
+        // six, and the target below is eight — which is the difference between
+        // a handle people can hit and one they chase.
+        'group relative w-1.5 shrink-0 cursor-col-resize touch-none',
         'focus-visible:outline-none',
         className,
       )}
     >
+      {/* The extra pixel on each side. The strip is the seam between two
+          panels and is sized for the look of it; the target is sized for a
+          pointer, and pointer events bubble from here to the handlers above. */}
+      <span aria-hidden className="absolute inset-y-0 -inset-x-px" />
       <span
         aria-hidden
         className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 rounded-full bg-transparent transition-colors duration-fast group-hover:bg-border group-focus-visible:bg-ring"

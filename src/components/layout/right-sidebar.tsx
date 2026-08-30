@@ -149,7 +149,17 @@ export function RightSidebar({
                   ))}
                 </div>
 
-                <IconButton label="Hide the panel" size="sm" onClick={onClose}>
+                {/* A gap the tabs cannot close. The tablist scrolls when the
+                    panel is narrow, and with only the row's own `gap-1` the
+                    last tab ran right up against the close button — one
+                    mis-aimed pixel between "Lyrics" and dismissing the whole
+                    panel. `ms-1` is on the button so it survives the scroll. */}
+                <IconButton
+                  label="Hide the panel"
+                  size="sm"
+                  onClick={onClose}
+                  className="ms-1"
+                >
                   <X />
                 </IconButton>
               </div>
