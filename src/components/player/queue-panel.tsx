@@ -285,7 +285,13 @@ export function QueueContents() {
                           bounceStiffness: 500,
                           bounceDamping: 40,
                         }}
-                        className="cursor-grab active:cursor-grabbing"
+                        // Off-screen rows cost no layout and no paint. A queue
+                        // is as long as the user made it — 200 tracks is one
+                        // album run and a radio session — and every row was
+                        // being laid out whether or not the panel could show
+                        // it. The intrinsic size is the row's real height, so
+                        // the scrollbar stays honest while rows are skipped.
+                        className="cursor-grab [contain-intrinsic-size:auto_48px] [content-visibility:auto] active:cursor-grabbing"
                       >
                         <QueueRow
                           title={track.title}

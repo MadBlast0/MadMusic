@@ -409,6 +409,59 @@ tests are jsdom and SQLite with no OS behaviour worth running three times, and
 than restating its seven steps, so CI cannot drift from what developers run.
 22.04 is pinned because the WebKit package name changed between LTS releases.
 
+### P1-5. Collapsing a panel remounts everything inside it
+
+Reported as lag when expanding and collapsing the side panels, and it is two
+separate findings that happen to share a gesture.
+
+**The sidebar.** `App.tsx` animates the wrapper's `width` for 300 ms and says of
+it: "Width, not conditional mounting: the panel keeps its scroll position and
+internal state across a collapse." `AppSidebar` then opens with
+`if (collapsed) return (...)` and returns an entirely different tree. So the
+comment describes an intent the component defeats — a toggle unmounts every
+playlist row and mounts a rail of new ones, each wrapped in its own Radix
+`Tooltip`, and it lands on the first frame of the animation.
+
+Measured in `src/components/layout/sidebar-collapse.bench.test.tsx` at sixty
+playlists, React work only:
+
+|                           | before   | after   |
+| ------------------------- | -------- | ------- |
+| collapse, blocking commit | 223.9 ms | 54.9 ms |
+| expand, blocking commit   | 135.8 ms | 74.5 ms |
+
+Two changes. `useDeferredValue(collapsed)` moves the swap off the frame the
+animation needs — the total work is unchanged, and which commit carries it is
+the whole point, so the benchmark reports the blocking commit and not just the
+total. And the rows are `memo`'d, which is the case P1-2 predicted: a parent
+re-render where no row's data changed. It arrives twice here, once per toggle
+and again on every track change, because `entries` reads `current` to work out
+`playingFrom`.
+
+The harness drives the toggle through a button rather than capturing the setter
+during render. That is P1-2's own correction, reproduced before it could bite
+again.
+
+**The now-playing panel.** `queue-panel.tsx` says "this list can be as long as
+the library, so it is not a place for per-row Motion components" and then wraps
+every row in `Reorder.Item`, which is one. Measured in
+`src/components/player/queue-open.bench.test.tsx` at 200 tracks: **747.9 ms in a
+single blocking commit** to open the panel.
+
+Swapping `Reorder` for plain list elements — as an experiment, then reverted —
+gives 588.0 ms. So Motion is 160 ms of it, 21%, and **the remaining 79% is
+simply rendering 200 rows**. The per-row Motion component is real and is not
+the finding; the row count is. Virtualising the queue is the fix that would
+matter, and it conflicts with `Reorder`, which needs the whole list to reorder
+it. That is left open rather than guessed at.
+
+What landed instead is `content-visibility: auto` with an intrinsic size on the
+rows, in both the queue and the sidebar, so off-screen rows cost no layout and
+no paint. jsdom has neither, so **this one is unmeasured here** and wants a
+browser profile before it is called a win.
+
+---
+
 ---
 
 ## P2 — Bundle and dead code

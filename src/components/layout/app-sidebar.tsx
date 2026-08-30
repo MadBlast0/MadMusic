@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { memo, useDeferredValue, useMemo, useState } from 'react';
 
 import {
   Check,
@@ -114,6 +114,23 @@ export function AppSidebar({
   const { root } = useLibrary();
   const { liked, history, playlists, createPlaylist } = useSaved();
 
+  /**
+   * The collapse, one beat behind.
+   *
+   * The rail and the full panel are different trees, so a toggle unmounts
+   * every playlist row and mounts a new one for each — 224 ms of React work at
+   * sixty playlists, measured in `sidebar-collapse.bench.test.tsx`. That landed
+   * on the first frame of the 300 ms width transition in `App.tsx`, which is
+   * why the animation stuttered at exactly the moment it started.
+   *
+   * Deferring it hands that work to React at a lower priority: the width
+   * animates on schedule, and the swap is rendered in the gaps between frames
+   * instead of in front of them. The panel is being clipped by its own
+   * `overflow-hidden` while it moves, so the tree arriving a beat late is not
+   * visible — what was visible was the stall.
+   */
+  const settled = useDeferredValue(collapsed);
+
   const [filter, setFilter] = useState<Kind | null>(null);
   const [sort, setSort] = useState<Sort>('recent');
   const [searching, setSearching] = useState(false);
@@ -213,7 +230,7 @@ export function AppSidebar({
     });
   }, [entries, filter, deferredQuery, sort]);
 
-  if (collapsed) {
+  if (settled) {
     return (
       <aside
         aria-label="Your Library"
@@ -231,36 +248,7 @@ export function AppSidebar({
         <ScrollArea className="w-full flex-1">
           <ul className="flex flex-col items-center gap-2 py-1">
             {visible.map((entry) => (
-              <li key={entry.id}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={entry.onOpen}
-                      aria-label={entry.name}
-                      className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent/40 transition-transform duration-fast hover:scale-105 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
-                      style={
-                        entry.cover
-                          ? { backgroundImage: gradient(entry.cover) }
-                          : undefined
-                      }
-                    >
-                      {entry.artworkUrl ? (
-                        <img
-                          decoding="async"
-                          src={entry.artworkUrl}
-                          alt=""
-                          loading="lazy"
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        entry.icon && <entry.icon className="size-4" />
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{entry.name}</TooltipContent>
-                </Tooltip>
-              </li>
+              <RailRow key={entry.id} entry={entry} />
             ))}
           </ul>
         </ScrollArea>
@@ -393,56 +381,7 @@ export function AppSidebar({
       <ScrollArea className="min-h-0 flex-1">
         <ul className="flex flex-col gap-0.5 px-2 pb-2">
           {visible.map((entry) => (
-            <li key={entry.id}>
-              <button
-                type="button"
-                onClick={entry.onOpen}
-                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-sidebar-accent/40 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
-              >
-                <span
-                  className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded bg-sidebar-accent/40"
-                  style={
-                    entry.cover
-                      ? { backgroundImage: gradient(entry.cover) }
-                      : undefined
-                  }
-                >
-                  {entry.artworkUrl ? (
-                    <img
-                      decoding="async"
-                      src={entry.artworkUrl}
-                      alt=""
-                      loading="lazy"
-                      className="size-full object-cover"
-                    />
-                  ) : entry.icon ? (
-                    <entry.icon className="size-4" />
-                  ) : (
-                    <StaticMusic className="size-4 text-muted-foreground" />
-                  )}
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={cn(
-                      'block truncate text-sm font-medium',
-                      entry.playingFrom && 'text-primary',
-                    )}
-                  >
-                    {entry.name}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {entry.kind === 'folder' ? 'Folder' : 'Playlist'} ·{' '}
-                    {entry.owner}
-                    {entry.count > 0 && ` · ${entry.count}`}
-                  </span>
-                </span>
-
-                {entry.playingFrom && (
-                  <AudioBars playing={playing} className="h-3 shrink-0" />
-                )}
-              </button>
-            </li>
+            <ListRow key={entry.id} entry={entry} playing={playing} />
           ))}
 
           {visible.length === 0 && (
@@ -501,3 +440,122 @@ export function AppSidebar({
     </aside>
   );
 }
+
+/**
+ * One entry in the collapsed rail.
+ *
+ * # Why these are memoised
+ *
+ * `docs/optimization-audit.md` P1-2 asks whether `memo` pays anywhere, and
+ * concluded it needed a case where a parent re-renders without a row's data
+ * changing. The collapse is that case, twice over: toggling re-renders the
+ * whole sidebar while every entry is identical, and so does every track
+ * change, because `entries` depends on `current` to work out `playingFrom`.
+ *
+ * Measured in `sidebar-collapse.bench.test.tsx`: it is the difference between
+ * re-rendering sixty rows and re-rendering none of them.
+ *
+ * `entry` is a stable object from the `visible` memo, so the default shallow
+ * comparison is the right one — no custom comparator to keep in step.
+ */
+const RailRow = memo(function RailRow({ entry }: { entry: Entry }) {
+  return (
+    // Off-screen rows cost no layout and no paint; the intrinsic size is the
+    // row's real height so the scrollbar still measures the whole list.
+    <li className="[contain-intrinsic-size:auto_48px] [content-visibility:auto]">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={entry.onOpen}
+            aria-label={entry.name}
+            className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent/40 transition-transform duration-fast hover:scale-105 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+            style={
+              entry.cover
+                ? { backgroundImage: gradient(entry.cover) }
+                : undefined
+            }
+          >
+            {entry.artworkUrl ? (
+              <img
+                decoding="async"
+                src={entry.artworkUrl}
+                alt=""
+                loading="lazy"
+                className="size-full object-cover"
+              />
+            ) : (
+              entry.icon && <entry.icon className="size-4" />
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{entry.name}</TooltipContent>
+      </Tooltip>
+    </li>
+  );
+});
+
+/**
+ * One entry in the full panel.
+ *
+ * `playing` is a second prop rather than being read from the player here: a
+ * row that subscribed to the player context itself would re-render on every
+ * change to it, which is the memo undone from the inside.
+ */
+const ListRow = memo(function ListRow({
+  entry,
+  playing,
+}: {
+  entry: Entry;
+  playing: boolean;
+}) {
+  return (
+    <li className="[contain-intrinsic-size:auto_60px] [content-visibility:auto]">
+      <button
+        type="button"
+        onClick={entry.onOpen}
+        className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-sidebar-accent/40 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+      >
+        <span
+          className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded bg-sidebar-accent/40"
+          style={
+            entry.cover ? { backgroundImage: gradient(entry.cover) } : undefined
+          }
+        >
+          {entry.artworkUrl ? (
+            <img
+              decoding="async"
+              src={entry.artworkUrl}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover"
+            />
+          ) : entry.icon ? (
+            <entry.icon className="size-4" />
+          ) : (
+            <StaticMusic className="size-4 text-muted-foreground" />
+          )}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span
+            className={cn(
+              'block truncate text-sm font-medium',
+              entry.playingFrom && 'text-primary',
+            )}
+          >
+            {entry.name}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {entry.kind === 'folder' ? 'Folder' : 'Playlist'} · {entry.owner}
+            {entry.count > 0 && ` · ${entry.count}`}
+          </span>
+        </span>
+
+        {entry.playingFrom && (
+          <AudioBars playing={playing} className="h-3 shrink-0" />
+        )}
+      </button>
+    </li>
+  );
+});
