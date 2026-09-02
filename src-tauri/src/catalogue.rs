@@ -24,6 +24,8 @@
 //!   go straight to the element any more — [`crate::stream`] re-issues every
 //!   request bounded, and that module explains the whole failure in detail.
 
+use std::collections::HashMap;
+
 use rustypipe::client::{ClientType, RustyPipe};
 use rustypipe::model::{AlbumItem, AudioCodec, TrackItem};
 use serde::Serialize;
@@ -195,7 +197,7 @@ pub struct ArtistCard {
     pub subscriber_count: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Stream {
     /// Where the audio actually lives.
@@ -234,6 +236,18 @@ pub struct Stream {
     /// has to be kept in sync in two places.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loudness_db: Option<f32>,
+    /// YouTube's format id for the stream that was chosen.
+    ///
+    /// Never sent to the page — it exists so the sidecar can be pinned to the
+    /// *same* format when fetching an uncapped URL for a track already
+    /// playing. Zero means "not from the built-in extractor", which is also the
+    /// case where no upgrade is wanted.
+    #[serde(skip)]
+    pub itag: u32,
+    /// Total bytes of that format, or zero when unknown. The identity check
+    /// that makes a mid-stream URL swap safe.
+    #[serde(skip)]
+    pub size: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -268,11 +282,17 @@ pub trait Source {
         id: &str,
     ) -> impl std::future::Future<Output = Result<Vec<Track>, String>> + Send;
 
-    /// A playable URL for a handle. Resolved fresh every time, never cached.
+    /// A playable URL for a handle.
+    ///
+    /// `needs_sidecar` says this track has already proved it caps through the
+    /// built-in extractor, so the slower path is worth taking up front. See
+    /// `crate::stream::Restricted`; the caller owns that memory because it is
+    /// application state, not the source's.
     fn stream_url(
         &self,
         handle: &str,
         quality: Quality,
+        needs_sidecar: bool,
     ) -> impl std::future::Future<Output = Result<Stream, String>> + Send;
 
     /// One album, with its tracks and everything its page shows.
@@ -300,7 +320,7 @@ pub trait Source {
 /// Mirrors `Quality` in `src/lib/settings.ts`. Deserialised from the setting the
 /// user chose, so an unknown value from an older build falls back to the middle
 /// option rather than failing the request.
-#[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Quality {
     /// Smallest streams. For metered or slow connections.
@@ -458,6 +478,8 @@ impl YouTube {
             expires_in: player.expires_in_seconds,
             loudness_db: best.loudness_db,
             description: player.details.description.clone().unwrap_or_default(),
+            itag: best.itag,
+            size: best.size,
         })
     }
 
@@ -493,6 +515,11 @@ impl YouTube {
             // different level from the same track's audio.
             loudness_db: None,
             description: player.details.description.clone().unwrap_or_default(),
+            // The video path takes no upgrade: watching is a deliberate,
+            // occasional thing, and a muxed stream has no audio-only twin to
+            // swap to half way through.
+            itag: 0,
+            size: 0,
         })
     }
 
@@ -766,16 +793,34 @@ impl Source for YouTube {
         Ok(playlist.tracks.items.into_iter().map(track_from).collect())
     }
 
-    async fn stream_url(&self, handle: &str, quality: Quality) -> Result<Stream, String> {
-        // The sidecar first, when it is installed.
+    async fn stream_url(
+        &self,
+        handle: &str,
+        quality: Quality,
+        needs_sidecar: bool,
+    ) -> Result<Stream, String> {
+        // The built-in path first, and the sidecar only where it is needed.
         //
-        // Not a preference — a necessity. The built-in path can only reach
-        // these tracks through the `Ios` client, whose URLs YouTube caps at one
-        // mebibyte, and no proof-of-origin token lifts that. `crate::extractor`
-        // records the measurements. The built-in path stays as the fallback so
-        // the app still works with nothing installed; it just plays about a
-        // minute of the restricted tracks.
-        if crate::extractor::available() {
+        // # Why this order, when the sidecar is the more capable extractor
+        //
+        // Because it is far slower, and most tracks do not need it. Measured on
+        // this machine, against the same track:
+        //
+        // ```text
+        // built-in   1626 ms cold, then 548 ms, 452 ms
+        // sidecar    4929 ms, 5165 ms, 5870 ms   (~2.2 s of it is process start)
+        // ```
+        //
+        // The sidecar's floor is a PyInstaller bundle unpacking itself before
+        // it opens a socket, and it pays that on every resolve — warm runs are
+        // no faster. Running it first meant every track waited ~5 s so that the
+        // minority carrying an origin restriction would not cap.
+        //
+        // So the exceptions are learned instead. `crate::stream::Restricted`
+        // records a track when it caps, and that track resolves through the
+        // sidecar from then on. A restricted track therefore caps exactly once,
+        // which is what already happens on a machine with no sidecar at all.
+        if crate::extractor::available() && needs_sidecar {
             match crate::extractor::stream(
                 handle,
                 matches!(quality, Quality::High),
@@ -792,7 +837,10 @@ impl Source for YouTube {
                         expires_in: found.expires_in,
                         loudness_db: found.loudness_db,
                         description: found.description,
-                    })
+                        // Already the uncapped path; nothing to upgrade to.
+                        itag: 0,
+                        size: found.size,
+                    });
                 }
                 // Worth falling through rather than failing. The sidecar can be
                 // stale against a YouTube change while the built-in path still
@@ -801,7 +849,36 @@ impl Source for YouTube {
             }
         }
 
-        self.stream_url_builtin(handle, quality).await
+        let built_in = self.stream_url_builtin(handle, quality).await;
+
+        // The other direction of the same fallback: the built-in path can fail
+        // outright on a track the sidecar handles — a signature change YouTube
+        // has made and `rustypipe` has not caught up with. Trying it is slow,
+        // and slow beats "that track is not available".
+        match built_in {
+            Ok(stream) => Ok(stream),
+            Err(why) if crate::extractor::available() && !needs_sidecar => {
+                log::warn!("built-in extraction failed for {handle}, trying the sidecar: {why}");
+                crate::extractor::stream(
+                    handle,
+                    matches!(quality, Quality::High),
+                    matches!(quality, Quality::Low),
+                )
+                .await
+                .map(|found| Stream {
+                    url: found.url,
+                    token: String::new(),
+                    mime: found.mime,
+                    bitrate: found.bitrate,
+                    expires_in: found.expires_in,
+                    loudness_db: found.loudness_db,
+                    description: found.description,
+                    itag: 0,
+                    size: found.size,
+                })
+            }
+            Err(why) => Err(why),
+        }
     }
 
     async fn album(&self, id: &str) -> Result<AlbumDetail, String> {
@@ -1170,13 +1247,16 @@ pub async fn catalogue_extractor_status() -> Result<ExtractorStatus, String> {
     let program = crate::extractor::resolve_program();
 
     let version = match &program {
-        Some(path) => tokio::process::Command::new(path)
-            .arg("--version")
-            .output()
-            .await
-            .ok()
-            .filter(|out| out.status.success())
-            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned()),
+        Some(path) => {
+            let mut command = tokio::process::Command::new(path);
+            command.arg("--version").kill_on_drop(true);
+            crate::extractor::hide_console(&mut command)
+                .output()
+                .await
+                .ok()
+                .filter(|out| out.status.success())
+                .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        }
         None => None,
     };
 
@@ -1221,6 +1301,119 @@ fn is_direct_url(handle: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
+/// Stream records already resolved this session.
+///
+/// # Why this exists
+///
+/// Resolving is the whole of the delay between pressing play and hearing
+/// sound — measured at ~450 ms through the built-in extractor and ~5 s through
+/// the sidecar, against a few milliseconds for everything else on the path. A
+/// URL is good for about six hours, so resolving the same track twice in one
+/// session buys nothing and costs all of it.
+///
+/// # Why it expires early
+///
+/// Entries are dropped well before the URL does. A stream handed out at the
+/// edge of its life would resolve instantly and then fail mid-track, which is
+/// worse than the wait it saved — so the margin is deliberately generous.
+#[derive(Default)]
+pub struct Resolved {
+    entries: std::sync::Mutex<HashMap<(String, Quality), (Stream, std::time::Instant)>>,
+}
+
+/// How long a remembered resolve is trusted.
+///
+/// Ten minutes against a six-hour URL. Long enough to cover replaying,
+/// seeking and coming back to a track within a sitting; short enough that
+/// nothing here is ever the reason a stream 404s.
+const RESOLVE_TTL: std::time::Duration = std::time::Duration::from_secs(600);
+
+impl Resolved {
+    /// A previous resolve for this track, if one is still fresh.
+    ///
+    /// The token is reused rather than reissued. It is an index into the same
+    /// registry entry, and minting a second for one URL would evict a live
+    /// token from the 256-entry table for nothing.
+    fn get(&self, handle: &str, quality: Quality) -> Option<Stream> {
+        let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+        let key = (handle.to_owned(), quality);
+
+        match entries.get(&key) {
+            Some((stream, at)) if at.elapsed() < RESOLVE_TTL => Some(stream.clone()),
+            // Expired. Removed on the way past rather than swept on a timer:
+            // this is the only thing that reads them, so this is the only place
+            // that can tell.
+            Some(_) => {
+                entries.remove(&key);
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn remember(&self, handle: &str, quality: Quality, stream: &Stream) {
+        self.entries
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                (handle.to_owned(), quality),
+                (stream.clone(), std::time::Instant::now()),
+            );
+    }
+
+    /// Forgets one track, so the next play resolves afresh.
+    pub fn forget(&self, handle: &str) {
+        self.entries
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|(id, _), _| id != handle);
+    }
+}
+
+/// A stream record for a track already sitting in the cache.
+///
+/// No network at all: the token points at the handle, and `crate::stream`
+/// finds the file the same way it would have after resolving. `expires_in` is
+/// zero — meaning no deadline — because a file on disk does not expire.
+///
+/// The loudness is read back from the entry rather than left unset, so a
+/// cached track normalises exactly as it did on the play that cached it. An
+/// entry written before the cache stored loudness reports `None`, which is the
+/// honest answer for one that was never measured.
+fn cached_stream(
+    streams: &crate::stream::Streams,
+    handle: &str,
+    entry: &crate::cache::Entry,
+    title: Option<String>,
+    artist: Option<String>,
+) -> Stream {
+    let token = streams.put(crate::stream::Target {
+        url: String::new(),
+        handle: handle.to_owned(),
+        mime: entry.mime.clone(),
+        title: title.unwrap_or_default(),
+        artist: artist.unwrap_or_default(),
+        loudness_db: entry.loudness_db,
+        local_path: String::new(),
+        pinned: entry.pinned,
+    });
+
+    Stream {
+        url: String::new(),
+        token,
+        mime: entry.mime.clone(),
+        // Not stored, and not worth a probe to recover: the frontend shows it
+        // as a quality hint and zero reads as "unknown" there.
+        bitrate: 0,
+        expires_in: 0,
+        loudness_db: entry.loudness_db,
+        // Only the resolver ever knows one, and this path did not resolve.
+        description: String::new(),
+        itag: 0,
+        size: 0,
+    }
+}
+
 /// A stream record for an address that needs no resolving.
 ///
 /// `expires_in` is zero, which means "no deadline" rather than "already
@@ -1243,6 +1436,7 @@ fn direct_stream(
         mime: String::new(),
         title: title.unwrap_or_default(),
         artist: artist.unwrap_or_default(),
+        loudness_db: None,
         local_path: String::new(),
         // Playing something caches it; only an explicit download pins it.
         pinned: false,
@@ -1260,6 +1454,8 @@ fn direct_stream(
         loudness_db: None,
         // A feed already parsed its own description; nothing else knows one.
         description: String::new(),
+        itag: 0,
+        size: 0,
     }
 }
 
@@ -1331,6 +1527,7 @@ pub async fn catalogue_video_url(
         mime: stream.mime.clone(),
         title: String::new(),
         artist: String::new(),
+        loudness_db: None,
         local_path: String::new(),
         // Never pinned. A video is large and nobody asked to keep it.
         pinned: false,
@@ -1339,10 +1536,17 @@ pub async fn catalogue_video_url(
     Ok(stream)
 }
 
+/// The argument list is fixed by the IPC boundary, not chosen: four of these
+/// are Tauri's own injected state and the rest are what the frontend sends.
+/// Bundling them into a struct would change the shape of the message the
+/// webview posts, which is a worse trade than being one over the threshold.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn catalogue_stream_url(
+    app: tauri::AppHandle,
     source: State<'_, YouTube>,
     streams: State<'_, crate::stream::Streams>,
+    resolved: State<'_, Resolved>,
     handle: String,
     quality: Option<Quality>,
     title: Option<String>,
@@ -1366,9 +1570,42 @@ pub async fn catalogue_stream_url(
         return Ok(direct_stream(&streams, &handle, title, artist));
     }
 
-    let mut stream = source
-        .stream_url(&handle, quality.unwrap_or_default())
-        .await?;
+    let wanted = quality.unwrap_or_default();
+
+    // Already on disk: there is nothing to resolve.
+    //
+    // This is the single largest saving on the path between pressing play and
+    // hearing sound. Without it, replaying a track you already have costs a
+    // full extraction — up to five seconds of it — to produce a signed URL that
+    // `crate::stream` then discards the moment it finds the file. The bytes
+    // were never going to come from the network; only the *decision* to look
+    // was on the network's critical path.
+    //
+    // `get` rather than `has`, so the entry's `last_used` moves and playing a
+    // track keeps it from being evicted.
+    if let Some((_, entry)) = tauri::Manager::state::<crate::cache::Cache>(&app).get(&handle) {
+        return Ok(cached_stream(&streams, &handle, &entry, title, artist));
+    }
+
+    // Resolved once already, and the URL has not expired.
+    //
+    // Seeking past the buffer, replaying, and returning to a track later in the
+    // session all arrive here. The measurement is what makes it worth keeping:
+    // resolving costs hundreds of milliseconds at best and seconds at worst,
+    // and none of it produces a different answer within the URL's lifetime.
+    if let Some(hit) = resolved.get(&handle, wanted) {
+        return Ok(hit);
+    }
+
+    // Whether this track has already proved it needs the slower extractor.
+    let needs_sidecar = tauri::Manager::state::<crate::stream::Restricted>(&app).contains(&handle);
+
+    // Timed because this is the whole of the delay between pressing play and
+    // hearing sound, and it is the one number worth being able to read out of a
+    // log when somebody reports that playback feels slow.
+    let started = std::time::Instant::now();
+
+    let mut stream = source.stream_url(&handle, wanted, needs_sidecar).await?;
 
     // The resolved URL is swapped for one the webview can actually play. See
     // `crate::stream` — some of these refuse the open-ended range a media
@@ -1380,12 +1617,86 @@ pub async fn catalogue_stream_url(
         mime: stream.mime.clone(),
         title: title.unwrap_or_default(),
         artist: artist.unwrap_or_default(),
+        loudness_db: stream.loudness_db,
         local_path: String::new(),
         // Playing something caches it; only an explicit download pins it.
         pinned: false,
     });
 
+    log::info!(
+        "resolved {handle} in {} ms via {}",
+        started.elapsed().as_millis(),
+        if needs_sidecar {
+            "the sidecar"
+        } else {
+            "the built-in extractor"
+        }
+    );
+
+    // The fast URL is playing; now go and fetch one that is not capped.
+    //
+    // Off the critical path entirely — this returns immediately and the sidecar
+    // answers into `Upgrades` a few seconds later, long before the element has
+    // eaten the first mebibyte. `crate::stream::serve` collects it only if a
+    // range is ever actually refused.
+    if stream.itag != 0 && crate::extractor::available() {
+        upgrade_in_background(&app, &stream.token, &handle, stream.itag, stream.size);
+    }
+
+    resolved.remember(&handle, wanted, &stream);
+
     Ok(stream)
+}
+
+/// Fetches an uncapped URL for a track that is already playing.
+///
+/// Pinned to `itag` and checked against `size`, because the swap this feeds is
+/// only sound if both URLs address the same bytes — see
+/// [`crate::stream::Upgrades`]. A mismatch publishes "nothing better", which is
+/// the honest answer and leaves the existing capped-stream handling to run.
+fn upgrade_in_background(app: &tauri::AppHandle, token: &str, handle: &str, itag: u32, size: u64) {
+    use tauri::Manager;
+
+    let sender = app.state::<crate::stream::Upgrades>().expect(token);
+    let handle = handle.to_owned();
+    let token = token.to_owned();
+
+    tauri::async_runtime::spawn(async move {
+        let found = crate::extractor::stream_for_itag(&handle, itag).await;
+
+        // The sender is held for the whole task on purpose: a waiter learns
+        // that nothing is coming when this drops, rather than waiting out the
+        // timeout for an answer that will never arrive.
+        let url = match found {
+            // Sizes are compared only when both are known. yt-dlp reports an
+            // approximate length for some formats, and refusing an upgrade over
+            // a missing number would give up the whole benefit for no gain in
+            // safety — the itag already pins the format.
+            Ok(found) if size == 0 || found.size == 0 || found.size == size => {
+                log::info!("upgraded {handle}: itag {itag} is uncapped from here");
+                found.url
+            }
+            Ok(found) => {
+                log::warn!(
+                    "upgrade for {handle} rejected: itag {itag} is {} bytes, expected {size}",
+                    found.size
+                );
+                String::new()
+            }
+            Err(why) => {
+                log::warn!("upgrade for {handle} failed: {why}");
+                String::new()
+            }
+        };
+
+        let _ = sender.send(Some(url));
+        // Held open until the value has been observed or the token is gone.
+        // Dropping immediately would close the channel in the same breath as
+        // filling it, which a waiter cannot tell from failure.
+        tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+        drop(sender);
+        let _ = token;
+    });
 }
 
 #[tauri::command]
@@ -1522,7 +1833,7 @@ mod tests {
             );
 
             let stream = source
-                .stream_url(handle, Quality::Balanced)
+                .stream_url(handle, Quality::Balanced, false)
                 .await
                 .expect("stream_url failed — extraction is broken");
             println!(
@@ -1623,7 +1934,7 @@ mod tests {
                     "
 === {id} ==="
                 );
-                match source.stream_url(id, Quality::Balanced).await {
+                match source.stream_url(id, Quality::Balanced, false).await {
                     Err(why) => println!("  stream_url FAILED: {why}"),
                     Ok(stream) => {
                         println!(

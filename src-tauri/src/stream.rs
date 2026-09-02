@@ -97,8 +97,198 @@ const MAX_TOKENS: usize = 256;
 /// The payload is the byte offset it stopped at.
 pub const CAPPED_EVENT: &str = "madmusic://stream-capped";
 
+/// Uncapped URLs arriving after playback has already started.
+///
+/// # The problem this solves
+///
+/// The built-in extractor resolves in ~450 ms and the `yt-dlp` sidecar in ~5 s,
+/// but only the sidecar's URLs serve past one mebibyte. Waiting for the sidecar
+/// made every track cost five seconds before a note played; not waiting made
+/// tracks die about a second in, because Chromium treats a refused range as a
+/// fatal error rather than playing out what it already has.
+///
+/// So both run. Playback starts on the fast URL, and the sidecar's answer is
+/// published here when it lands — roughly five seconds into a track whose first
+/// mebibyte is over a minute of audio. When a range is refused, [`serve`] waits
+/// here rather than failing, and re-issues against the uncapped URL. The
+/// element sees one slightly slow response and never an error.
+///
+/// # Why this is safe to swap mid-stream
+///
+/// Because it is the same file. The sidecar is pinned to the itag the built-in
+/// extractor already chose, and the two reported lengths must match before the
+/// URL is published at all — see `catalogue::upgrade_in_background`. Byte
+/// offsets therefore mean the same thing on both, which is the whole
+/// requirement: a swap to a different encoding would hand the decoder the
+/// middle of a file it has never seen.
+#[derive(Default)]
+pub struct Upgrades {
+    /// Per token, a channel that carries `None` until the answer is known and
+    /// then `Some(url)` — or `Some(String::new())` for "there is no better
+    /// URL", so a waiter learns of failure instead of waiting out the timeout.
+    slots: Mutex<HashMap<String, tokio::sync::watch::Receiver<Option<String>>>>,
+}
+
+/// How long a refused range waits for a better URL before giving up.
+///
+/// Sized against the measurement, not guessed: the sidecar takes about five
+/// seconds and occasionally much longer on a cold network. The listener is
+/// already hearing audio while this runs — there is a minute of it buffered —
+/// so waiting is free where failing is not.
+const UPGRADE_WAIT: std::time::Duration = std::time::Duration::from_secs(20);
+
+impl Upgrades {
+    /// Registers a token as expecting a better URL, and returns the sender.
+    pub fn expect(&self, token: &str) -> tokio::sync::watch::Sender<Option<String>> {
+        let (tx, rx) = tokio::sync::watch::channel(None);
+
+        // Bounded the same way the token table is, and for the same reason: a
+        // long session skipping through a station would otherwise keep one dead
+        // slot per track for as long as the app runs.
+        {
+            let stale: Vec<String> = {
+                let slots = self.slots.lock().unwrap_or_else(|e| e.into_inner());
+                if slots.len() < MAX_TOKENS {
+                    Vec::new()
+                } else {
+                    let mut keys: Vec<(u64, String)> = slots
+                        .keys()
+                        .filter_map(|k| k.parse::<u64>().ok().map(|n| (n, k.clone())))
+                        .collect();
+                    keys.sort_unstable();
+                    keys.truncate(slots.len() - MAX_TOKENS / 2);
+                    keys.into_iter().map(|(_, k)| k).collect()
+                }
+            };
+            for key in stale {
+                self.forget(&key);
+            }
+        }
+
+        self.slots
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(token.to_owned(), rx);
+        tx
+    }
+
+    /// The uncapped URL for a token, waiting for it if it has not landed yet.
+    ///
+    /// `None` means there is none and never will be — no upgrade was started,
+    /// the sidecar failed, or the lengths disagreed.
+    pub async fn get(&self, token: &str) -> Option<String> {
+        let mut rx = self
+            .slots
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(token)
+            .cloned()?;
+
+        if let Some(url) = rx.borrow_and_update().clone() {
+            return (!url.is_empty()).then_some(url);
+        }
+
+        // Not yet. The sender is held by the resolve task for as long as it
+        // runs, so a closed channel means that task is gone and nothing is
+        // coming — which `changed()` reports as an error rather than a hang.
+        match tokio::time::timeout(UPGRADE_WAIT, rx.changed()).await {
+            Ok(Ok(())) => rx.borrow().clone().filter(|url| !url.is_empty()),
+            _ => None,
+        }
+    }
+
+    /// Drops a token's slot. Called when its registry entry is evicted.
+    fn forget(&self, token: &str) {
+        self.slots
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(token);
+    }
+}
+
+/// The tracks that have proved they need the sidecar.
+///
+/// # Why this is learned rather than known
+///
+/// Some tracks carry an origin restriction: YouTube serves the first mebibyte
+/// through the built-in extractor's clients and then refuses the rest. The
+/// sidecar reaches them in full, which is why it used to run first for
+/// *everything*.
+///
+/// That is the wrong trade. Measured on this machine, the sidecar costs ~2.2 s
+/// of process startup before it opens a socket, against ~450 ms for the whole
+/// built-in resolve — so every track was paying a restricted track's price, and
+/// most tracks are not restricted.
+///
+/// So the built-in path runs first and this remembers the exceptions. A
+/// restricted track caps once, on the play that discovers it — which is exactly
+/// what happens today on a machine with no sidecar installed, and the player
+/// already says so. Every play after that goes straight to the sidecar.
+#[derive(Default)]
+pub struct Restricted {
+    handles: Mutex<std::collections::HashSet<String>>,
+    /// Where the set is kept between runs. Empty means memory only.
+    path: Mutex<std::path::PathBuf>,
+}
+
+impl Restricted {
+    /// Loads the remembered set, if one was written.
+    ///
+    /// A missing or unreadable file is an empty set, never an error: the worst
+    /// it costs is that one restricted track caps once more.
+    pub fn open(dir: &std::path::Path) -> Self {
+        let path = dir.join("restricted.json");
+        let handles = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default();
+
+        Self {
+            handles: Mutex::new(handles),
+            path: Mutex::new(path),
+        }
+    }
+
+    pub fn contains(&self, handle: &str) -> bool {
+        self.handles
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(handle)
+    }
+
+    /// Records a track as needing the sidecar, and writes the set out.
+    ///
+    /// Returns whether this was news, so a caller can avoid rewriting the file
+    /// for a track already known — a capped track emits one of these per range
+    /// the element goes on to ask for.
+    pub fn remember(&self, handle: &str) -> bool {
+        if handle.is_empty() {
+            return false;
+        }
+
+        let mut handles = self.handles.lock().unwrap_or_else(|e| e.into_inner());
+        if !handles.insert(handle.to_owned()) {
+            return false;
+        }
+        let snapshot: Vec<&String> = handles.iter().collect();
+
+        let path = self.path.lock().unwrap_or_else(|e| e.into_inner());
+        if !path.as_os_str().is_empty() {
+            if let Ok(text) = serde_json::to_string(&snapshot) {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                // Best effort. Failing to write the hint must never fail the
+                // playback that produced it.
+                let _ = std::fs::write(&*path, text);
+            }
+        }
+        true
+    }
+}
+
 /// What one token stands for.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Target {
     /// A file on disk to serve directly.
     ///
@@ -118,6 +308,13 @@ pub struct Target {
     pub mime: String,
     pub title: String,
     pub artist: String,
+    /// Track loudness in dB, carried so the cache can keep it.
+    ///
+    /// Without this a cached track loses its measurement on the play that is
+    /// served from disk, and volume normalisation silently stops applying to
+    /// exactly the tracks you play most. Not `Eq`-able as an `f32`, which is
+    /// why `Target` derives `PartialEq` alone.
+    pub loudness_db: Option<f32>,
 }
 
 /// Hands the webview a token for a local file.
@@ -158,6 +355,7 @@ pub fn stream_local(
         mime,
         title: String::new(),
         artist: String::new(),
+        loudness_db: None,
     });
     Ok(token)
 }
@@ -347,18 +545,49 @@ pub fn serve<R: tauri::Runtime>(
             .send()
             .await;
 
-        let Ok(upstream) = sent else {
+        let Ok(mut upstream) = sent else {
             responder.respond(empty(http::StatusCode::BAD_GATEWAY));
             return;
         };
 
-        // A refusal *part way through* a track is the attestation cap, not a
-        // network fault. The element cannot tell those apart and would report
-        // "the connection dropped", so the truth is sent alongside it and the
-        // player says what actually happened.
+        // A refusal *part way through* a track is the one-mebibyte cap, not a
+        // network fault.
         if upstream.status() == http::StatusCode::FORBIDDEN && start > 0 {
             log::info!("stream {token}: upstream stopped serving at byte {start}");
-            let _ = app.emit(CAPPED_EVENT, start);
+
+            // The sidecar was sent after the same track the moment playback
+            // started; by now it has almost certainly answered. Waiting for it
+            // and re-issuing is invisible — the element is holding a minute of
+            // audio — where failing here ends the track about a second in,
+            // because Chromium treats a refused range as fatal.
+            match app.state::<Upgrades>().get(&token).await {
+                Some(better) => {
+                    log::info!("stream {token}: retrying byte {start} on the uncapped URL");
+                    match client
+                        .get(&better)
+                        .header(http::header::RANGE, &range)
+                        .send()
+                        .await
+                    {
+                        Ok(second) => upstream = second,
+                        Err(_) => {
+                            responder.respond(empty(http::StatusCode::BAD_GATEWAY));
+                            return;
+                        }
+                    }
+                }
+                // Nothing better exists. The truth is sent alongside the
+                // refusal so the player names the real reason rather than
+                // sending somebody to check their wifi.
+                None => {
+                    let _ = app.emit(CAPPED_EVENT, start);
+                    if app.state::<Restricted>().remember(&target.handle) {
+                        log::info!("stream {token}: {} needs the sidecar", target.handle);
+                        app.state::<crate::catalogue::Resolved>()
+                            .forget(&target.handle);
+                    }
+                }
+            }
         }
 
         // Carried through rather than rebuilt. `Content-Range` in particular
@@ -612,6 +841,7 @@ mod tests {
             mime: "audio/flac".to_owned(),
             title: String::new(),
             artist: String::new(),
+            loudness_db: None,
         });
 
         let found = streams.get(&token).expect("token");
@@ -629,6 +859,7 @@ mod tests {
             mime: "audio/mp4".to_owned(),
             title: "Song".to_owned(),
             artist: "Band".to_owned(),
+            loudness_db: None,
             local_path: String::new(),
             pinned: false,
         }

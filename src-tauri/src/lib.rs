@@ -52,7 +52,9 @@ pub fn run() {
         .manage(scan::Scan::default())
         .manage(shell::Shell::default())
         .manage(watcher::FolderWatcher::default())
+        .manage(catalogue::Resolved::default())
         .manage(stream::Streams::default())
+        .manage(stream::Upgrades::default())
         .manage(stream::Upstream::default())
         .manage(hotkeys::Hotkeys::default())
         .manage(control::Remote::default())
@@ -128,6 +130,9 @@ pub fn run() {
             let cache_root =
                 cache::chosen_root(&app.path().app_config_dir()?, cache_dir.join("audio-cache"));
             app.manage(cache::Cache::open(cache_root, 2048));
+            // Kept beside the cache: both are learned facts about tracks that
+            // cost a round trip to rediscover, and neither is user data.
+            app.manage(stream::Restricted::open(&cache_dir));
             // The Last.fm session, if one was connected. Stored beside the
             // cache rather than in it: it is not regenerable.
             app.manage(scrobble::Scrobbler::open(&app.path().app_config_dir()?));
@@ -190,6 +195,26 @@ pub fn run() {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
+                        // `rustypipe` opens a span per Innertube request and
+                        // logs it at ERROR on the way out whether or not the
+                        // request succeeded, carrying the span name and no
+                        // message: `music_charts; country=None`. Every launch
+                        // therefore printed a block of ERROR lines describing
+                        // calls that had worked, which is worse than no log —
+                        // it invites a hunt for an outage that is not there.
+                        //
+                        // Nothing is lost by dropping them. A call that really
+                        // fails is reported by the layer above it with the full
+                        // error text attached: `describe` and `shelf_or_empty`
+                        // in `catalogue.rs` both log at WARN, and those are the
+                        // lines that distinguish "YouTube had nothing" from
+                        // "extraction broke again".
+                        //
+                        // `tracing::span` is the same events arriving through
+                        // the tracing-to-log bridge, which is where the ones
+                        // that lose their module path end up.
+                        .level_for("rustypipe", log::LevelFilter::Off)
+                        .level_for("tracing::span", log::LevelFilter::Off)
                         .build(),
                 )?;
             }
@@ -221,6 +246,7 @@ pub fn run() {
             cache::cache_set_limit,
             cache::cache_location,
             cache::cache_set_location,
+            cache::cache_set_downloads_root,
             cache::cache_clear,
             backup::backup_export,
             backup::backup_import,

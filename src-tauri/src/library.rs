@@ -35,6 +35,11 @@ use tauri_plugin_dialog::DialogExt;
 /// the leak this module exists to prevent.
 const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "m4a", "aac", "ogg", "oga", "opus", "wav", "wma", "aiff", "aif", "alac",
+    // Downloads land here as whatever container the source served, and one of
+    // the two is WebM. Leaving it off the list meant a track the user had just
+    // downloaded into their own folder was the one thing the scan refused to
+    // list.
+    "webm", "weba",
 ];
 
 /// Deep enough for any real music library, shallow enough that a crafted or

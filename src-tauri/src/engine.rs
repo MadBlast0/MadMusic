@@ -77,6 +77,13 @@ pub type EndedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 /// channel, so an idle engine costs nothing.
 const TICK: Duration = Duration::from_millis(20);
 
+/// The loudest the engine will play, as a gain multiplier.
+///
+/// 1.0 is the file as it was mastered; the app's slider runs to 150% so a quiet
+/// recording can be rescued. Kept in step with `MAX_VOLUME` in
+/// `src/lib/audio/curve.ts`, which is what the slider enforces on the way in.
+const MAX_VOLUME: f32 = 1.5;
+
 /// One output the machine offers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -393,7 +400,13 @@ fn run(
 
             Command::Volume(volume) => {
                 if let Some(output) = open.as_ref() {
-                    output.sink.set_volume(volume.clamp(0.0, 1.0));
+                    // Up to 1.5, not 1.0: the slider goes to 150% and this is
+                    // the path that can actually deliver it. Rodio amplifies
+                    // above unity happily; a master that is already hot will
+                    // clip, which is what asking for a boost means. The clamp
+                    // stays because a caller sending 12.0 is a bug, and a
+                    // sudden twelvefold gain is a memorable way to find it.
+                    output.sink.set_volume(volume.clamp(0.0, MAX_VOLUME));
                 }
             }
 
