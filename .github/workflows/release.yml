@@ -1,0 +1,181 @@
+# Builds and publishes a release.
+#
+# ## Why this exists rather than a hand-made release
+#
+# Three of the remaining distribution items — installers, code signing, and the
+# auto-updater finding anything — are not code problems. They are "somebody has
+# to run the build on three operating systems, sign the output with keys that
+# must not be on a laptop, and publish the result somewhere stable". That is
+# what this file is.
+#
+# ## What it needs that this repository does not contain
+#
+# Secrets, and they are secrets for a reason. Each is listed here with what
+# happens without it, because a workflow that fails with "invalid signature" and
+# no explanation is worse than one that says which key is missing.
+#
+# - `TAURI_SIGNING_PRIVATE_KEY` — from `pnpm tauri signer generate`. The public
+#   half goes in `tauri.conf.json`; the private half goes here and nowhere else.
+#   **Without it the updater cannot verify a download and will refuse every
+#   update**, which is the correct behaviour: an unsigned update is a remote
+#   code execution waiting for a compromised CDN.
+# - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the passphrase for the above.
+# - `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+#   `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` — an Apple Developer
+#   membership. Without them the macOS build still produces a `.dmg`, and
+#   Gatekeeper refuses to open it on any machine but the one that built it.
+# - `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` — an Authenticode
+#   certificate. Without it Windows SmartScreen warns on first run.
+#
+# None of those can be created from inside a repository. The build is complete
+# and reproducible; the credentials are an account someone has to hold.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Deliberately available by hand as well: a release that can only be made by
+  # pushing a tag is a release nobody can test the pipeline for.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, without the leading v'
+        required: true
+
+jobs:
+  build:
+    permissions:
+      contents: write
+
+    strategy:
+      # One platform failing must not cancel the others. A macOS runner that
+      # ran out of disk should not cost a perfectly good Windows installer.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # The universal macOS binary needs both, and `--target` alone does not
+          # install them.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: pnpm install --frozen-lockfile
+
+      # The sidecar is not in the repository — it is fetched against a pinned
+      # checksum. Without this step the build produces an app that stops after
+      # about a minute on many catalogue tracks.
+      - name: Fetch the extractor
+        run: pnpm extractor
+
+      # The gates, before anything is published. A release that fails its own
+      # test suite is a release nobody should be able to make by accident.
+      - name: Check
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          pnpm attributions --check
+
+      - name: Check Rust
+        working-directory: src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'MadMusic v__VERSION__'
+          # Read from the file rather than written here, so the notes somebody
+          # reads in the app and the notes on the release page are one text.
+          releaseBody: ${{ github.workspace }}/CHANGELOG.md
+          releaseDraft: true
+          prerelease: false
+          # This is what the updater reads. Without it the endpoint in
+          # `tauri.conf.json` resolves to nothing and the app correctly reports
+          # that it is up to date forever.
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
+
+  # The package-manager manifests, once there is a release to point them at.
+  #
+  # Separate from the build because it needs every platform's artefacts, and
+  # because submitting them is a manual step in all three ecosystems — see
+  # `scripts/packaging.mjs` for what each one requires.
+  manifests:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artefacts
+        run: |
+          mkdir -p bundle
+          gh release download "${{ github.ref_name }}" --dir bundle --pattern '*'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate the manifests
+        run: >-
+          node scripts/packaging.mjs
+          --version "${GITHUB_REF_NAME#v}"
+          --dir bundle
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packaging-manifests
+          path: packaging/

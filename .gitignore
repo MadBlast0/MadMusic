@@ -104,3 +104,8 @@ design/*.html
 # configuration, cached so a launch does not re-fetch it. Regenerated on
 # demand, machine-specific, and it appears the first time anyone runs the app.
 src-tauri/rustypipe_cache.json
+
+# The yt-dlp sidecar, fetched per machine by `pnpm extractor` against a pinned
+# checksum. Seventeen megabytes of someone else's binary is a download, not a
+# source file; tauri.conf.json's `externalBin` expects it here.
+src-tauri/binaries/

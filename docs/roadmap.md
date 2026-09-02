@@ -92,7 +92,7 @@ discussion before any code assumes an answer.
 - The Tauri v2 shell, frameless, with the app's own title bar.
 - A local-folder library that reads tags in both the desktop app and the
   browser, with the folder grant enforced in Rust.
-- The full interface: home, search, library, queue, command palette, settings,
+- The full interface: home, search, library, queue, settings,
   two-axis theming, and the motion and icon systems.
 - Clerk authentication — email, Google, passkeys, TOTP. See [auth.md](auth.md).
 - **The streaming catalogue**, verified end to end against real YouTube audio.

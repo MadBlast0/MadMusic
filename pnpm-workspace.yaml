@@ -1,5 +1,18 @@
+# Which dependencies may run install scripts.
+#
+# pnpm 10 refuses to run any of them unless they are named here, and leaves a
+# placeholder for each one it found. A placeholder is not an answer: pnpm treats
+# it as unset and fails the install, which fails every script that depends on
+# one.
+#
+# `esbuild` is `true` because its postinstall is what fetches the platform
+# binary Vite compiles with — without it there is no build at all.
+#
+# `@clerk/shared` is `false`. Its script is a telemetry notice, and nothing in
+# the package needs to run to work.
 allowBuilds:
-  '@clerk/shared': set this to true or false
+  '@clerk/shared': false
+  esbuild: true
 
 # pnpm settings.
 #

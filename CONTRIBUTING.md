@@ -97,7 +97,33 @@ Beyond that:
 
 ## Rust and the Tauri shell
 
-`src-tauri/` is not scaffolded yet. When it lands, these apply:
+### Windows prerequisite: `rc.exe`
+
+The Tauri build embeds a Windows resource (the icon and version info), which
+needs **RC.EXE** from the Windows SDK. It is installed with the SDK but is
+**not on `PATH` by default**, and the failure it produces names neither Tauri
+nor the SDK:
+
+```
+called `Result::unwrap()` on an `Err` value:
+Failed("Are you sure you have RC.EXE in your $PATH or ${RC_$TARGET} or $RC is set?")
+```
+
+Either build from a **Developer Command Prompt for VS**, which puts it on
+`PATH`, or add the SDK's `x64` directory yourself:
+
+```powershell
+$env:PATH = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;$env:PATH"
+```
+
+Substitute the SDK version you actually have — `ls "C:\Program Files (x86)\Windows Kits\10\bin"`
+lists them. This is deliberately not pinned in `.cargo/config.toml`: the path
+contains a version number that differs per machine, and committing one would
+break the build for everyone whose SDK does not match.
+
+Only the Rust build needs this. `pnpm dev`, `pnpm test` and `pnpm build` do not.
+
+### Rules
 
 - **Keep the Rust layer thin.** It exists for what the webview cannot do: OS
   APIs, filesystem, windowing, secure storage, native dialogs. Business
@@ -113,8 +139,14 @@ Beyond that:
 - **Errors cross the boundary as typed, serialisable values** — not stringified
   panics. Never `unwrap()` on anything reachable from a command.
 - **`cargo fmt` and `cargo clippy -- -D warnings`** are expected to pass, the
-  same way Prettier and ESLint are on the TypeScript side. Both get folded into
-  `pnpm verify` when the shell lands, so there is still one command to remember.
+  same way Prettier and ESLint are on the TypeScript side. Both are part of
+  `pnpm verify`, along with `cargo test`, so there is still one command to
+  remember.
+- **Network tests are `#[ignore]`d.** The catalogue's live checks hit YouTube,
+  so they are excluded from `pnpm verify` and run on demand:
+  `cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture`.
+  Run them when playback, search or the home screen misbehaves — extraction
+  breaking is expected maintenance, not a surprise.
 
 ## Dependencies
 
