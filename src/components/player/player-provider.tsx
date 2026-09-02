@@ -44,6 +44,7 @@ import {
 } from '@/lib/audio/replaygain';
 import {
   applyCurve,
+  DEFAULT_VOLUME,
   matchRate,
   shouldCrossfade,
   type FadeCandidate,
@@ -194,7 +195,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = usePersistedState('madmusic-volume', 0.8);
+  const [volume, setVolumeState] = usePersistedState(
+    'madmusic-volume',
+    DEFAULT_VOLUME,
+  );
   const [muted, setMuted] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
@@ -369,8 +373,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     deck.volume = muted ? 0 : amplitude * sleepFadeRef.current;
     deck.applyVolume();
     // The graph needs the same number for loudness compensation, which is
-    // computed against how loud playback actually is.
-    audioGraph.setVolume(muted ? 0 : amplitude);
+    // computed against how loud playback actually is — and it is also the only
+    // thing in the web build that can deliver a volume above 100%, because the
+    // deck writes `HTMLMediaElement.volume`, which the specification clamps to
+    // 1. Where no graph is attached the slider simply stops getting louder past
+    // unity rather than misreporting.
+    audioGraph.setVolume(muted ? 0 : Math.min(1, amplitude));
+    audioGraph.setBoost(muted ? 1 : amplitude);
   }, [muted, volume]);
 
   /**
@@ -886,6 +895,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (deck.active.paused)
       void deck.resume(fade).catch(() => setPlaying(false));
     else deck.suspend(fade);
+  }, []);
+
+  /**
+   * Stops, and puts the bar back to its empty state.
+   *
+   * Distinct from pausing, which is what the transport does: this ends the
+   * listening session — nothing playing, nothing queued, no position to resume
+   * from. `shortcuts.ts` has named a "stop" action since the beginning and
+   * nothing implemented one; the bar's ✕ is it.
+   */
+  const stop = useCallback(() => {
+    if (engineRef.current) void engine.stop().catch(() => {});
+    else deckRef.current?.suspend(settingsRef.current.playPauseFade);
+
+    setPlaying(false);
+    setProgress(0);
+    setCurrent(null);
+    setQueue([]);
+    orderRef.current = [];
   }, []);
 
   /**
@@ -1806,6 +1834,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      stop,
       seek,
       progressNow,
       setScrubbing,
@@ -1851,6 +1880,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      stop,
       seek,
       progressNow,
       setScrubbing,

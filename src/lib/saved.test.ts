@@ -160,6 +160,45 @@ describe('parseSaved', () => {
   });
 
   /**
+   * Every mutation in the provider re-parses before it writes, so a field this
+   * function forgets is one the *next* unrelated edit silently deletes. That is
+   * what used to happen to a pin: pin a playlist, rename another, pin gone.
+   */
+  it('carries the optional playlist fields through', () => {
+    const result = parseSaved({
+      playlists: [
+        {
+          id: 'p',
+          name: 'Kept',
+          tracks: [],
+          pinned: true,
+          remoteId: 'r1',
+          artworkUrl: 'https://example.test/a.jpg',
+        },
+      ],
+    });
+
+    expect(result.playlists[0]).toMatchObject({
+      pinned: true,
+      remoteId: 'r1',
+      artworkUrl: 'https://example.test/a.jpg',
+    });
+  });
+
+  it('leaves the optional playlist fields absent when they are not set', () => {
+    // Absent rather than empty: every reader treats a missing `artworkUrl` as
+    // "work the cover out yourself", and `pinned: false` would sort as a pin
+    // that is off rather than as no opinion at all.
+    const result = parseSaved({
+      playlists: [{ id: 'p', name: 'Plain', tracks: [] }],
+    });
+
+    expect(result.playlists[0].artworkUrl).toBeUndefined();
+    expect(result.playlists[0].pinned).toBeUndefined();
+    expect(result.playlists[0].remoteId).toBeUndefined();
+  });
+
+  /**
    * The stored file is editable and may have been written by an older build.
    * One malformed entry must cost that entry, not the user's whole collection.
    */

@@ -14,6 +14,7 @@ import {
 } from '@/components/library/library-context';
 import { allTracks } from '@/lib/library-model';
 import { getLocalSource, type LocalFolder } from '@/lib/local-source';
+import { setDownloadsFolder } from '@/lib/desktop';
 import { store } from '@/lib/store';
 import { toTrackRows } from '@/lib/track-bridge';
 
@@ -78,6 +79,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
    */
   const adoptFolder = useCallback((folder: LocalFolder | null) => {
     setRoot(folder);
+
+    // Downloads follow the Local folder. Done here rather than at each call
+    // site for the same reason the indexing below is: four paths produce a
+    // folder and three of them would eventually be forgotten. Not awaited -
+    // nothing on screen depends on it, and a backend that could not be told
+    // simply keeps downloading where it already was.
+    void setDownloadsFolder(folder?.path ?? null).catch(() => {});
+
     if (!folder) return;
 
     void (async () => {

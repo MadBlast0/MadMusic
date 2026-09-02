@@ -4,16 +4,19 @@ import { AnimatePresence, m } from 'motion/react';
 import { CoverArt } from '@/components/library/cover-art';
 import { RollingTime } from '@/components/player/rolling-time';
 import {
-  Heart,
+  Fullscreen,
+  Mic,
   More,
-  Sliders,
+  PictureInPicture,
   PlayPause,
   Queue,
   Repeat,
   Shuffle,
   SkipBack,
   SkipForward,
+  Sliders,
   Volume,
+  X,
 } from '@/components/icons';
 import { IconButton } from '@/components/icons/icon-button';
 import { EpisodeControls } from '@/components/player/episode-controls';
@@ -26,14 +29,13 @@ import {
   SleepControl,
   SpeedControl,
 } from '@/components/player/transport-extras';
-import { toast } from 'sonner';
 
 import {
   usePlayer,
   usePlayerProgress,
 } from '@/components/player/player-context';
-import { useSaved } from '@/components/common/saved-context';
 import { useSettings } from '@/components/common/settings-context';
+import { SaveButton } from '@/components/library/save-button';
 import { LoudnessMeter } from '@/components/player/loudness-meter';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -44,7 +46,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { MAX_VOLUME } from '@/lib/audio/curve';
 import { formatTime } from '@/lib/library-model';
+import { isNative } from '@/lib/native';
 import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
 import { EqualiserPanel } from '@/components/player/equaliser-panel';
@@ -57,19 +61,28 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { duration as motionDuration, ease, spring } from '@/lib/motion';
-import { cn } from '@/lib/utils';
 
 export function NowPlayingBar({
   queueOpen,
   onToggleQueue,
-  pipOn,
-  onTogglePip,
+  lyricsOpen,
+  onToggleLyrics,
+  compact,
+  onPresent,
+  immersive,
+  onToggleImmersive,
 }: {
   queueOpen: boolean;
   onToggleQueue: () => void;
-  /** Whether the floating window is open. Absent where the engine has none. */
-  pipOn: boolean;
-  onTogglePip: () => void;
+  /** Whether the words are showing on the canvas — lyrics, or a transcript. */
+  lyricsOpen: boolean;
+  onToggleLyrics: () => void;
+  /** Which compact arrangement is showing, if any. */
+  compact: 'normal' | 'compact' | 'widget' | 'pip';
+  onPresent: (mode: 'compact' | 'widget' | 'pip') => void;
+  /** Whether the full-screen player is up. */
+  immersive: boolean;
+  onToggleImmersive: () => void;
 }) {
   const {
     current,
@@ -91,6 +104,7 @@ export function NowPlayingBar({
     markLoopPoint,
     canUndoSkip,
     undoSkip,
+    stop,
   } = usePlayer();
   const { progress } = usePlayerProgress();
   const remote = useRemote();
@@ -128,11 +142,7 @@ export function NowPlayingBar({
     [remote, playing, volume, toggle, next, previous, seek, setVolume],
   );
 
-  const { isLiked, toggleLike } = useSaved();
-  // Derived from the store, not held locally. The old local flag never reset
-  // between tracks, so liking one song showed every subsequent song as liked.
   const { settings } = useSettings();
-  const liked = current ? isLiked(current.id) : false;
 
   // Held locally while the thumb is down. The provider stops writing position
   // during a scrub, so this is the only value moving — which is what stops the
@@ -275,36 +285,21 @@ export function NowPlayingBar({
             : `Paused: ${current.title} by ${current.artist}`}
         </p>
 
-        <IconButton
-          label={liked ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-          active={liked}
-          size="sm"
-          onClick={() => {
-            if (!current) return;
-            const outcome = toggleLike(current);
-            // A local file has no identity beyond this machine, so it cannot
-            // be saved. Saying so beats a heart that refuses to fill with no
-            // explanation.
-            if (outcome === 'unsupported') {
-              toast(
-                'Files from your own folder cannot be saved to a playlist.',
-              );
-            }
-          }}
-        >
-          {/* The burst only plays on the way *in*. Liking something is a small
-              act of delight; unliking is housekeeping, and celebrating it would
-              be the app cheering at the wrong moment. */}
-          <m.span
-            key={liked ? 'liked' : 'not-liked'}
-            initial={false}
-            animate={liked ? { scale: [1, 1.35, 0.92, 1] } : { scale: 1 }}
-            transition={{ duration: motionDuration.slow, ease: ease.enter }}
-            className="flex"
-          >
-            <Heart filled={liked} className={cn(liked && 'text-primary')} />
-          </m.span>
+        {/* Dismiss, then save — the pair the bar has instead of a lone heart.
+            ✕ ends the session rather than pausing it: nothing playing, nothing
+            queued.
+
+            Saving is the same control as the one on every search result — see
+            `library/save-button.tsx`. It used to be a menu of its own here,
+            which could only ever *add*: there was no way to take a song out of
+            a playlist from the bar, and the same glyph meant "add to Liked" in
+            one place and "open a menu" in another. One control, one meaning,
+            both places. */}
+        <IconButton label="Stop" size="sm" onClick={stop}>
+          <X className="size-3.5" />
         </IconButton>
+
+        <SaveButton track={current} size="sm" />
       </div>
 
       {/* Transport */}
@@ -329,7 +324,13 @@ export function NowPlayingBar({
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             transition={spring.snappy}
-            className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+            // Foreground rather than the accent colour. The accent is the
+            // app's *state* colour — a filled heart, an engaged toggle, the
+            // track you are on — and spending it on the one control that is
+            // always there left nothing to distinguish the controls that are
+            // on. A plain white disc is also what the eye lands on first,
+            // which is right for the button people aim at without looking.
+            className="flex size-9 items-center justify-center rounded-full bg-foreground text-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
           >
             {/* Larger than the default 16px: a 16px glyph inside a 36px filled
                 circle reads as a dot in a disc. 20px is a little over half the
@@ -383,10 +384,15 @@ export function NowPlayingBar({
       </div>
 
       {/* Secondary controls.
-          Widened, because the bar grew a row of state-carrying controls —
-          speed, the sleep timer and the loop each show their own value rather
-          than an icon, which is what makes them noticeable when they are on. */}
-      <div className="flex w-56 items-center justify-end gap-1 lg:w-80">
+
+          Six controls and an overflow, in the order somebody reaches for them:
+          the words, the queue, where the sound is going, how loud, and the two
+          ways of making the player bigger. Everything that shows a *value*
+          rather than a state — speed, the sleep timer, the A-B loop — used to
+          sit on the bar for that reason and is named in the menu now, because
+          seven glyphs competing with the scrubber for one row is how the
+          right-hand side became unreadable. */}
+      <div className="flex w-56 items-center justify-end gap-1 lg:w-96">
         {/* Renders nothing while the connection is healthy, which is almost
             always. An indicator that is always present teaches people to
             ignore it. */}
@@ -397,31 +403,30 @@ export function NowPlayingBar({
             extra on a podcast, it is the reason people reach for the bar. */}
         <EpisodeControls />
 
-        {/* Speed and the sleep timer stay on the bar because they *display*
-            their value — "1.5x", "20m" — so hiding them would hide the only
-            evidence that they are on. Everything with a fixed glyph moved into
-            the menu below, where it can carry a word instead. */}
-        <div className="hidden items-center gap-1 xl:flex">
-          <SpeedControl />
-          <SleepControl />
-          {/* Only while a loop exists. Idle it was a bare "A", which reads as
-              nothing at all; the menu offers it by name instead. */}
-          {loop !== null && <LoopControl />}
-        </div>
-
-        {/* Everything that used to be a row of unlabelled glyphs.
-            A-B loop, shuffle mode, casting and picture-in-picture are not
-            self-evident as icons, and there were nine of them competing with
-            the scrubber for the same row. A menu costs one click and gives
-            each of them a name. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <IconButton label="More player controls">
+            <IconButton label="More player controls" size="sm">
               <More />
             </IconButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>Playback</DropdownMenuLabel>
+            {/* These carry their own value — "1.5x", "20m", the loop's two
+                points — so they appear as themselves rather than as items
+                whose label would repeat what the control already says. */}
+            <div className="flex items-center gap-1 px-2 py-1.5">
+              <SpeedControl />
+              <SleepControl />
+              {loop !== null && <LoopControl />}
+              <IconButton
+                label="Equaliser"
+                size="sm"
+                active={eqOpen}
+                onClick={() => setEqOpen(true)}
+              >
+                <Sliders />
+              </IconButton>
+            </div>
             <DropdownMenuItem onSelect={markLoopPoint}>
               {loop === null
                 ? 'Repeat a section'
@@ -438,21 +443,15 @@ export function NowPlayingBar({
             <DropdownMenuSeparator />
             <DropdownMenuLabel>This track</DropdownMenuLabel>
             <DropdownMenuItem onSelect={() => setSharing(true)}>
-              Share…
+              Share...
             </DropdownMenuItem>
-            {pipAvailable() && (
-              <DropdownMenuItem onSelect={onTogglePip}>
-                {pipOn ? 'Close the floating window' : 'Floating window'}
-              </DropdownMenuItem>
-            )}
 
-            {/* These two keep their own menus and dialogs, so they sit here as
+            {/* These keep their own menus and dialogs, so they sit here as
                 themselves rather than as items that would need a second menu
                 nested inside this one. */}
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Send elsewhere</DropdownMenuLabel>
             <div className="flex items-center gap-1 px-2 py-1.5">
-              <DevicesControl />
               <ListenTogether />
               <CastControl />
               <ShuffleModeControl />
@@ -460,72 +459,134 @@ export function NowPlayingBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Its own button rather than a menu item, because the sliders icon is
-            what people look for when they want an equaliser — burying it behind
-            three dots is what made somebody press the overflow expecting one. */}
+        {/* The words take over the main canvas rather than the side panel:
+            lyrics are the thing you are looking at while they are up, and a
+            column beside the page you were reading is not that.
+
+            A toggle, and lit while it is on. The same press puts the page back,
+            and so does navigating anywhere — see `App`. */}
         <IconButton
-          label="Equaliser"
-          active={eqOpen}
-          onClick={() => setEqOpen(true)}
+          label={
+            lyricsOpen
+              ? 'Hide the words'
+              : current.episodeId
+                ? 'Transcript'
+                : 'Lyrics'
+          }
+          size="sm"
+          active={lyricsOpen}
+          onClick={onToggleLyrics}
         >
-          <Sliders />
+          <Mic />
         </IconButton>
 
         <IconButton
           label={queueOpen ? 'Hide queue' : 'Show queue'}
+          size="sm"
           active={queueOpen}
           onClick={onToggleQueue}
         >
           <Queue />
         </IconButton>
 
+        {/* Renders nothing without a backend and an account, which is the
+            ordinary case: there is nowhere else to send the sound. */}
+        <DevicesControl />
+
         {settings.showLoudnessMeter && current && (
           <LoudnessMeter className="hidden lg:block" />
         )}
 
-        {/* Volume lives behind the speaker rather than beside it.
-            On the bar it was a 96px track whose unfilled part is `bg-muted` —
-            all but invisible on this background — so at full volume the only
-            thing anyone could see was the white thumb, floating at the right
-            edge like a stray dot with no explanation. Behind the icon it is
-            legible, and the scrubber gets the width back.
+        {/* The slider is back on the bar, beside the speaker.
 
-            The icon still mutes on click; the menu is the secondary action, so
-            the common case stays one click. */}
-        <div className="flex items-center">
+            It was hidden behind a chevron because its unfilled track is all but
+            invisible on this background — so the fix is to give it a groove and
+            a width worth aiming at, not to hide the one control people expect
+            to find without opening anything.
+
+            The track runs to 150%: past 100% the signal is being amplified
+            rather than attenuated, which the readout in the tooltip says. */}
+        <div className="flex items-center gap-1.5">
           <IconButton
             label={muted ? 'Unmute' : 'Mute'}
+            size="sm"
             active={muted}
             onClick={toggleMute}
           >
             <Volume level={level} />
           </IconButton>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Volume, ${muted ? 0 : Math.round(volume * 100)} percent`}
-                className="h-6 w-2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                <span aria-hidden className="text-[10px] leading-none">
-                  ⌃
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 p-3">
-              <Slider
-                value={[muted ? 0 : Math.round(transport.volume * 100)]}
-                max={100}
-                step={1}
-                onValueChange={([value]) => transport.setVolume(value / 100)}
-                aria-label="Volume"
-                aria-valuetext={`${muted ? 0 : Math.round(volume * 100)} percent`}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="hidden w-24 items-center md:flex">
+            <Slider
+              value={[muted ? 0 : Math.round(transport.volume * 100)]}
+              max={MAX_VOLUME * 100}
+              step={1}
+              onValueChange={([value]) => transport.setVolume(value / 100)}
+              aria-label="Volume"
+              aria-valuetext={`${muted ? 0 : Math.round(volume * 100)} percent`}
+              className="w-full"
+            />
+          </div>
         </div>
+
+        {/* One control for every way of making the player small.
+
+            They were not all reachable before: the compact player was a
+            keyboard shortcut with no button anywhere, and widget mode was a
+            toggle buried inside it — so the two most-asked-for arrangements
+            were the two nobody could find. They are one menu because "make
+            this small" is one intent; which posture is the detail. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              label="Compact player"
+              size="sm"
+              active={compact !== 'normal'}
+            >
+              <PictureInPicture />
+            </IconButton>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel>Compact player</DropdownMenuLabel>
+
+            <DropdownMenuItem onSelect={() => onPresent('compact')}>
+              {compact === 'compact'
+                ? 'Back to the full window'
+                : 'Shrink to the player'}
+            </DropdownMenuItem>
+
+            {/* Desktop only: a browser tab has no desktop to pin to. */}
+            {isNative() && (
+              <DropdownMenuItem onSelect={() => onPresent('widget')}>
+                {compact === 'widget'
+                  ? 'Take off the desktop'
+                  : 'Pin to the desktop'}
+              </DropdownMenuItem>
+            )}
+
+            {/* The only one that leaves the main interface usable, which is
+                why it is worth offering alongside rather than instead. */}
+            {pipAvailable() && (
+              <DropdownMenuItem onSelect={() => onPresent('pip')}>
+                {compact === 'pip'
+                  ? 'Close the floating window'
+                  : 'Open in a floating window'}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <IconButton
+          label={immersive ? 'Leave full screen' : 'Full screen'}
+          size="sm"
+          active={immersive}
+          onClick={onToggleImmersive}
+        >
+          <Fullscreen />
+        </IconButton>
       </div>
+
       <ShareDialog track={current} open={sharing} onOpenChange={setSharing} />
 
       {/* A dialog rather than a trip to Settings: adjusting an equaliser is

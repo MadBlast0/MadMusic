@@ -1,171 +1,178 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { CoverArt } from '@/components/library/cover-art';
-import { useLibrary } from '@/components/library/library-context';
-import { StaticClock, StaticMusic, X } from '@/components/icons';
-import { allTracks } from '@/lib/library-model';
-import { rank } from '@/lib/search-query';
-import { store } from '@/lib/store';
+import { StaticMusic } from '@/components/icons';
+import { useDebounced } from '@/hooks/use-debounced';
+import {
+  getCatalogueSource,
+  type CatalogueSource,
+  type CatalogueTrack,
+} from '@/lib/catalogue';
 import { cn } from '@/lib/utils';
 
-/** How many of each kind to offer. Enough to be useful, few enough to scan. */
+/** How many results to offer. Enough to be useful, few enough to scan. */
 const LIMIT = 6;
 
 /**
  * What appears under the search field as you type.
  *
- * Two kinds of suggestion, and the order between them is the whole design:
+ * **The catalogue, and nothing else.** Music on this machine is not searched
+ * from here — it has its own field in the sidebar, and mixing the two made one
+ * list mean two things depending on what happened to be on disk. The top bar
+ * searches what you can play *next*.
  *
- * 1. **Recent searches**, when the field is empty. Reaching for the search box
- *    and being shown what you last looked for is the fastest path to the thing
- *    you are probably looking for again.
- * 2. **Tracks from this machine**, once there is something to match. Ranked
- *    rather than filtered, so a typo still finds the song — and with artwork,
- *    because a cover is recognised faster than a title is read.
+ * Recent searches used to lead here when the field was empty. They are gone
+ * too: the panel is what your query found, so opening it before there is a
+ * query changed the shape under a reader who had not asked for anything yet.
  *
- * The catalogue is deliberately absent. A suggestion list that waits on a
- * network round trip is not a suggestion list; it is a second set of results
- * that arrives after you have already finished typing.
+ * # Why the request lags
+ *
+ * Debounced for the reason `search-view.tsx` gives: one request per keystroke
+ * fans out across the extractor and provokes the rate limit that makes every
+ * retry worse. Enter is unaffected — it searches the field's current contents,
+ * not the lagging copy this list was built from.
+ *
+ * # Why a late answer cannot paint over a newer query
+ *
+ * Each answer is stored beside the query that asked for it and rendered only
+ * while the two still agree. A slow reply for "sal" arriving after "salvatore"
+ * is on screen is dropped rather than shown under the newer word.
  */
 export function SearchSuggestions({
   query,
-  onPick,
-  onClose,
+  onChoose,
+  active,
+  onActiveChange,
+  onCountChange,
+  onActiveValueChange,
 }: {
   query: string;
-  /** Fills the field with a suggestion and searches for it. */
-  onPick: (value: string) => void;
-  onClose: () => void;
+  /** Searches for a row's words — the results page. */
+  onChoose: (value: string) => void;
+  /** Which row the keyboard is on, or -1 for none. */
+  active: number;
+  onActiveChange: (index: number) => void;
+  /** Lets the field bound its own arrow keys without knowing the contents. */
+  onCountChange: (count: number) => void;
+  /** What Enter should search for while this row is highlighted. */
+  onActiveValueChange: (value: string | null) => void;
 }) {
-  const { root } = useLibrary();
-  const [recent, setRecent] = useState<string[]>([]);
+  const trimmed = query.trim();
+  const settled = useDebounced(query).trim();
 
-  const loadRecent = useCallback(() => {
-    void store
-      .searchRecent(LIMIT)
-      .then(setRecent)
-      .catch(() => setRecent([]));
+  const [source, setSource] = useState<CatalogueSource | null>(null);
+  const [answer, setAnswer] = useState<{
+    query: string;
+    tracks: CatalogueTrack[];
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const resolved = await getCatalogueSource();
+      if (!cancelled) setSource(resolved);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  useEffect(loadRecent, [loadRecent]);
+  useEffect(() => {
+    if (!source || !settled) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const tracks = await source.search(settled);
+        if (!cancelled) setAnswer({ query: settled, tracks });
+      } catch {
+        // A failed lookup leaves the query row on its own rather than showing
+        // an error inside a dropdown. The field still works; there is simply
+        // nothing to suggest.
+        if (!cancelled) setAnswer({ query: settled, tracks: [] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [source, settled]);
 
-  const trimmed = query.trim();
+  const tracks =
+    answer && answer.query === settled ? answer.tracks.slice(0, LIMIT) : [];
 
-  const matches = useMemo(() => {
-    if (trimmed.length < 2 || !root) return [];
-    // Ranked over the whole tree rather than filtered: a typo should still
-    // find the song, which a substring match cannot do.
-    return rank(
-      allTracks(root).map((track) => ({
-        id: track.id,
-        title: track.title,
-        artist: track.artist ?? '',
-        album: track.album ?? '',
-        track,
-      })),
-      trimmed,
-    ).slice(0, LIMIT);
-  }, [trimmed, root]);
+  const count = tracks.length;
 
-  const showRecent = trimmed.length === 0 && recent.length > 0;
-  if (!showRecent && matches.length === 0) return null;
+  useEffect(() => {
+    onCountChange(count);
+  }, [count, onCountChange]);
+
+  // `null` when nothing is highlighted, which is the ordinary case — Enter
+  // then means "search for what I typed" rather than any particular row.
+  const activeValue = active >= 0 ? (tracks[active]?.title ?? null) : null;
+
+  useEffect(() => {
+    onActiveValueChange(activeValue);
+  }, [activeValue, onActiveValueChange]);
+
+  // Nothing found, nothing to show. The query is already in the field above —
+  // repeating it back as a row said nothing the reader could not already see.
+  if (!trimmed || tracks.length === 0) return null;
 
   return (
-    <div className="absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
-      {showRecent && (
-        <>
-          <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-              Recent
-            </span>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-              onMouseDown={(event) => {
-                // `mousedown`, not `click`: the field's blur fires first and
-                // would unmount this before a click ever landed.
-                event.preventDefault();
-                void store.searchForget().then(loadRecent);
-              }}
+    // No border, no background, no shadow, and not positioned: the search
+    // field's silhouette provides all four, and this is the content that sits
+    // inside it. See `layout/search-morph.tsx`. Padded to clear the shoulders,
+    // which pinch inward from the field's full width.
+    <div className="px-3">
+      <div className="mb-1 h-px bg-border" aria-hidden />
+
+      {/* The id the field's `aria-controls` names. Without it that reference
+          dangles, which is both a lie to a screen reader and an axe failure. */}
+      <ul
+        id="search-suggestions"
+        role="listbox"
+        aria-label="Search suggestions"
+        className="list-none"
+      >
+        {tracks.map((track, at) => {
+          return (
+            <li
+              key={track.id}
+              role="option"
+              aria-selected={active === at}
+              id={`search-suggestion-${at}`}
             >
-              Clear
-            </button>
-          </div>
-
-          <ul>
-            {recent.map((entry) => (
-              <li key={entry}>
-                <button
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    onPick(entry);
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-3 py-2 text-left text-sm',
-                    'hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
-                  )}
-                >
-                  <StaticClock className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{entry}</span>
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label={`Forget ${entry}`}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      void store.searchForget(entry).then(loadRecent);
-                    }}
-                  >
-                    <X className="size-3.5" />
+              <button
+                type="button"
+                tabIndex={-1}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onChoose(track.title);
+                }}
+                onMouseEnter={() => onActiveChange(at)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left',
+                  active === at && 'bg-accent/50',
+                )}
+              >
+                <CoverArt
+                  track={null}
+                  src={track.artworkUrl}
+                  seed={track.album || track.title}
+                  className="size-8 shrink-0"
+                  rounded="rounded"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{track.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {track.artist || 'Unknown artist'}
                   </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {matches.length > 0 && (
-        <>
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-            On this machine
-          </div>
-          <ul>
-            {matches.map((entry) => (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    onPick(entry.title);
-                    onClose();
-                  }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
-                >
-                  <CoverArt
-                    track={entry.track.hasArtwork ? entry.track : null}
-                    seed={entry.album || entry.title}
-                    className="size-8 shrink-0"
-                    rounded="rounded"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">
-                      {entry.title}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {entry.artist || 'Unknown artist'}
-                    </span>
-                  </span>
-                  <StaticMusic className="size-3.5 shrink-0 text-muted-foreground" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                </span>
+                <StaticMusic className="size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

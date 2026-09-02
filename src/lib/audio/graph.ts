@@ -109,6 +109,14 @@ export class AudioGraph {
   private settings: GraphSettings = { ...FLAT, bands: [...FLAT.bands] };
   /** The volume the compensation curve is computed against. */
   private volume = 1;
+  /**
+   * Amplification above unity, as a multiplier of the preamp.
+   *
+   * The one place in the web build where a volume over 100% can actually
+   * happen: `HTMLMediaElement.volume` is clamped to 1 by the specification, so
+   * the deck cannot deliver a boost however it is asked. A gain node can.
+   */
+  private boost = 1;
   /** Set once anything throws, so a broken environment is tried only once. */
   private broken = false;
   private data = new Uint8Array(new ArrayBuffer(0));
@@ -298,6 +306,20 @@ export class AudioGraph {
     }
   }
 
+  /**
+   * Sets the amplification above unity, 1 being none.
+   *
+   * Separate from `setVolume` because the two are different questions: that one
+   * describes how loud playback is, so the compensation curve can be computed
+   * against it, and this one actually changes the level.
+   */
+  setBoost(boost: number): void {
+    const next = Math.max(1, boost);
+    if (next === this.boost) return;
+    this.boost = next;
+    for (const chain of this.chains.values()) this.applyTo(chain);
+  }
+
   private applyTo(chain: Chain): void {
     const { bands, preamp, bassBoost, mono, balance, loudness } = this.settings;
 
@@ -339,7 +361,10 @@ export class AudioGraph {
     // has already asked for a trim of their own.
     const highest = Math.max(0, ...bands, bassBoost);
     const automatic = highest > 0 ? -highest * 0.5 : 0;
-    chain.preamp.gain.value = fromDb(preamp + automatic);
+    // The boost multiplies the trim rather than being added to it in decibels,
+    // because it is the user asking for more level and the trim is the chain
+    // protecting itself from its own equaliser. Both still apply.
+    chain.preamp.gain.value = fromDb(preamp + automatic) * this.boost;
   }
 
   /**

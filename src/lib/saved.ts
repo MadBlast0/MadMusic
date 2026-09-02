@@ -42,6 +42,14 @@ export type Playlist = {
   description: string;
   /** Gradient stops, derived from the name at creation and then fixed. */
   cover: [string, string];
+  /**
+   * A cover the user chose, taken from one of the songs in the playlist.
+   *
+   * Absent means "work it out" — the four-cover mosaic, or the first track's
+   * art. Only ever a URL that some track in the library already carries, so
+   * the stored playlist stays small and nothing has to be uploaded anywhere.
+   */
+  artworkUrl?: string;
   tracks: SavedTrack[];
   /**
    * Kept at the top of the sidebar.
@@ -230,6 +238,18 @@ function parsePlaylists(value: unknown): Playlist[] {
           p.cover.every((c) => typeof c === 'string')
             ? [p.cover[0] as string, p.cover[1] as string]
             : fallbackCover(p.name),
+        // The optional fields are carried through rather than dropped. Every
+        // mutation in `saved-provider.tsx` re-parses before it writes, so a
+        // field this function forgets is a field the *next* unrelated edit
+        // silently deletes — which is how pinning used to survive until the
+        // playlist was renamed.
+        ...(typeof p.artworkUrl === 'string' && p.artworkUrl
+          ? { artworkUrl: p.artworkUrl }
+          : {}),
+        ...(p.pinned === true ? { pinned: true } : {}),
+        ...(typeof p.remoteId === 'string' && p.remoteId
+          ? { remoteId: p.remoteId }
+          : {}),
         tracks: parseTracks(p.tracks),
         createdAt: typeof p.createdAt === 'number' ? p.createdAt : 0,
         updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : 0,

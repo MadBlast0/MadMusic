@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { AccountMenu } from '@/components/auth/account-menu';
@@ -60,17 +61,26 @@ function withAuth(state: Partial<AuthState>) {
   };
   return render(
     <AuthContext value={value}>
-      <AccountMenu />
+      <AccountMenu onOpenSettings={() => {}} onOpenDiagnostics={() => {}} />
     </AuthContext>,
   );
 }
 
 describe('account menu', () => {
-  it('renders nothing when auth is not configured', () => {
-    // A fresh clone has no Clerk key. A dead sign-in button is worse than no
-    // button, and the app is fully usable without an account.
-    const { container } = withAuth({ configured: false });
-    expect(container).toBeEmptyDOMElement();
+  it('still opens with no auth configured, holding settings alone', async () => {
+    // A fresh clone has no Clerk key, and settings has no other click-path —
+    // so the menu has to exist. It says nothing about accounts: a dead
+    // sign-in row is still worse than an absent one.
+    const user = userEvent.setup();
+    withAuth({ configured: false });
+
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    expect(
+      await screen.findByRole('menuitem', { name: 'Settings' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /sign in/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('holds the space while the session is still unknown', () => {
@@ -78,26 +88,67 @@ describe('account menu', () => {
     // frame than a blank circle.
     withAuth({ loading: true });
     expect(
-      screen.queryByRole('button', { name: /sign in/i }),
+      screen.queryByRole('button', { name: 'Account' }),
     ).not.toBeInTheDocument();
   });
 
-  it('offers sign-in when signed out', () => {
+  it('offers settings and sign-in when signed out', async () => {
+    const user = userEvent.setup();
     withAuth({ signedIn: false });
+
+    await user.click(screen.getByRole('button', { name: 'Account' }));
     expect(
-      screen.getByRole('button', { name: /sign in/i }),
+      await screen.findByRole('menuitem', { name: 'Settings' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: /sign in/i }),
     ).toBeInTheDocument();
   });
 
-  it('shows the account once signed in', () => {
-    withAuth({
-      signedIn: true,
-      account: anAccount(),
-    });
+  it('shows the account and its actions once signed in', async () => {
+    const user = userEvent.setup();
+    withAuth({ signedIn: true, account: anAccount() });
 
-    expect(screen.getByRole('button', { name: 'Account' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+
+    expect(await screen.findByText('Mad Blast')).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: /sign in/i }),
+      screen.getByRole('menuitem', { name: 'Settings' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: /sign out/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /sign in/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it('opens settings from the menu', async () => {
+    const user = userEvent.setup();
+    let opened = 0;
+    render(
+      <AuthContext
+        value={{
+          configured: true,
+          loading: false,
+          signedIn: true,
+          account: anAccount(),
+          signIn: () => {},
+          signOut: () => {},
+          manageAccount: () => {},
+          deleteAccount: async () => {},
+        }}
+      >
+        <AccountMenu
+          onOpenSettings={() => (opened += 1)}
+          onOpenDiagnostics={() => {}}
+        />
+      </AuthContext>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Settings' }));
+
+    expect(opened).toBe(1);
   });
 });

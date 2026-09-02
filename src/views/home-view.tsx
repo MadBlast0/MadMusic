@@ -9,6 +9,7 @@ import {
 } from '@/components/home/shelves';
 import { LibraryShelves } from '@/components/home/library-shelves';
 import { MixShelves, ReleaseRadarShelf } from '@/components/home/mix-shelves';
+import { QuickPicks, type QuickPick } from '@/components/home/quick-picks';
 import { Info, Sparkle } from '@/components/icons';
 import { useLibrary } from '@/components/library/library-context';
 import { useSaved } from '@/components/common/saved-context';
@@ -24,8 +25,10 @@ import {
   type HomeFeed,
 } from '@/lib/catalogue';
 import { allTracks, groupAlbums } from '@/lib/library-model';
+import { SHELF_KEYS } from '@/lib/shelf-source';
 import { toCatalogueTrack, toPlayerTrack } from '@/lib/player-track';
 import { fromSaved } from '@/lib/saved';
+import { cn } from '@/lib/utils';
 import { ViewShell } from '@/views/view-shell';
 
 /**
@@ -52,6 +55,19 @@ export function HomeView({
   const { history } = useSaved();
   const { play, current, playing } = usePlayer();
 
+  /**
+   * Which half of the screen's content is showing.
+   *
+   * MadMusic's home draws from two places that behave very differently — files
+   * on this machine, and a streaming catalogue — and the difference matters to
+   * the user in a way "music vs podcasts" would not. Somebody offline, or on a
+   * metered connection, or who simply keeps their own rips, can put the
+   * catalogue away without turning anything off in settings.
+   */
+  const [filter, setFilter] = useState<'all' | 'library' | 'catalogue'>('all');
+  const showLibrary = filter !== 'catalogue';
+  const showCatalogue = filter !== 'library';
+
   const [source, setSource] = useState<CatalogueSource | null>(null);
   const [feed, setFeed] = useState<HomeFeed | null>(null);
 
@@ -73,6 +89,47 @@ export function HomeView({
     if (!root) return [];
     return groupAlbums(allTracks(root)).slice(0, 12);
   }, [root]);
+
+  /**
+   * The eight tiles at the top.
+   *
+   * Taken from listening history rather than from a chart, and deduplicated by
+   * *artist*: playing six songs off one record should put that artist in the
+   * block once, not fill the block with them. What is left is eight different
+   * things you were recently listening to, which is what makes a block worth
+   * aiming at without reading it.
+   *
+   * Deduplicating by album would be the better rule and is not available —
+   * `SavedTrack` carries no album, because history is written from the player
+   * and the player does not always know one. Artist is the closest thing that
+   * is always there.
+   */
+  const picks = useMemo<QuickPick[]>(() => {
+    const seen = new Set<string>();
+    const out: QuickPick[] = [];
+
+    for (const [index, track] of history.entries()) {
+      const key = track.artist || track.title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({
+        id: track.id,
+        title: track.title,
+        subtitle: track.artist,
+        cover: track.cover,
+        artworkUrl: track.artworkUrl,
+        onOpen: () => {
+          const queue = history.map(fromSaved);
+          play(queue[index], queue);
+        },
+      });
+
+      if (out.length === 8) break;
+    }
+
+    return out;
+  }, [history, play]);
 
   function playCollection(collection: Collection) {
     void (async () => {
@@ -101,20 +158,46 @@ export function HomeView({
   return (
     <ViewShell density="home">
       <div className="flex flex-col gap-9">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight">
-              {greeting()}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Picked up where you left off
-            </p>
+        {/* # Why there is no greeting any more
+
+            "Good evening" was the first thing on the screen and the least
+            useful — it told the reader the time, which they knew, in the
+            position where the screen should be telling them what they can do.
+            The filters take that slot instead: same prominence, actually
+            actionable, and they are the one control on this page that changes
+            what the whole page contains. */}
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div role="tablist" aria-label="Filter home" className="flex gap-2">
+            {(
+              [
+                ['all', 'All'],
+                ['library', 'Your library'],
+                ['catalogue', 'Catalogue'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={filter === value}
+                onClick={() => setFilter(value)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-sm font-medium transition-colors duration-fast',
+                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  filter === value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-foreground hover:bg-accent/60',
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* The catalogue is bundled placeholder content until extraction
               ships. Saying so on screen costs one chip and is the difference
               between a preview and a lie. */}
-          {source?.kind === 'preview' && (
+          {source?.kind === 'preview' && showCatalogue && (
             <span className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
               <Info className="size-3.5" />
               Preview catalogue — playback arrives with the extractor
@@ -122,10 +205,16 @@ export function HomeView({
           )}
         </header>
 
+        {/* Straight under the filters and above every shelf: the things you
+            were already listening to beat anything the screen can suggest. */}
+        {showLibrary && (
+          <QuickPicks picks={picks} currentId={current?.id} playing={playing} />
+        )}
+
         {/* Above the catalogue, deliberately: the thing you were already
             listening to is more likely to be what you came back for than
             anything a chart can offer. */}
-        {history.length > 0 && (
+        {showLibrary && history.length > 0 && (
           <Shelf
             title="Jump back in"
             blurb="Where you left off"
@@ -138,7 +227,7 @@ export function HomeView({
                 size="sm"
                 onClick={() => onOpen({ name: 'saved', kind: 'history' })}
               >
-                View all
+                Show all
               </Button>
             }
           >
@@ -172,15 +261,38 @@ export function HomeView({
             catalogue. A generated mix that knows what you actually play beats
             a chart that does not, and on a first run these render nothing at
             all rather than pretending otherwise. */}
-        <LibraryShelves onViewAll={() => onBrowse('library')} />
-        <MixShelves />
-        <ReleaseRadarShelf />
+        {showLibrary && <LibraryShelves onOpen={onOpen} />}
+        {showCatalogue && (
+          <>
+            <MixShelves onOpen={onOpen} />
+            <ReleaseRadarShelf onOpen={onOpen} />
+          </>
+        )}
 
-        {!feed ? (
+        {!showCatalogue ? null : !feed ? (
           <FeedSkeleton />
         ) : (
           <>
-            <Shelf title="Featured" blurb="Start here">
+            <Shelf
+              eyebrow="From the catalogue"
+              title="Featured"
+              blurb="Start here"
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    onOpen({
+                      name: 'shelf',
+                      key: SHELF_KEYS.featured,
+                      title: 'Featured',
+                    })
+                  }
+                >
+                  Show all
+                </Button>
+              }
+            >
               <Stagger count={feed.featured.length}>
                 {feed.featured.map((collection) => (
                   <FeaturedCard
@@ -196,8 +308,30 @@ export function HomeView({
               </Stagger>
             </Shelf>
 
+            {/* Every catalogue shelf gets a page of its own — the charts, the
+                new releases, the top songs. The rail shows what fits on one
+                line; the page shows the shelf. */}
             {feed.shelves.map((shelf) => (
-              <Shelf key={shelf.id} title={shelf.title} blurb={shelf.blurb}>
+              <Shelf
+                key={shelf.id}
+                title={shelf.title}
+                blurb={shelf.blurb}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      onOpen({
+                        name: 'shelf',
+                        key: `feed:${shelf.id}`,
+                        title: shelf.title,
+                      })
+                    }
+                  >
+                    Show all
+                  </Button>
+                }
+              >
                 <Stagger
                   count={
                     (shelf.tracks?.length ?? 0) +
@@ -236,6 +370,7 @@ export function HomeView({
                 not the subject of it. */}
             {yourAlbums.length > 0 && (
               <Shelf
+                eyebrow="On this machine"
                 title="From your library"
                 blurb="Files on this machine"
                 action={
@@ -331,11 +466,4 @@ function FeedSkeleton() {
       ))}
     </div>
   );
-}
-
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
 }

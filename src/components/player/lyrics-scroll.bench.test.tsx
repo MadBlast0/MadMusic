@@ -1,6 +1,6 @@
 import { Profiler, useState, type ProfilerOnRenderCallback } from 'react';
 import { act, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { parseLrc } from '@/lib/lyrics';
 
@@ -9,26 +9,29 @@ import { parseLrc } from '@/lib/lyrics';
  *
  * # Why this exists
  *
- * The panel gained per-word highlighting, and word timings put it on the
- * hottest path in the app: the position ticks about twenty times a second and
- * the panel re-renders each time. A karaoke highlight that costs a frame every
- * tick would be a worse bug than the one it fixed — the whole point of showing
- * words in time with the voice is that the picture stays smooth.
+ * Word-level lyrics sit on the hottest path in the app: something has to
+ * happen sixty times a second, for as long as the song lasts, on whatever
+ * hardware the user has. The first implementation put a Motion component on
+ * every word of the sung line and re-rendered the panel from the position —
+ * it cost **156 ms per tick**, and this file was written to prove it before
+ * the feature was called done.
  *
- * So this ticks the position across a real, word-timed lyric and reports what
- * React spends per tick.
+ * # The design being measured now
  *
- * # The design being tested
+ * The sweep moved out of React entirely. Each character span carries the
+ * window in which it is sung, the line carries `--t`, and the fill fraction is
+ * a `calc()`. The panel writes one custom property per frame and re-renders
+ * only when the *line* changes — about three times a minute.
  *
- * `sungWords` returns a count, and `LyricLine` is memoised on it. Most ticks do
- * not cross a word boundary, so most ticks should change no line's props and
- * re-render no line at all. The number that matters is therefore the *average*
- * tick, not the worst one: the worst tick is a word landing, which is real work
- * that has to happen somewhere.
+ * So the number that matters has changed shape. It is no longer "the average
+ * tick is cheap because most ticks change nothing"; it is that most frames
+ * produce **no React commit at all**. This asserts that directly, because an
+ * average can hide a regression that a commit count cannot.
  *
  * As everywhere else here, jsdom measures React and not layout or paint.
  */
 
+/** Eighty lines, six word-timed words each — a real song's worth. */
 const LINES = Array.from({ length: 80 }, (_, line) => {
   const start = line * 3;
   const words = ['Fall', 'in', 'love', 'again', 'and', 'again'];
@@ -42,9 +45,21 @@ const LINES = Array.from({ length: 80 }, (_, line) => {
 
 const PARSED = parseLrc(LINES);
 
+// The entrance is anime.js writing to the DOM outside React. Stubbed so the
+// commit counts below measure React and nothing else.
+vi.mock('animejs', () => ({
+  animate: () => {},
+  stagger: (value: number) => value,
+}));
+
 vi.mock('@/components/common/settings-context', () => ({
   useSettings: () => ({
-    settings: { showLyrics: true, reduceMotion: false, lyricsSize: 'default' },
+    settings: {
+      showLyrics: true,
+      reduceMotion: false,
+      lyricsInterpolate: true,
+      trackVisuals: false,
+    },
   }),
 }));
 
@@ -63,6 +78,13 @@ vi.mock('@/hooks/use-async-value', () => ({
   }),
 }));
 
+/**
+ * Where the mocked player thinks it is. Driven by the loops below.
+ *
+ * `START` sits on a line boundary in the fixture, so a run of exactly three
+ * seconds crosses exactly one — and a run of one second crosses none.
+ */
+const START = 30;
 let position = 0;
 
 // Hoisted, so the panel sees the same `seek` and the same track on every
@@ -75,15 +97,51 @@ const CURRENT = {
   artist: 'Orchestra Club',
   duration: 240,
 };
-const SEEK = () => {};
-const PLAYER = { current: CURRENT, seek: SEEK };
+const PLAYER = {
+  current: CURRENT,
+  seek: () => {},
+  playing: true,
+  speed: 1,
+  progressNow: () => position,
+};
 
 vi.mock('@/components/player/player-context', () => ({
   usePlayer: () => PLAYER,
-  usePlayerProgress: () => ({ progress: position }),
 }));
 
 const { LyricsPanel } = await import('@/components/player/lyrics-panel');
+
+/* ── A frame clock we drive by hand ──────────────────────────────────
+   jsdom runs `requestAnimationFrame` off a timer, which makes "one second of
+   playback" a real second of wall time and the measurement unrepeatable.
+   Replacing it with a queue makes a frame something the test steps. */
+
+let queued: FrameRequestCallback[] = [];
+const realRaf = globalThis.requestAnimationFrame;
+const realCancel = globalThis.cancelAnimationFrame;
+
+beforeAll(() => {
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    queued.push(callback);
+    return queued.length;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame;
+});
+
+afterAll(() => {
+  globalThis.requestAnimationFrame = realRaf;
+  globalThis.cancelAnimationFrame = realCancel;
+  queued = [];
+});
+
+/** Runs every callback queued for the next frame, once. */
+function frame() {
+  const due = queued;
+  queued = [];
+  // The loop re-queues itself from inside the callback, which lands in the
+  // fresh array rather than this one — so this is exactly one frame.
+  for (const callback of due) callback(position * 1000);
+}
 
 function tracer() {
   const commits: number[] = [];
@@ -97,7 +155,7 @@ function tracer() {
   return { onRender, commits };
 }
 
-/** The panel, plus the tick that drives it. */
+/** The panel, plus a button that forces a render when the test wants one. */
 function Harness() {
   const [, setTick] = useState(0);
 
@@ -116,25 +174,39 @@ function Harness() {
 }
 
 describe('lyrics following the song', () => {
-  it('reports what one second of playback costs', async () => {
+  it('costs no React work on a frame that stays inside a line', async () => {
     const trace = tracer();
 
-    const { getByTestId } = render(
+    // Part-way through the song, so there is a real line on screen with words
+    // behind and ahead of it.
+    position = START;
+
+    render(
       <Profiler id="lyrics" onRender={trace.onRender}>
         <Harness />
       </Profiler>,
     );
 
-    const tick = getByTestId('tick');
+    // Settle: mount, then the frame that finds the first line.
+    await act(async () => {
+      frame();
+    });
+    await act(async () => {
+      frame();
+    });
+
     const before = trace.commits.length;
 
-    // Twenty ticks across one second, starting part-way through the song so
-    // there is a real line on screen with words behind and ahead of it.
-    position = 30;
-    for (let step = 0; step < 20; step += 1) {
-      position += 0.05;
+    // Sixty frames — one second at 60 Hz — held inside a single three-second
+    // line, so no line boundary is crossed and words land throughout.
+    const FRAMES = 60;
+    for (let step = 0; step < FRAMES; step += 1) {
+      // Computed from the step rather than accumulated. Adding 1/60 sixty
+      // times lands a hair *short* of a second, which is enough to miss a line
+      // boundary the test meant to sit either side of.
+      position = START + (step + 1) / 60;
       await act(async () => {
-        tick.click();
+        frame();
       });
     }
 
@@ -145,21 +217,64 @@ describe('lyrics following the song', () => {
     console.log(
       [
         '',
-        '=== lyrics, 20 ticks of one second ===',
+        '=== lyrics, 60 frames of one second ===',
         `lines parsed:   ${PARSED.length}`,
         `words per line: ${PARSED[0]?.words?.length ?? 0}`,
-        `per tick:       ${(total / ticks.length).toFixed(2)} ms average, ${worst.toFixed(2)} ms worst`,
+        `React commits:  ${ticks.length} of ${FRAMES} frames`,
         `one second:     ${total.toFixed(1)} ms of React work`,
+        `worst commit:   ${worst.toFixed(2)} ms`,
         '',
-        'The worst tick is a word landing. The average is what the panel costs',
-        'while nothing changes, which is most ticks.',
+        'The sweep is CSS, so a frame inside a line writes one custom property',
+        'and renders nothing. Commits here should be zero: a non-zero count',
+        'means the position has leaked back into React.',
         '',
       ].join('\n'),
     );
 
     expect(PARSED[0]?.words?.length).toBeGreaterThan(0);
-    // Not a frame budget — jsdom is not the browser. This catches a panel that
-    // has become pathological, an order of magnitude past where it sits.
-    expect(total / ticks.length).toBeLessThan(100);
+    // The assertion the design rests on. Not a frame budget — jsdom is not the
+    // browser — but a structural claim that holds on any hardware.
+    expect(ticks.length).toBe(0);
+  });
+
+  it('renders once when the line changes, and not once per word', async () => {
+    const trace = tracer();
+
+    position = START;
+
+    render(
+      <Profiler id="lyrics" onRender={trace.onRender}>
+        <Harness />
+      </Profiler>,
+    );
+
+    await act(async () => {
+      frame();
+    });
+    await act(async () => {
+      frame();
+    });
+
+    const before = trace.commits.length;
+
+    // Three seconds, which crosses exactly one line boundary in this fixture.
+    for (let step = 0; step < 180; step += 1) {
+      position = START + (step + 1) / 60;
+      await act(async () => {
+        frame();
+      });
+    }
+
+    const commits = trace.commits.length - before;
+
+    console.log(
+      `\n=== lyrics, 180 frames across a line boundary ===\ncommits: ${commits}\n`,
+    );
+
+    // One commit for the line that ended, and the fixture's boundaries can
+    // land either side of a frame — so a small number, never one per word and
+    // never one per frame.
+    expect(commits).toBeGreaterThan(0);
+    expect(commits).toBeLessThan(6);
   });
 });

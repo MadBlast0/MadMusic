@@ -1,4 +1,11 @@
-import { memo, useDeferredValue, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import {
   Check,
@@ -27,6 +34,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { PlaylistMenuItems } from '@/components/library/playlist-menu';
+import { CONTEXT_KIT } from '@/components/library/menu-kit';
+import { PlaylistEditDialog } from '@/components/library/playlist-edit-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
@@ -34,6 +49,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { Route, Tab } from '@/lib/routes';
+import type { Playlist } from '@/lib/saved';
 import { cn } from '@/lib/utils';
 
 /**
@@ -62,11 +78,12 @@ type Entry = {
   id: string;
   name: string;
   kind: Kind;
-  /** Shown after the kind: "Playlist · You". */
+  /** Shown after the kind: "Playlist · You". Empty to say nothing at all. */
   owner: string;
   cover: [string, string] | null;
   artworkUrl?: string;
   icon: typeof Folder | null;
+  /** Shown last, when there is a number worth showing. Zero to omit it. */
   count: number;
   /** For "Recents". */
   updatedAt: number;
@@ -76,6 +93,21 @@ type Entry = {
   playingFrom?: boolean;
   /** Kept at the top of the list whatever the sort. */
   pinned?: boolean;
+  /**
+   * The app's own lists, which sit above everything in a fixed order.
+   *
+   * Lower sorts first. Absent for the playlists somebody made, which are
+   * ordered by whichever sort is chosen.
+   */
+  fixed?: number;
+  /**
+   * The playlist this row stands for, when it is one.
+   *
+   * Carried on the entry so a right-click can offer the same menu the playlist
+   * page has. Liked Songs and Recently played have none: they are generated
+   * lists, and there is nothing on them to rename or delete.
+   */
+  playlist?: Playlist;
 };
 
 function gradient([from, to]: [string, string]): string {
@@ -131,6 +163,17 @@ export function AppSidebar({
    */
   const settled = useDeferredValue(collapsed);
 
+  /**
+   * The playlist whose details are being edited, if any.
+   *
+   * Held here rather than in the row: the dialog is opened from a context menu,
+   * and a dialog rendered inside one unmounts with the menu the moment the item
+   * is chosen — so it would never get as far as opening.
+   */
+  const [editing, setEditing] = useState<Playlist | null>(null);
+  // Stable, so handing it to every row does not defeat the memo on them.
+  const onEdit = useCallback((playlist: Playlist) => setEditing(playlist), []);
+
   const [filter, setFilter] = useState<Kind | null>(null);
   const [sort, setSort] = useState<Sort>('recent');
   const [searching, setSearching] = useState(false);
@@ -143,10 +186,35 @@ export function AppSidebar({
   const entries = useMemo<Entry[]>(() => {
     const list: Entry[] = [];
 
-    // Liked Songs sits among the playlists because that is what it is — a list
-    // of tracks you assembled. Pinning it apart would make it a third kind of
-    // thing in a panel that only has two.
+    // Recently played, then Liked Songs, then everything you made — and in
+    // that order whatever the sort says. Both are generated rather than
+    // arranged, so ranking them by "most recently updated" alongside the
+    // playlists made them drift up and down the panel on their own; a list you
+    // cannot edit should not move about. Recently played leads because it is
+    // the one that changes every time you press play.
+    if (history.length > 0) {
+      list.push({
+        id: 'history',
+        name: 'Recently played',
+        kind: 'playlist',
+        // No owner and no count. The app's own name told the user nothing —
+        // every other row here says "You", and this one said the name of the
+        // application they are already looking at. The count moved on every
+        // play, so the row flickered a new number at the corner of the eye
+        // while somebody was listening to music.
+        owner: '',
+        cover: null,
+        icon: StaticClock,
+        count: 0,
+        updatedAt: history[0]?.at ?? 0,
+        createdAt: 0,
+        fixed: 0,
+        onOpen: () => onOpen({ name: 'saved', kind: 'history' }),
+      });
+    }
+
     list.push({
+      fixed: 1,
       id: 'liked',
       name: 'Liked Songs',
       kind: 'playlist',
@@ -167,9 +235,10 @@ export function AppSidebar({
         kind: 'playlist',
         owner: 'You',
         cover: playlist.cover,
-        // The first track's art, so a playlist looks like its contents rather
-        // than like every other playlist.
-        artworkUrl: playlist.tracks[0]?.artworkUrl,
+        // The cover the user picked, or the first track's art — so a playlist
+        // looks like its contents rather than like every other playlist.
+        artworkUrl: playlist.artworkUrl ?? playlist.tracks[0]?.artworkUrl,
+        playlist,
         icon: null,
         count: playlist.tracks.length,
         updatedAt: playlist.updatedAt,
@@ -179,21 +248,6 @@ export function AppSidebar({
         playingFrom: current
           ? playlist.tracks.some((t) => t.id === current.id)
           : false,
-      });
-    }
-
-    if (history.length > 0) {
-      list.push({
-        id: 'history',
-        name: 'Recently played',
-        kind: 'playlist',
-        owner: 'MadMusic',
-        cover: null,
-        icon: StaticClock,
-        count: history.length,
-        updatedAt: history[0]?.at ?? 0,
-        createdAt: 0,
-        onOpen: () => onOpen({ name: 'saved', kind: 'history' }),
       });
     }
 
@@ -212,6 +266,11 @@ export function AppSidebar({
     // Sorted on a copy — sorting `entries` in place would mutate the memo and
     // make the order depend on how often it happened to re-run.
     return [...matched].sort((a, b) => {
+      // The app's own lists sit above every playlist, in their own order. They
+      // are not something a sort has an opinion about.
+      const fixed = (entry: Entry) => entry.fixed ?? Number.MAX_SAFE_INTEGER;
+      if (fixed(a) !== fixed(b)) return fixed(a) - fixed(b);
+
       // Pinned entries come first regardless of the chosen sort. Pinning is a
       // statement about importance and a sort is a statement about order; a
       // sort that could bury a pinned playlist would make the pin useless.
@@ -248,10 +307,12 @@ export function AppSidebar({
         <ScrollArea className="w-full flex-1">
           <ul className="flex flex-col items-center gap-2 py-1">
             {visible.map((entry) => (
-              <RailRow key={entry.id} entry={entry} />
+              <RailRow key={entry.id} entry={entry} onEdit={onEdit} />
             ))}
           </ul>
         </ScrollArea>
+
+        <PlaylistEditor playlist={editing} onClose={() => setEditing(null)} />
       </aside>
     );
   }
@@ -381,7 +442,12 @@ export function AppSidebar({
       <ScrollArea className="min-h-0 flex-1">
         <ul className="flex flex-col gap-0.5 px-2 pb-2">
           {visible.map((entry) => (
-            <ListRow key={entry.id} entry={entry} playing={playing} />
+            <ListRow
+              key={entry.id}
+              entry={entry}
+              playing={playing}
+              onEdit={onEdit}
+            />
           ))}
 
           {visible.length === 0 && (
@@ -411,11 +477,15 @@ export function AppSidebar({
               <Folder className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">
-                {root.name}
-              </span>
+              {/* "Local", not the folder's own name. It used to read whatever
+                  the folder happened to be called - "Music", "D", "New
+                  folder (2)" - which named the path rather than the thing.
+                  This row is the one place on this machine that music lives
+                  and downloads land, and it is called that on every install.
+                  The path is still one click away inside. */}
+              <span className="block truncate text-sm font-medium">Local</span>
               <span className="block truncate text-xs text-muted-foreground">
-                On this machine
+                {root.name}
               </span>
             </span>
             <StaticChevron className="size-3.5 shrink-0 text-muted-foreground" />
@@ -437,7 +507,68 @@ export function AppSidebar({
           <StaticChevron className="size-3.5 shrink-0" />
         </button>
       )}
+
+      <PlaylistEditor playlist={editing} onClose={() => setEditing(null)} />
     </aside>
+  );
+}
+
+/**
+ * The edit dialog, mounted only once there is something to edit.
+ *
+ * The dialog seeds its fields from the playlist when it opens, so it needs a
+ * playlist before it exists — which this wrapper is: no row selected, no
+ * dialog, and therefore no draft of a playlist nobody chose.
+ */
+function PlaylistEditor({
+  playlist,
+  onClose,
+}: {
+  playlist: Playlist | null;
+  onClose: () => void;
+}) {
+  if (!playlist) return null;
+  return (
+    <PlaylistEditDialog
+      playlist={playlist}
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    />
+  );
+}
+
+/**
+ * A right-click menu around a row, where the row stands for a playlist.
+ *
+ * Renders the child untouched for Liked Songs and Recently played: those are
+ * generated, and a menu offering to rename or delete one would be a menu of
+ * things that cannot happen.
+ */
+function RowMenu({
+  entry,
+  onEdit,
+  children,
+}: {
+  entry: Entry;
+  onEdit: (playlist: Playlist) => void;
+  children: ReactNode;
+}) {
+  const playlist = entry.playlist;
+  if (!playlist) return children;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <PlaylistMenuItems
+          playlist={playlist}
+          kit={CONTEXT_KIT}
+          onEdit={() => onEdit(playlist)}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -458,39 +589,47 @@ export function AppSidebar({
  * `entry` is a stable object from the `visible` memo, so the default shallow
  * comparison is the right one — no custom comparator to keep in step.
  */
-const RailRow = memo(function RailRow({ entry }: { entry: Entry }) {
+const RailRow = memo(function RailRow({
+  entry,
+  onEdit,
+}: {
+  entry: Entry;
+  onEdit: (playlist: Playlist) => void;
+}) {
   return (
     // Off-screen rows cost no layout and no paint; the intrinsic size is the
     // row's real height so the scrollbar still measures the whole list.
     <li className="[contain-intrinsic-size:auto_48px] [content-visibility:auto]">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={entry.onOpen}
-            aria-label={entry.name}
-            className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent/40 transition-transform duration-fast hover:scale-105 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
-            style={
-              entry.cover
-                ? { backgroundImage: gradient(entry.cover) }
-                : undefined
-            }
-          >
-            {entry.artworkUrl ? (
-              <img
-                decoding="async"
-                src={entry.artworkUrl}
-                alt=""
-                loading="lazy"
-                className="size-full object-cover"
-              />
-            ) : (
-              entry.icon && <entry.icon className="size-4" />
-            )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">{entry.name}</TooltipContent>
-      </Tooltip>
+      <RowMenu entry={entry} onEdit={onEdit}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={entry.onOpen}
+              aria-label={entry.name}
+              className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent/40 transition-transform duration-fast hover:scale-105 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+              style={
+                entry.cover
+                  ? { backgroundImage: gradient(entry.cover) }
+                  : undefined
+              }
+            >
+              {entry.artworkUrl ? (
+                <img
+                  decoding="async"
+                  src={entry.artworkUrl}
+                  alt=""
+                  loading="lazy"
+                  className="size-full object-cover"
+                />
+              ) : (
+                entry.icon && <entry.icon className="size-4" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{entry.name}</TooltipContent>
+        </Tooltip>
+      </RowMenu>
     </li>
   );
 });
@@ -505,57 +644,68 @@ const RailRow = memo(function RailRow({ entry }: { entry: Entry }) {
 const ListRow = memo(function ListRow({
   entry,
   playing,
+  onEdit,
 }: {
   entry: Entry;
   playing: boolean;
+  onEdit: (playlist: Playlist) => void;
 }) {
   return (
     <li className="[contain-intrinsic-size:auto_60px] [content-visibility:auto]">
-      <button
-        type="button"
-        onClick={entry.onOpen}
-        className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-sidebar-accent/40 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
-      >
-        <span
-          className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded bg-sidebar-accent/40"
-          style={
-            entry.cover ? { backgroundImage: gradient(entry.cover) } : undefined
-          }
+      <RowMenu entry={entry} onEdit={onEdit}>
+        <button
+          type="button"
+          onClick={entry.onOpen}
+          className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-sidebar-accent/40 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
         >
-          {entry.artworkUrl ? (
-            <img
-              decoding="async"
-              src={entry.artworkUrl}
-              alt=""
-              loading="lazy"
-              className="size-full object-cover"
-            />
-          ) : entry.icon ? (
-            <entry.icon className="size-4" />
-          ) : (
-            <StaticMusic className="size-4 text-muted-foreground" />
-          )}
-        </span>
-
-        <span className="min-w-0 flex-1">
           <span
-            className={cn(
-              'block truncate text-sm font-medium',
-              entry.playingFrom && 'text-primary',
-            )}
+            className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded bg-sidebar-accent/40"
+            style={
+              entry.cover
+                ? { backgroundImage: gradient(entry.cover) }
+                : undefined
+            }
           >
-            {entry.name}
+            {entry.artworkUrl ? (
+              <img
+                decoding="async"
+                src={entry.artworkUrl}
+                alt=""
+                loading="lazy"
+                className="size-full object-cover"
+              />
+            ) : entry.icon ? (
+              <entry.icon className="size-4" />
+            ) : (
+              <StaticMusic className="size-4 text-muted-foreground" />
+            )}
           </span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {entry.kind === 'folder' ? 'Folder' : 'Playlist'} · {entry.owner}
-            {entry.count > 0 && ` · ${entry.count}`}
-          </span>
-        </span>
 
-        {entry.playingFrom && (
-          <AudioBars playing={playing} className="h-3 shrink-0" />
-        )}
-      </button>
+          <span className="min-w-0 flex-1">
+            <span
+              className={cn(
+                'block truncate text-sm font-medium',
+                entry.playingFrom && 'text-primary',
+              )}
+            >
+              {entry.name}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {[
+                entry.kind === 'folder' ? 'Folder' : 'Playlist',
+                entry.owner,
+                entry.count > 0 ? String(entry.count) : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </span>
+
+          {entry.playingFrom && (
+            <AudioBars playing={playing} className="h-3 shrink-0" />
+          )}
+        </button>
+      </RowMenu>
     </li>
   );
 });

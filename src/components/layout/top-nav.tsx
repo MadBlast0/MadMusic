@@ -17,7 +17,12 @@ import { NAV_ICONS } from '@/components/layout/nav-icons';
 import { useSidebarLayout } from '@/components/common/sidebar-context';
 import { backendAvailable } from '@/lib/convex-client';
 import { isNative } from '@/lib/native';
-import { BAR_EXCLUDES, routeFor, visibleItems } from '@/lib/sidebar';
+import {
+  BAR_EXCLUDES,
+  BAR_MENU_ONLY,
+  routeFor,
+  visibleItems,
+} from '@/lib/sidebar';
 import { sidebarKeyFor, type Route } from '@/lib/routes';
 
 /**
@@ -113,11 +118,14 @@ export const TopNav = memo(function TopNav({
   }).filter((item) => !BAR_EXCLUDES.has(item.id));
   const active = sidebarKeyFor(route);
 
-  const inline = items.slice(0, inlineCount);
-  const rest = items.slice(inlineCount);
+  // Menu-only destinations are held back before the split, so one of them can
+  // never occupy an icon slot however few destinations are on show.
+  const iconable = items.filter((item) => !BAR_MENU_ONLY.has(item.id));
+  const inline = iconable.slice(0, inlineCount);
+  const rest = items.filter((item) => !inline.includes(item));
 
   return (
-    <nav aria-label="Destinations" className="flex items-center gap-0.5">
+    <nav aria-label="Destinations" className="flex items-center gap-1">
       {inline.map((item) => {
         const Icon = NAV_ICONS[item.id];
         return (
@@ -125,7 +133,7 @@ export const TopNav = memo(function TopNav({
             <TooltipTrigger asChild>
               <IconButton
                 label={item.label}
-                size="sm"
+                size="lg"
                 // The tooltip below is the label. Leaving the native one on as
                 // well shows both, a second apart, saying the same word.
                 title={undefined}
@@ -135,7 +143,7 @@ export const TopNav = memo(function TopNav({
                 current={active === item.id}
                 onClick={() => onOpen(routeFor(item.id))}
               >
-                <Icon />
+                <Icon className="size-[1.125rem]" />
               </IconButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">{item.label}</TooltipContent>
@@ -148,12 +156,12 @@ export const TopNav = memo(function TopNav({
           <DropdownMenuTrigger asChild>
             <IconButton
               label="More destinations"
-              size="sm"
+              size="lg"
               // Marked current when the page you are on lives in here, so the
               // bar never claims you are nowhere.
               current={rest.some((item) => item.id === active)}
             >
-              <More />
+              <More className="size-[1.125rem]" />
             </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">

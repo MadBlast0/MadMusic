@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { usePlayer } from '@/components/player/player-context';
 import { fallbackCover } from '@/lib/library-model';
 import { toPlayerTrackRow } from '@/lib/player-track';
+import type { Route } from '@/lib/routes';
+import { SHELF_KEYS } from '@/lib/shelf-source';
 import { store } from '@/lib/store';
 import type { TrackRow } from '@/lib/store/types';
 
@@ -26,6 +28,8 @@ type LibraryShelf = {
   title: string;
   blurb: string;
   tracks: TrackRow[];
+  /** The page behind "View all" — the same query without the twelve-card cap. */
+  key: string;
 };
 
 /** Collapses a track list into one entry per album, keeping first appearance. */
@@ -46,7 +50,12 @@ function byAlbum(tracks: TrackRow[], limit = 12): TrackRow[] {
   return out;
 }
 
-export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
+export function LibraryShelves({
+  onOpen,
+}: {
+  /** Opens a shelf's own page. Absent where there is nowhere to go. */
+  onOpen?: (route: Route) => void;
+}) {
   const { play } = usePlayer();
   const [shelves, setShelves] = useState<LibraryShelf[] | null>(null);
 
@@ -72,6 +81,7 @@ export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
           title: 'Recently added',
           blurb: 'The newest things in your library',
           tracks: byAlbum(added),
+          key: SHELF_KEYS.libraryAdded,
         });
       if (played.length > 0)
         built.push({
@@ -79,6 +89,7 @@ export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
           title: 'Recently played',
           blurb: 'Back to where you were',
           tracks: byAlbum(played),
+          key: SHELF_KEYS.libraryPlayed,
         });
       if (most.length > 0)
         built.push({
@@ -86,6 +97,7 @@ export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
           title: 'Most played',
           blurb: 'What you keep coming back to',
           tracks: byAlbum(most),
+          key: SHELF_KEYS.libraryMost,
         });
 
       setShelves(built);
@@ -125,11 +137,22 @@ export function LibraryShelves({ onViewAll }: { onViewAll?: () => void }) {
           key={shelf.id}
           title={shelf.title}
           blurb={shelf.blurb}
-          // Each of these is a slice of the library — the newest, the least
-          // played — so the whole of it is where "all" leads.
+          // The whole of *this* slice, not the whole library: "view all" of
+          // recently added means every album you added, in the order you added
+          // them, rather than an unsorted list of everything you own.
           action={
-            onViewAll && (
-              <Button variant="ghost" size="sm" onClick={onViewAll}>
+            onOpen && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  onOpen({
+                    name: 'shelf',
+                    key: shelf.key,
+                    title: shelf.title,
+                  })
+                }
+              >
                 View all
               </Button>
             )

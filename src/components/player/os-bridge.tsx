@@ -7,6 +7,7 @@ import {
 import { useSaved } from '@/components/common/saved-context';
 import { useSettings } from '@/components/common/settings-context';
 import { useOsIntegration } from '@/components/player/use-os-integration';
+import { MAX_VOLUME } from '@/lib/audio/curve';
 import { isNative } from '@/lib/native';
 import {
   applyGlobalKeys,
@@ -118,9 +119,14 @@ export function OsBridge() {
         player.seek(0);
       },
       seek: player.seek,
+      // Clamped to the same ceiling the slider has, so a media key and the bar
+      // cannot disagree about how loud the app is allowed to be.
       nudgeVolume: (delta) =>
-        player.setVolume(Math.min(1, Math.max(0, player.volume + delta))),
-      setVolume: (level) => player.setVolume(Math.min(1, Math.max(0, level))),
+        player.setVolume(
+          Math.min(MAX_VOLUME, Math.max(0, player.volume + delta)),
+        ),
+      setVolume: (level) =>
+        player.setVolume(Math.min(MAX_VOLUME, Math.max(0, level))),
       toggleMute: player.toggleMute,
       like: () => {
         if (player.current) toggleLike(player.current);

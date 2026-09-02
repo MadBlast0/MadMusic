@@ -160,6 +160,15 @@ export type Settings = {
   trackVisuals: boolean;
   /** Show time-synced lyrics where they exist. */
   showLyrics: boolean;
+  /**
+   * Sweep the highlight across each word rather than switching it on.
+   *
+   * Off is not a plainer lyric screen, it is a cheaper one: the sweep repaints
+   * the sung line every frame, and on a weak GPU that is a real cost for an
+   * effect not everybody wants. Forced off under reduced motion, which is why
+   * this is a separate switch rather than a branch of that one.
+   */
+  lyricsInterpolate: boolean;
 
   /* ── library ────────────────────────────────────────────────── */
   /** Re-read the folder when files change underneath us. */
@@ -193,6 +202,18 @@ export type Settings = {
   mediaKeys: boolean;
   minimiseToTray: boolean;
   confirmOnQuitWhilePlaying: boolean;
+  /**
+   * Whether the compact player floats above other windows.
+   *
+   * Off by default, and a setting rather than a rule: pinning a window over
+   * everything else is a strong thing to do to somebody's screen, and an app
+   * that decides it for you is one people fight with. The compact player has
+   * its own pin control too, because that is where the question comes up.
+   *
+   * Has no bearing on widget mode, which pins to the desktop *below* other
+   * windows — the two are opposite postures and cannot both apply.
+   */
+  compactAlwaysOnTop: boolean;
   /** Start MadMusic when you sign in. */
   launchAtLogin: boolean;
   /** Start hidden, for a login item that should not steal focus. */
@@ -262,6 +283,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fetchMetadata: true,
   trackVisuals: true,
   showLyrics: true,
+  lyricsInterpolate: true,
 
   watchFolder: false,
   autoBackup: 'off',
@@ -276,6 +298,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mediaKeys: true,
   minimiseToTray: false,
   confirmOnQuitWhilePlaying: false,
+  compactAlwaysOnTop: false,
   launchAtLogin: false,
   startMinimised: false,
   notifyOnTrackChange: false,

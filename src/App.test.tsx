@@ -12,6 +12,31 @@ const topBar = () => screen.getByRole('search');
 const searchField = () =>
   screen.getByRole('searchbox', { name: 'Search music' });
 
+/**
+ * Settings lives in the account menu, so reaching it is two clicks.
+ *
+ * Written once here because half a dozen tests need the screen and none of
+ * them are about how it is opened.
+ */
+/**
+ * Library is reached from the bar's overflow menu, not from an icon.
+ *
+ * Its icon was removed — it duplicated the panel already down the left-hand
+ * side — but the destination stays, so every test that used to click the icon
+ * comes through here instead.
+ */
+async function openLibrary(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    within(titleBar()).getByRole('button', { name: 'More destinations' }),
+  );
+  await user.click(await screen.findByRole('menuitem', { name: 'Library' }));
+}
+
+async function openSettings(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Account' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Settings' }));
+}
+
 afterEach(() => {
   // The shell persists the sidebar and queue state, which would otherwise leak
   // into the next test.
@@ -72,6 +97,49 @@ describe('browsing and searching on one screen', () => {
     ).toBeInTheDocument();
   });
 
+  /**
+   * Which page you are on, as the chrome states it.
+   *
+   * Not "is the home view in the DOM": the outgoing view stays mounted through
+   * the cross-fade, so its markers outlive the navigation and a test written
+   * against them passes on a bar that has already moved you.
+   */
+  const current = () =>
+    document
+      .querySelector('[aria-current="page"]')
+      ?.getAttribute('aria-label') ?? null;
+
+  it('stays where it is when the empty field is taken', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    expect(current()).toBe('Home');
+
+    await user.click(searchField());
+
+    // Focusing used to submit, and submitting goes to the search view — which
+    // with an empty field *is* the browse page. So clicking into the box, or
+    // tabbing through it, silently moved you off whatever you were reading
+    // without a character typed or Browse pressed.
+    expect(current()).toBe('Home');
+    expect(searchField()).toHaveFocus();
+  });
+
+  it('goes to the results as soon as something is typed', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<App />);
+
+    await user.type(searchField(), 'violet');
+
+    // The other half of the same change: navigating on focus was also what
+    // carried a query to the results, so moving it to the keystroke has to
+    // leave typing working without an Enter.
+    expect(current()).not.toBe('Home');
+    expect(
+      await screen.findByRole('group', { name: /filter results/i }),
+    ).toBeInTheDocument();
+  });
+
   it('filters results by kind, and keeps a way back to all of them', async () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
@@ -96,8 +164,9 @@ describe('browsing and searching on one screen', () => {
     // asynchronous, so a synchronous read here passes or fails depending on how
     // loaded the machine is. This test flaked exactly that way under a full
     // suite run before the waits were added.
-    const songSection = () =>
-      screen.queryByRole('heading', { name: 'From the catalogue' });
+    // The results list, which used to be a shelf headed "From the catalogue"
+    // and is now a flat ranked list — see `search-view.tsx` for why.
+    const songSection = () => screen.queryByRole('region', { name: 'Results' });
     await waitFor(() => expect(songSection()).toBeInTheDocument());
 
     const artists = within(filters).getByRole('button', { name: 'Artists' });
@@ -122,21 +191,28 @@ describe('App shell', () => {
 
     // This began as two stacked strips — 92px of chrome for one word and three
     // window buttons. Destinations, history and the search field share one
-    // 44px row now.
+    // 56px row now.
     for (const label of [
       'Back',
       'Forward',
+      // Home has its own button against the search field rather than a slot
+      // among the destinations — it is where you start.
       'Home',
-      // The catalogue's label, not the old hard-coded one. There is a single
-      // list of destinations now, and the bar shows what it says.
-      'Library',
-      'Settings',
+      // Library is deliberately absent: its icon was a second control for the
+      // panel already on screen, so it lives in the overflow menu now. See
+      // `BAR_MENU_ONLY`.
+      // Settings is not here either: it is a row in the account menu, whose
+      // trigger is the one app-level control the bar keeps.
+      'Account',
     ]) {
       expect(
         within(bar).getByRole('button', { name: label }),
       ).toBeInTheDocument();
     }
     expect(within(bar).getByRole('searchbox')).toBeInTheDocument();
+    expect(
+      within(bar).queryByRole('button', { name: 'Library' }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps the library panel to the library and its own actions', () => {
@@ -220,10 +296,14 @@ describe('App shell', () => {
     );
 
     // Still on Home — a filter narrows the list, it does not move you.
+    //
+    // Identified by the filter row rather than by a greeting: Home used to
+    // open with "Good evening", which told the reader the time in the slot
+    // where the screen should be telling them what they can do. The filters
+    // took that slot, and they are a better marker anyway — they exist only
+    // on this view, and they are what the view is *for*.
     expect(
-      screen.getByRole('heading', {
-        name: /good (morning|afternoon|evening)/i,
-      }),
+      screen.getByRole('tablist', { name: 'Filter home' }),
     ).toBeInTheDocument();
     expect(
       within(sidebar()).queryByText('Liked Songs'),
@@ -264,9 +344,7 @@ describe('App shell', () => {
   it('opens on the home view', () => {
     renderWithProviders(<App />);
     expect(
-      screen.getByRole('heading', {
-        name: /good (morning|afternoon|evening)/i,
-      }),
+      screen.getByRole('tablist', { name: 'Filter home' }),
     ).toBeInTheDocument();
   });
 
@@ -274,9 +352,7 @@ describe('App shell', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(
-      within(titleBar()).getByRole('button', { name: 'Library' }),
-    );
+    await openLibrary(user);
 
     expect(
       await screen.findByText(/can.t open local folders/i),
@@ -296,7 +372,7 @@ describe('App shell', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await openSettings(user);
 
     expect(
       await screen.findByRole('tab', { name: 'Appearance' }),
@@ -313,7 +389,7 @@ describe('App shell', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await openSettings(user);
     await user.click(await screen.findByRole('tab', { name: 'Playback' }));
 
     expect(await screen.findByText('Seek step')).toBeInTheDocument();
@@ -339,18 +415,14 @@ describe('title bar', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(
-      within(titleBar()).getByRole('button', { name: 'Library' }),
-    );
+    await openLibrary(user);
     expect(
       await screen.findByText(/can.t open local folders/i),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(
-      await screen.findByRole('heading', {
-        name: /good (morning|afternoon|evening)/i,
-      }),
+      await screen.findByRole('tablist', { name: 'Filter home' }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Forward' }));
@@ -423,9 +495,7 @@ describe('library view', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(
-      within(titleBar()).getByRole('button', { name: 'Library' }),
-    );
+    await openLibrary(user);
 
     expect(
       await screen.findByText(/can.t open local folders/i),

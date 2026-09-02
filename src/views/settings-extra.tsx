@@ -6,6 +6,7 @@ import {
 } from 'react';
 
 import { useSettings } from '@/components/common/settings-context';
+import { useLibrary } from '@/components/library/library-context';
 import { useAppearance } from '@/components/common/appearance-context';
 import { EqualiserPanel } from '@/components/player/equaliser-panel';
 import { Button } from '@/components/ui/button';
@@ -410,6 +411,10 @@ export function AudioSettingsSection() {
 
 export function OfflineSettings() {
   const [cacheWhere, setCacheWhere] = useState<CacheWhere | null>(null);
+  // Needed so choosing an override can re-apply the destination immediately:
+  // the backend decides between the override and the Local folder, and it can
+  // only do that if it is told both.
+  const { root } = useLibrary();
 
   // Read once. The location only changes when the button below changes it,
   // and that path refreshes this itself.
@@ -446,15 +451,15 @@ export function OfflineSettings() {
     <>
       <Group
         title="Downloads"
-        description="Tracks you asked to keep. Unlike the cache, these are never evicted to make room — a download that can disappear is not a download."
+        description="Tracks you asked to keep. They are written into your Local folder as ordinary files, so they show up beside the rest of your music — and unlike the cache they are never evicted to make room."
       >
         <Row
-          label="Where downloads are kept"
+          label="Keep downloads somewhere else"
           hint={
             cacheWhere
               ? cacheWhere.restartNeeded
-                ? `Moving to ${cacheWhere.chosen} when the app restarts. Nothing is copied - the old folder can be deleted once you are happy.`
-                : cacheWhere.active
+                ? `Downloads go to ${cacheWhere.chosen} from now on. The cache moves there when the app restarts; nothing is copied, so the old folder can be deleted once you are happy.`
+                : `Your Local folder, unless you choose otherwise. The cache stays in ${cacheWhere.active}.`
               : 'Loading…'
           }
           control={
@@ -477,7 +482,16 @@ export function OfflineSettings() {
                     toast.error('Could not use that folder');
                     return;
                   }
-                  toast.success('Set. It takes effect when MadMusic restarts.');
+                  // Applied to downloads at once - the destination is read
+                  // per download rather than at startup, so making the user
+                  // restart for it would be a restart for nothing. The cache
+                  // root genuinely does need one, which the hint says.
+                  await tryInvoke(
+                    'cache_set_downloads_root',
+                    { folder: root?.path ?? null },
+                    null,
+                  );
+                  toast.success('Set. Downloads go there from now on.');
                   void tryInvoke<CacheWhere | null>(
                     'cache_location',
                     undefined,

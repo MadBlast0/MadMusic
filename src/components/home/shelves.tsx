@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { m } from 'motion/react';
 
 import {
@@ -70,6 +70,23 @@ export function Art({
 }
 
 /**
+ * The first card in a rail, whatever is wrapped around it.
+ *
+ * Not `firstElementChild`: `Stagger` sits between the rail and the cards and
+ * is `display: contents`, so it has no box and measures zero. This walks past
+ * anything that does not take up space until it finds something that does.
+ */
+function firstCard(rail: HTMLElement): HTMLElement | null {
+  for (const child of rail.children) {
+    const element = child as HTMLElement;
+    if (element.offsetWidth > 0) return element;
+    const inner = firstCard(element);
+    if (inner) return inner;
+  }
+  return null;
+}
+
+/**
  * A horizontal band with a heading and arrows.
  *
  * Scrolls rather than wraps, which is the shape every catalogue home screen
@@ -82,11 +99,20 @@ export function Art({
  */
 export function Shelf({
   title,
+  eyebrow,
   blurb,
   action,
   children,
 }: {
   title: string;
+  /**
+   * A small label above the heading — "Made For", "Because you played".
+   *
+   * Above rather than below, and that is the whole point of it: it says what
+   * *kind* of shelf this is before the eye reaches the name, so a column of
+   * ten shelves reads as a structure rather than as ten unrelated headings.
+   */
+  eyebrow?: string;
   blurb?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
@@ -107,67 +133,36 @@ export function Shelf({
     });
   }, []);
 
-  /**
-   * A vertical wheel over the shelf scrolls it sideways.
-   *
-   * # Why a native listener rather than `onWheel`
-   *
-   * React attaches wheel handlers passively, and a passive listener may not
-   * call `preventDefault` — so the page would scroll down *as well*, and the
-   * shelf would drift sideways while the reader lost their place. Registering
-   * it here with `passive: false` is the only way to take the gesture over.
-   *
-   * # Why it hands the gesture back at the ends
-   *
-   * A shelf that swallowed every wheel event would trap the page: a reader
-   * whose pointer happened to be over a shelf could not scroll past it. So the
-   * event is only claimed while this shelf can still move in the direction
-   * asked for; at either end it is left alone and the page scrolls as usual.
-   *
-   * A trackpad's horizontal component is left alone too — `deltaX` means the
-   * user is already scrolling sideways and the browser handles it natively.
-   */
-  useEffect(() => {
-    const element = rail.current;
-    if (!element) return;
-
-    const onWheel = (event: WheelEvent) => {
-      if (event.deltaY === 0 || Math.abs(event.deltaX) > Math.abs(event.deltaY))
-        return;
-
-      const max = element.scrollWidth - element.clientWidth;
-      if (max <= 0) return;
-
-      const forward = event.deltaY > 0;
-      const room = forward
-        ? element.scrollLeft < max - 1
-        : element.scrollLeft > 1;
-      if (!room) return;
-
-      event.preventDefault();
-      element.scrollLeft += event.deltaY;
-    };
-
-    element.addEventListener('wheel', onWheel, { passive: false });
-    return () => element.removeEventListener('wheel', onWheel);
-  }, []);
-
   const nudge = useCallback((direction: 1 | -1) => {
     const element = rail.current;
     if (!element) return;
-    // Roughly a screenful, so a click always lands on a fresh set of cards
-    // rather than shuffling them along by one.
-    element.scrollBy({
-      left: direction * element.clientWidth * 0.85,
-      behavior: 'smooth',
-    });
+
+    // A whole page of cards, measured from a real card rather than guessed as
+    // a fraction of the rail. A percentage of the width lands mid-card on
+    // every shelf whose cards do not happen to divide into it, and the row
+    // then stops with a sliver of the next album showing — which reads as the
+    // scroll having failed rather than as there being more.
+    const card = firstCard(element);
+    if (!card) return;
+
+    const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 0;
+    const step = card.offsetWidth + gap;
+    // At least one, so a rail narrower than a single card still moves.
+    const page = Math.max(1, Math.floor(element.clientWidth / step));
+
+    element.scrollBy({ left: direction * step * page, behavior: 'smooth' });
   }, []);
 
   return (
     <section className="group/shelf">
       <div className="mb-3 flex items-end justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="font-display text-xl font-semibold tracking-tight">
+          {eyebrow && (
+            <p className="text-xs font-medium text-muted-foreground">
+              {eyebrow}
+            </p>
+          )}
+          <h2 className="font-display text-2xl font-bold tracking-tight">
             {title}
           </h2>
           {blurb && (

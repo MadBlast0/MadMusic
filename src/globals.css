@@ -511,3 +511,369 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Lyrics ──────────────────────────────────────────────────────────
+   The karaoke sweep, and why it is CSS rather than JavaScript.
+
+   The panel writes exactly one thing per frame: `--t`, the playback position
+   in seconds, onto the one line being sung. Every span inside that line
+   already carries the window it occupies — `--cs` when the sweep reaches it,
+   `--cd` how long it takes to cross — so the fill fraction is a `calc()` the
+   engine evaluates itself. Sixty spans update from a single property write,
+   React renders nothing, and the cost of a frame does not grow with the length
+   of the song.
+
+   The alternative, a component per word subscribing to the position, was
+   measured at 156 ms per tick and is why `lyrics-scroll.bench.test.tsx`
+   exists. */
+
+/* Registered, so `--t` is a number the engine can put straight into `calc()`
+   rather than a token it has to re-parse, and so an unset value is 0 instead
+   of an invalid declaration that would drop the gradient with it. `inherits`
+   is the entire mechanism: it is written on the line and read on the
+   characters. */
+@property --t {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+/* The scroller is the query container. It cannot style itself, which is why
+   the tokens live on `.lyric-lines` one level in.
+
+   The mask is the edge fade: lines dissolve into the panel at the top and
+   bottom rather than being guillotined by the overflow. It is on the scroller
+   rather than the content so it stays put while the words move through it.
+
+   The scrollbar goes with it. A lyric panel scrolls itself, the bar spent the
+   whole song sitting over the right-hand edge of the type, and the manual
+   override that stops the auto-scroll is triggered by the wheel and by drag —
+   neither of which needs a visible bar to work. */
+.lyrics-stage {
+  container-type: inline-size;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 8%,
+    #000 88%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 8%,
+    #000 88%,
+    transparent 100%
+  );
+}
+
+.lyrics-stage::-webkit-scrollbar {
+  display: none;
+}
+
+.lyric-lines {
+  /* # How the type answers the width
+
+     Not three fixed steps. A panel is dragged to any width at all, and a step
+     scale means every size between two steps leaves the column stranded in the
+     middle of the panel with the rest of it empty. `cqi` is one percent of the
+     *container*, so this grows continuously with the panel it is in, and the
+     clamp holds it between the size that stays readable in a sidebar and the
+     size beyond which a lyric stops being a lyric and becomes a poster.
+
+     Roughly: 28px in a sidebar, 34px at 700px, 47px at 1200px, capped at 48. */
+  --lyric-size: clamp(1.75rem, 1rem + 2.6cqi, 3rem);
+
+  /* # And how the *column* answers it
+
+     The other half of the same problem. Capping the measure stops a line
+     running the full width of a wide panel — but on its own that just moves
+     the empty space to the right of the text, which is the gap this is here to
+     close. So the block is centred and the text inside it stays left-aligned:
+     one clean left edge to read down, and the leftover width split evenly so
+     it reads as margin rather than as something missing.
+
+     22 characters, in `ch`, so the column grows with the type rather than
+     needing its own scale. */
+  --lyric-measure: 22ch;
+
+  /* Spacing in `em` for the same reason: it is a property of the type size,
+     not of the panel, so it comes along when the type grows. */
+  --lyric-spacing: 0.62em;
+
+  /* How far down the panel the sung line sits. Near the top rather than
+     centred, so the eye reads *ahead* of the voice — which is what a lyric is
+     for. Centred looks tidier and is worse to sing along to. */
+  --lyric-anchor: 0.2;
+  /* The softness of the fill edge. In `em` rather than the 30px am-lyrics
+     uses, because the edge should stay proportional when the type size
+     changes. */
+  --lyric-feather: 0.55em;
+  --lyric-rise: -1.25px;
+  --lyric-glow: 5px;
+  /* How much of a blur each line of distance from the sung one is worth. */
+  --lyric-blur: 0.4px;
+  --lyric-press-scale: 0.96;
+  --lyric-radius: 1rem;
+  --lyric-lit: var(--foreground);
+  --lyric-dim: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --lyric-interlude-enter: 400ms;
+  --lyric-interlude-exit: 350ms;
+
+  font-size: var(--lyric-size);
+}
+
+/* Only a timed lyric gets the column treatment. A "no lyrics found" message is
+   prose at prose size, and squeezing it into 22 characters of display type
+   would be applying the answer to a question it never asked. */
+.lyric-lines[data-timed='true'] {
+  width: min(100%, var(--lyric-measure));
+  margin-inline: auto;
+}
+
+/* In a sidebar there is no leftover width to distribute, so the measure cap
+   would only make the column narrower than the space it already has. */
+@container (max-width: 520px) {
+  .lyric-lines {
+    --lyric-measure: 100%;
+    --lyric-anchor: 0.18;
+    --lyric-radius: 0.75rem;
+  }
+}
+
+.lyric-line {
+  --t: 0;
+  /* How many lines away from the one being sung. Written by the panel once per
+     line change, never per frame. */
+  --d: 0;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+  cursor: pointer;
+  color: var(--lyric-dim);
+  border-radius: var(--lyric-radius);
+  /* No plate behind the sung line. It was there to mark the current line, but
+     the type already does that — it is the brightest, largest, least blurred
+     thing on the screen — so all the plate added was a rectangle floating in
+     the middle of a lyric. Padding is block-only now; there is no plate left
+     to give horizontal room to. */
+  padding: 0.1em 0;
+  margin: 0 0 var(--lyric-spacing);
+
+  /* # Depth by distance
+
+     The single largest difference between a lyric panel that reads and one
+     that does not. Fading only the *sung* line leaves every other line
+     identical, so the eye has nowhere to land and the screen is a wall of
+     text — which is exactly what a paused panel looked like.
+
+     Three properties fall off together, all clamped: past about five lines
+     away everything has bottomed out, which keeps the far end of a long verse
+     from disappearing entirely and, more practically, keeps the blur radius
+     small enough to stay cheap. */
+  opacity: calc(1 - min(var(--d) * 0.16, 0.62));
+  filter: blur(calc(min(var(--d), 5) * var(--lyric-blur)));
+  transform: scale(calc(1 - min(var(--d) * 0.008, 0.04)));
+  transform-origin: left center;
+
+  transition:
+    opacity var(--duration-slow) var(--ease-move),
+    filter var(--duration-slow) var(--ease-move),
+    transform var(--duration-base) var(--ease-move),
+    color var(--duration-base) var(--ease-move);
+}
+
+.lyric-line[data-active='true'] {
+  color: var(--lyric-lit);
+  /* Explicitly none rather than `blur(0)`: a zero-radius filter is still a
+     filter, and it would put the sung line — the one line that repaints every
+     frame — behind a filter pass it does not need. */
+  filter: none;
+  transform: scale(1);
+  /* Room to breathe. The sung line is the only one anybody is reading, and
+     giving it the same gap as the rest is what made the spacing read as a
+     list rather than as a song. */
+  margin-bottom: calc(var(--lyric-spacing) * 1.7);
+}
+
+/* Distance is depth, and depth is motion parallax. Somebody who asked for
+   stillness keeps the fade, which is information, and loses the rest. */
+.lyric-lines[data-still='true'] .lyric-line {
+  filter: none;
+  transform: none;
+}
+
+/* Press feedback. These rows have seeked on click since the panel was written
+   and never looked like they would, which is a discoverability bug rather than
+   a decorative one. */
+.lyric-line:active {
+  transform: scale(var(--lyric-press-scale));
+}
+
+/* # The sung line, a word at a time
+
+   An `inline-block` is a break opportunity, so the word is the box that
+   refuses to break and the spaces between words stay ordinary text *outside*
+   it. That is load-bearing rather than tidy: an inline-block discards the
+   whitespace at its own edge, so a space rendered inside one of these
+   disappears, and the line reads "Onesummernight".
+
+   `--u` is how far into this word the song is, 0 before it and 1 once it has
+   started. The ramp is steep on purpose. There used to be a gradient sweeping
+   across the letters of each word, which looked precise and was invented — no
+   lyric format carries per-character timings. What the timings can actually
+   support is "this word is being sung now", so the word lights, quickly enough
+   to land on the beat and softly enough not to snap. */
+.lyric-word {
+  --u: clamp(0, calc((var(--t) - var(--cs)) / var(--cd)), 1);
+  /* Lit within the first fifth of the word's own window, so a long word is not
+     still fading in half way through being sung. */
+  --lit: clamp(0, calc(var(--u) * 5), 1);
+  display: inline-block;
+  white-space: nowrap;
+  color: color-mix(
+    in oklab,
+    var(--lyric-lit) calc(var(--lit) * 100%),
+    var(--lyric-dim)
+  );
+  /* A small lift as the word arrives, settling as it finishes. `max(2u-1,
+     1-2u)` is `abs(2u-1)` without needing `abs()`, which is newer than the
+     browsers this has to run on. */
+  transform: translateY(
+    calc(
+      (1 - max(calc(2 * var(--u) - 1), calc(1 - 2 * var(--u)))) *
+        var(--lyric-rise)
+    )
+  );
+  /* The glow, scaled by `--lit` for two different reasons. The alpha is
+     correctness: a shadow at full strength would halo every word that has not
+     been reached. The radius is cost: a blur is a filter pass per span per
+     frame, and collapsing it to zero makes the words ahead free rather than
+     merely invisible.
+
+     `color-mix()` is the obvious way to write the alpha and is the wrong one
+     here. Lightning CSS silently reduces
+     `color-mix(in oklab, var(--x) calc(var(--u) * 45%), transparent)` to plain
+     `var(--x)` at build time — a fully opaque shadow, which at a zero radius
+     is a sharp copy of the glyph. It handles a plain percentage fine and only
+     breaks on a calculated one, so the bug does not show up in the source.
+     Check the built stylesheet, not this file, if it is ever changed. */
+  text-shadow: 0 0 calc(var(--lit) * var(--lyric-glow))
+    rgb(from var(--lyric-lit) r g b / calc(var(--lit) * 0.45));
+}
+
+/* A line whose file timed no words is not split at all: it lights as a whole,
+   because that is the only claim its timings support. Nothing to style — it is
+   a bare text node under `.lyric-line[data-active='true']`. */
+
+/* The reduced-motion path: no travel, no glow, and the highlight driven by a
+   counted `data-sung` rather than by the clock. Knowing which word is being
+   sung is information, not decoration, so that stays. */
+.lyric-lines[data-still='true'] .lyric-word {
+  color: var(--lyric-dim);
+  opacity: 0.5;
+  transform: none;
+  text-shadow: none;
+  transition: opacity var(--duration-fast) var(--ease-move);
+}
+
+.lyric-lines[data-still='true'] .lyric-word[data-sung='true'] {
+  color: var(--lyric-lit);
+  opacity: 1;
+}
+
+/* An instrumental break, derived from the gap between two lines. */
+.lyric-interlude {
+  --d: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  height: 1.2em;
+  margin-bottom: var(--lyric-spacing);
+  transform-origin: left center;
+  transition:
+    opacity var(--lyric-interlude-exit) var(--ease-exit),
+    transform var(--lyric-interlude-exit) var(--ease-exit);
+  /* The same falloff as a line, so a break recedes with the verse it sits in
+     rather than staying bright in the middle of a dimmed stack. */
+  opacity: calc(1 - min(var(--d) * 0.16, 0.62));
+}
+
+.lyric-interlude[data-active='true'] {
+  opacity: 1;
+  margin-bottom: calc(var(--lyric-spacing) * 1.7);
+  transition:
+    opacity var(--lyric-interlude-enter) var(--ease-enter),
+    transform var(--lyric-interlude-enter) var(--ease-enter);
+}
+
+.lyric-dot {
+  --u: clamp(0, calc((var(--t) - var(--cs)) / var(--cd)), 1);
+  width: 0.42em;
+  height: 0.42em;
+  border-radius: 9999px;
+  background-color: var(--lyric-lit);
+  opacity: calc(0.25 + 0.75 * var(--u));
+  transform: scale(calc(0.75 + 0.4 * var(--u)));
+}
+
+/* Under reduced motion the dots stop growing and only brighten. */
+.lyric-lines[data-still='true'] .lyric-dot {
+  transform: none;
+}
+
+/* ── Search ──────────────────────────────────────────────────────────
+   The field and its suggestions are one silhouette rather than a pill with a
+   panel under it — see `lib/search-morph.ts` for the geometry and
+   `layout/search-morph.tsx` for the spring that drives it.
+
+   Only the skin lives here. Everything inside the shape is ordinary layout and
+   is styled where it is written. */
+
+.search-morph-skin {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The panel's shadow has to escape the box the SVG is nominally the size of,
+     because the shape is taller than its own slot for the whole animation. */
+  overflow: visible;
+  pointer-events: none;
+  /* No cast while it is only a field.
+
+     A closed pill is part of the bar, and a shadow under it made the bar look
+     like it had something floating over it. The shadow is for the *panel*,
+     which really does hang over the page — so it arrives with the panel and
+     leaves with it. Transitioned rather than switched, or the edge of the
+     shadow appears in one frame while the shape is still opening. */
+  filter: none;
+  transition: filter var(--duration-base) var(--ease-move);
+}
+
+.search-morph[data-open='true'] .search-morph-skin {
+  filter: drop-shadow(0 8px 20px var(--search-cast));
+}
+
+.search-morph-skin path {
+  fill: var(--popover);
+  stroke: var(--border);
+  stroke-width: 1;
+  transition: stroke var(--duration-fast) var(--ease-move);
+}
+
+/* The edge stays the same colour when the field is taken. An accent-coloured
+   outline around a control this large reads as an alert rather than as focus,
+   and the shape already announces itself by opening. The field sets
+   `outline: none` for the same reason it always did — a rectangle drawn inside
+   a shape that contains no rectangles is the wrong shape. */
+
+:root {
+  --search-cast: rgb(0 0 0 / 0.1);
+}
+
+.dark,
+.amoled {
+  --search-cast: rgb(0 0 0 / 0.34);
+}

@@ -181,6 +181,20 @@ export function SavedProvider({ children }: { children: ReactNode }) {
     [updatePlaylist],
   );
 
+  const setPlaylistArtwork = useCallback(
+    (id: string, artworkUrl: string | null) => {
+      updatePlaylist(id, (playlist) => {
+        const next = { ...playlist, updatedAt: Date.now() };
+        // Deleted rather than set to an empty string: absent is what every
+        // reader already treats as "work the cover out yourself".
+        if (artworkUrl) next.artworkUrl = artworkUrl;
+        else delete next.artworkUrl;
+        return next;
+      });
+    },
+    [updatePlaylist],
+  );
+
   const deletePlaylist = useCallback(
     (id: string) => {
       setSaved((previous) => {
@@ -292,6 +306,7 @@ export function SavedProvider({ children }: { children: ReactNode }) {
       renamePlaylist,
       describePlaylist,
       setPlaylistRemote,
+      setPlaylistArtwork,
       deletePlaylist,
       addToPlaylist: addTrackToPlaylist,
       removeFromPlaylist: removeTrackFromPlaylist,
@@ -313,6 +328,7 @@ export function SavedProvider({ children }: { children: ReactNode }) {
       renamePlaylist,
       describePlaylist,
       setPlaylistRemote,
+      setPlaylistArtwork,
       deletePlaylist,
       addTrackToPlaylist,
       removeTrackFromPlaylist,

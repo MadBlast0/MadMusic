@@ -27,16 +27,32 @@ import { cn } from '@/lib/utils';
  */
 export function TrackVisual({
   seed,
+  colours,
   reactive = true,
   className,
 }: {
-  /** Usually the track title: the colours are derived from it. */
+  /** Usually the track title. Only used when `colours` is not given. */
   seed: string;
+  /**
+   * The two colours to draw, when the caller has better ones than a hash.
+   *
+   * `fallbackCover` derives a pair from the *title*, which is stable and
+   * pretty and has nothing whatever to do with the record's artwork. Where the
+   * cover has actually been read — `dominantColour` in `lib/colour.ts` — the
+   * caller passes what it found and this draws the album rather than a hash of
+   * its name.
+   */
+  colours?: [string, string];
   /** Follow the audio. False for a still backdrop. */
   reactive?: boolean;
   className?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
+
+  // Resolved during render so the effect depends on two strings rather than on
+  // an array literal, which would be a new value every render and restart the
+  // animation each time.
+  const [from, to] = colours ?? fallbackCover(seed);
 
   useEffect(() => {
     const element = canvas.current;
@@ -45,7 +61,6 @@ export function TrackVisual({
     const context = element.getContext('2d');
     if (!context) return;
 
-    const [from, to] = fallbackCover(seed);
     // A continuous animation is exactly what somebody asking for stillness does
     // not want. One static frame keeps the colour without the motion.
     const still = prefersReducedMotion();
@@ -110,7 +125,7 @@ export function TrackVisual({
 
     draw();
     return () => cancelAnimationFrame(frame);
-  }, [seed, reactive]);
+  }, [from, to, reactive]);
 
   return (
     <canvas

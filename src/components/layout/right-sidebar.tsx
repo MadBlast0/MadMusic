@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, lazy, useCallback, useRef, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 
 import { X } from '@/components/icons';
@@ -31,11 +31,6 @@ import { cn } from '@/lib/utils';
  * Lyrics because the last track had them, and back to Queue because this one
  * does not, is a panel that moves under the reader's hands.
  */
-const LyricsPanel = lazy(() =>
-  import('@/components/player/lyrics-panel').then((m) => ({
-    default: m.LyricsPanel,
-  })),
-);
 const TranscriptPanel = lazy(() =>
   import('@/components/player/transcript-panel').then((m) => ({
     default: m.TranscriptPanel,
@@ -45,10 +40,18 @@ const TranscriptPanel = lazy(() =>
 type PanelTab = 'queue' | 'now' | 'lyrics';
 
 /**
- * The tabs, and what the words tab is called.
+ * The tabs.
  *
- * "Lyrics" for a song and "Transcript" for an episode, because a tab labelled
- * "Lyrics" over a podcast is a tab nobody opens.
+ * # Why there is no Lyrics tab any more
+ *
+ * Lyrics moved to the immersive player, which is where they belong: they want
+ * the whole width and a line height you can read across a room, and this panel
+ * gives them neither. Two places showing the same words meant two scroll
+ * positions to keep in step and one of them always looked broken.
+ *
+ * A **transcript** is not the same call. Nothing else shows one, so removing
+ * it here would delete the feature rather than move it — an episode still gets
+ * its tab, and a song no longer does.
  */
 function tabsFor(episode: boolean): {
   id: PanelTab;
@@ -58,7 +61,7 @@ function tabsFor(episode: boolean): {
   return [
     { id: 'queue', label: 'Queue' },
     { id: 'now', label: 'Now playing' },
-    { id: 'lyrics', label: episode ? 'Transcript' : 'Lyrics' },
+    ...(episode ? [{ id: 'lyrics' as const, label: 'Transcript' }] : []),
   ];
 }
 
@@ -76,12 +79,36 @@ export function RightSidebar({
   const { current } = usePlayer();
   const [tab, setTab] = useState<PanelTab>('queue');
   const [dragging, setDragging] = useState(false);
+
+  /**
+   * The two elements a drag has to move, written directly rather than through
+   * state.
+   *
+   * Two rather than one because the contents are held at a fixed width inside
+   * the pane — that is what stops the queue reflowing while the panel animates
+   * open — so a preview that moved only the outer box would resize the frame
+   * and leave the contents behind it.
+   */
+  const pane = useRef<HTMLElement>(null);
+  const contents = useRef<HTMLDivElement>(null);
+  const preview = useCallback((next: number | null) => {
+    const value = next === null ? '' : `${next}px`;
+    // Cleared on release so the value React renders — and the animation that
+    // opens and closes the panel — take the property back.
+    if (pane.current) pane.current.style.width = value;
+    if (contents.current) contents.current.style.width = value;
+  }, []);
+
   const density = useDensity('queue');
 
   const episode = Boolean(current?.episodeId);
   const tabs = tabsFor(episode).filter(
     (entry) => !entry.backend || backendAvailable,
   );
+  // Transcript exists for episodes only, so playing a song while it is open
+  // would otherwise leave the panel showing a tab that is no longer in the
+  // strip, and a body with nothing in it.
+  const active = tabs.some((entry) => entry.id === tab) ? tab : 'queue';
 
   return (
     <AnimatePresence initial={false}>
@@ -96,10 +123,12 @@ export function RightSidebar({
             limits={RIGHT_LIMITS}
             edge="left"
             onResize={onWidthChange}
+            onPreview={preview}
             onDragging={setDragging}
           />
 
           <m.aside
+            ref={pane}
             aria-label="Now playing panel"
             initial={{ width: 0, opacity: 0 }}
             animate={{ width, opacity: 1 }}
@@ -115,7 +144,11 @@ export function RightSidebar({
             className="shrink-0 overflow-hidden rounded-xl bg-sidebar"
             {...density}
           >
-            <div className="flex h-full flex-col" style={{ width }}>
+            <div
+              ref={contents}
+              className="flex h-full flex-col"
+              style={{ width }}
+            >
               {/*
                 The close button and the spacer sit *outside* the tablist. A
                 `role="tablist"` may only contain tabs — anything else is an
@@ -134,12 +167,12 @@ export function RightSidebar({
                       key={entry.id}
                       type="button"
                       role="tab"
-                      aria-selected={tab === entry.id}
+                      aria-selected={active === entry.id}
                       onClick={() => setTab(entry.id)}
                       className={cn(
                         'rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-fast',
                         'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
-                        tab === entry.id
+                        active === entry.id
                           ? 'bg-sidebar-accent text-foreground'
                           : 'text-muted-foreground hover:text-foreground',
                       )}
@@ -169,13 +202,9 @@ export function RightSidebar({
                     fresh rather than hidden — the queue is the only one long
                     enough for that to matter, and it is the default. */}
                 <Suspense fallback={null}>
-                  {tab === 'queue' && <QueueContents />}
-                  {tab === 'now' && <NowPlayingPanel />}
-                  {/* One tab for both. Timed text scrolling with the audio is
-                      the same thing whether the words are sung or spoken, and
-                      separate tabs would mean one of them is always empty. */}
-                  {tab === 'lyrics' &&
-                    (episode ? <TranscriptPanel /> : <LyricsPanel compact />)}
+                  {active === 'queue' && <QueueContents />}
+                  {active === 'now' && <NowPlayingPanel />}
+                  {active === 'lyrics' && <TranscriptPanel />}
                 </Suspense>
               </div>
             </div>

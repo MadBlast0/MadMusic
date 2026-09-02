@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyCurve,
+  MAX_VOLUME,
   matchRate,
   removeCurve,
   shouldCrossfade,
@@ -48,7 +49,24 @@ describe('the volume curve', () => {
 
   it('clamps a position outside the slider', () => {
     expect(applyCurve(-3, 'logarithmic')).toBe(0);
-    expect(applyCurve(9, 'logarithmic')).toBeCloseTo(1);
+    expect(applyCurve(9, 'logarithmic')).toBeCloseTo(MAX_VOLUME);
+  });
+
+  it('amplifies above unity rather than curving', () => {
+    // The slider runs to 150%, and past 100% the signal is being amplified
+    // rather than attenuated — there is no perceptual curve to apply to that,
+    // and both curves have to agree or the handle would jump as it crossed.
+    expect(applyCurve(1, 'logarithmic')).toBeCloseTo(1);
+    expect(applyCurve(1.25, 'logarithmic')).toBeCloseTo(1.25);
+    expect(applyCurve(1.25, 'linear')).toBeCloseTo(1.25);
+    expect(applyCurve(MAX_VOLUME, 'logarithmic')).toBeCloseTo(MAX_VOLUME);
+  });
+
+  it('round-trips a boost back to the slider', () => {
+    for (const position of [1, 1.1, 1.5]) {
+      const amplitude = applyCurve(position, 'logarithmic');
+      expect(removeCurve(amplitude, 'logarithmic')).toBeCloseTo(position, 5);
+    }
   });
 
   it('round-trips back to the slider position', () => {

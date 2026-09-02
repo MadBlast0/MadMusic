@@ -205,6 +205,25 @@ export function onShellEvent<T>(
   };
 }
 
+/**
+ * Points downloads at the Local folder.
+ *
+ * The backend cannot work this out for itself: the folder is chosen in the UI
+ * and remembered in `localStorage`, and it is restored long after the cache
+ * has been opened. Called on every path that produces a folder — restore,
+ * pick, rescan — and with `null` when the folder is cleared.
+ *
+ * Answers with the folder downloads will actually be written to, which is not
+ * necessarily the one passed in: the setting in Offline can override it.
+ */
+export async function setDownloadsFolder(
+  path: string | null,
+): Promise<string | null> {
+  return (
+    (await invoke<string>('cache_set_downloads_root', { folder: path })) || null
+  );
+}
+
 /** Starts watching a folder. Answers false when the folder is not granted. */
 export async function watchFolder(path: string): Promise<boolean> {
   return (await invoke<boolean>('watch_music_folder', { path })) ?? false;

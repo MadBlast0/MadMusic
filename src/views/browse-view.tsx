@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
+import { X } from '@/components/icons';
 import { TEMPO_BANDS } from '@/lib/auto-playlists';
 import { fallbackCover } from '@/lib/library-model';
 import { toPlayerTrackRow } from '@/lib/player-track';
@@ -51,9 +52,26 @@ type Section = {
 /** Below this a grouping is not a category, it is a coincidence. */
 const MIN_TRACKS = 8;
 
-export function BrowseView() {
+export function BrowseView({ onSearch }: { onSearch?: (q: string) => void }) {
   const { play } = usePlayer();
   const [sections, setSections] = useState<Section[] | null>(null);
+
+  // Recent searches live here rather than under the field.
+  //
+  // They were in the suggestion dropdown, where they competed with results for
+  // the same rows and made the list mean two things depending on how much had
+  // been typed. This is the page you land on with nothing typed, which is
+  // exactly the moment "what did I look for last time" is the useful question.
+  const [recent, setRecent] = useState<string[]>([]);
+
+  const loadRecent = useCallback(() => {
+    void store
+      .searchRecent(8)
+      .then(setRecent)
+      .catch(() => setRecent([]));
+  }, []);
+
+  useEffect(loadRecent, [loadRecent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +216,49 @@ export function BrowseView() {
         />
       }
     >
+      {recent.length > 0 && onSearch && (
+        <section className="mb-9">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <h2 className="font-display text-xl font-semibold tracking-tight">
+              Recent searches
+            </h2>
+            <button
+              type="button"
+              onClick={() => void store.searchForget().then(loadRecent)}
+              className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              Clear
+            </button>
+          </div>
+
+          <ul className="flex flex-wrap gap-2">
+            {recent.map((entry) => (
+              <li key={entry}>
+                <span className="group/recent flex items-center rounded-full border border-border transition-colors duration-fast hover:bg-accent/60">
+                  <button
+                    type="button"
+                    onClick={() => onSearch(entry)}
+                    className="rounded-l-full py-1.5 pr-1 pl-3.5 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    {entry}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Forget ${entry}`}
+                    onClick={() =>
+                      void store.searchForget(entry).then(loadRecent)
+                    }
+                    className="rounded-r-full py-1.5 pr-2.5 pl-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {sections === null ? (
         <div className="flex flex-col gap-8">
           {[0, 1].map((row) => (

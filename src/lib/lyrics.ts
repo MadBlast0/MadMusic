@@ -431,3 +431,126 @@ export async function setTranslation(
 
   parsed.delete(trackId);
 }
+
+/* ── Interludes ─────────────────────────────────────────────────── */
+
+/**
+ * A line as the panel renders it, which is not quite a line as the file wrote
+ * it.
+ *
+ * `source` is the index back into the array this came from, and it matters:
+ * translations are matched to the original line by position, and the share
+ * image quotes by position. Inserting an interlude shifts every index after
+ * it, so the panel has to carry the original one rather than use the rendered
+ * one. Interludes have no original, and say so with `-1`.
+ */
+export type RenderedLine = Line & {
+  kind?: 'interlude';
+  source: number;
+};
+
+/**
+ * The shortest silence that counts as an interlude.
+ *
+ * Five seconds. Below that it is a breath between verses and drawing anything
+ * for it would flicker; above it the screen is holding a line nobody is
+ * singing any more, which is the thing that reads as broken.
+ */
+export const INTERLUDE_MIN = 5;
+
+/** How long a word is assumed to ring on, when the file does not say. */
+const WORD_TAIL = 0.6;
+
+/**
+ * How long a line is assumed to last when it carries no word timings at all.
+ *
+ * Plain LRC records when a line *starts* and nothing else, so the end has to
+ * be guessed. Four seconds is deliberately generous: guessing long invents
+ * fewer interludes than guessing short, and a missed interlude is invisible
+ * where an invented one is a bug on screen.
+ */
+const LINE_TAIL = 4;
+
+/**
+ * When a line stops.
+ *
+ * Enhanced LRC closes a line with a bare `<mm:ss.xx>` marker and `parseWords`
+ * keeps it as `until`, so most word-timed files answer this exactly. The
+ * fallbacks are in descending order of how much the file actually told us.
+ */
+export function lineEnd(line: Line): number {
+  if (line.until !== undefined) return line.until;
+
+  const words = line.words;
+  if (words && words.length > 0) return words[words.length - 1].at + WORD_TAIL;
+
+  return line.at + LINE_TAIL;
+}
+
+/**
+ * Inserts an interlude wherever the song stops singing for a while.
+ *
+ * # Why this is derived rather than read
+ *
+ * Apple Music gets its instrumental sections from TTML, which marks them.
+ * LRCLIB serves LRC, which does not — but LRC does say when every line starts
+ * and, for word-timed files, when every line ends. A gap between the two is an
+ * interlude by definition, so the information is already there and only wanted
+ * arithmetic.
+ *
+ * The leading gap counts too. An intro is the interlude people are most likely
+ * to be looking at, because it is the one on screen when they open the panel.
+ */
+export function withInterludes(
+  lines: Line[],
+  minGap = INTERLUDE_MIN,
+): RenderedLine[] {
+  if (lines.length === 0) return [];
+
+  const out: RenderedLine[] = [];
+
+  // The intro, where there is one worth drawing.
+  if (lines[0].at >= minGap) {
+    out.push({
+      at: 0,
+      text: '',
+      until: lines[0].at,
+      kind: 'interlude',
+      source: -1,
+    });
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    out.push({ ...line, source: index });
+
+    const next = lines[index + 1];
+    if (!next) continue;
+
+    const end = lineEnd(line);
+
+    // A line that never said when it ends is told, here, where the only place
+    // that knows is: beside the line that follows it. Plain LRC — which is
+    // most of what LRCLIB serves — records only when a line *starts*, and
+    // without this the sweep would have no duration to cross and every line
+    // would sit static. Capped at the assumed tail so a line before a long
+    // instrumental does not stretch across the whole break.
+    if (line.until === undefined) {
+      out[out.length - 1].until = Math.min(next.at, end);
+    }
+
+    // A guessed end can overshoot the next line. That is not an interlude, it
+    // is the guess being wrong, and it must not produce a negative-length row.
+    if (next.at - end < minGap) continue;
+
+    out.push({
+      at: end,
+      text: '',
+      until: next.at,
+      kind: 'interlude',
+      source: -1,
+    });
+  }
+
+  return out;
+}

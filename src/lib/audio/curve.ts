@@ -22,6 +22,24 @@ export type VolumeCurve = 'logarithmic' | 'linear';
 const FLOOR_DB = -60;
 
 /**
+ * The loudest the slider goes, as an amplitude multiplier.
+ *
+ * 1.0 is the file played as it was mastered. Above that the signal is amplified
+ * beyond unity, which is what every "volume boost" in every player is — useful
+ * for a quiet recording or quiet laptop speakers, and capable of clipping if
+ * the master is already hot. 1.5 is the usual ceiling for that reason: enough
+ * to rescue a quiet track, not enough to turn a loud one to mush.
+ *
+ * Not every output can deliver it. `HTMLMediaElement.volume` is clamped to 1 by
+ * the specification, so in a browser the boost only exists where the Web Audio
+ * graph is attached; the desktop engine applies it directly.
+ */
+export const MAX_VOLUME = 1.5;
+
+/** Where the slider starts on a machine that has never set one: unity. */
+export const DEFAULT_VOLUME = 1;
+
+/**
  * Converts a slider position into an element volume.
  *
  * `HTMLMediaElement.volume` is *amplitude*, and loudness is roughly the
@@ -39,7 +57,11 @@ const FLOOR_DB = -60;
  * application uses.
  */
 export function applyCurve(position: number, curve: VolumeCurve): number {
-  const clamped = Math.min(1, Math.max(0, position));
+  const clamped = Math.min(MAX_VOLUME, Math.max(0, position));
+  // Above unity there is no curve to apply: the signal is being amplified
+  // rather than attenuated, and the position *is* the multiplier. Both curves
+  // agree here, which is what keeps the slider continuous as it passes 100%.
+  if (clamped > 1) return clamped;
   if (curve === 'linear') return clamped;
   // Silence is a special case: the formula approaches the floor's amplitude
   // rather than zero, and a slider at the bottom must be *off*.
@@ -57,7 +79,9 @@ export function applyCurve(position: number, curve: VolumeCurve): number {
  * handle somewhere the user never put it.
  */
 export function removeCurve(volume: number, curve: VolumeCurve): number {
-  const clamped = Math.min(1, Math.max(0, volume));
+  const clamped = Math.min(MAX_VOLUME, Math.max(0, volume));
+  // The inverse of the case above, and for the same reason.
+  if (clamped > 1) return clamped;
   if (curve === 'linear') return clamped;
   if (clamped === 0) return 0;
 

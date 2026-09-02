@@ -38,7 +38,18 @@ import {
  * when there is no Tauri, so this mounts and does nothing on `localhost:5180`
  * rather than being conditionally rendered.
  */
-export function DesktopShell() {
+export function DesktopShell({
+  onKeepPlayingAsWidget,
+}: {
+  /**
+   * Shrinks to the desktop widget instead of quitting.
+   *
+   * A prop rather than something this component does itself, because which
+   * presentation is showing is the application shell's state — see
+   * `Presentation` in `App`.
+   */
+  onKeepPlayingAsWidget: () => void;
+}) {
   const { settings } = useSettings();
   const player = usePlayer();
   const { root, rescan } = useLibrary();
@@ -121,11 +132,32 @@ export function DesktopShell() {
               : 'Something is still playing. Quitting stops it.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
+
+        {/* Three answers, because closing the window while music plays is
+            genuinely three different intentions — stop, get out of the way, or
+            put it somewhere small.
+
+            Deliberately *not* automatic. An app that refuses to close and
+            silently turns into a floating window is the behaviour people
+            uninstall over, so the widget is offered at the one moment it is
+            wanted and never imposed. Somebody who wants it every time turns on
+            "minimise to tray", which answers the question before it is asked
+            and stops this dialog appearing at all. */}
+        <AlertDialogFooter className="sm:justify-between">
           <AlertDialogCancel>Keep playing</AlertDialogCancel>
-          <AlertDialogAction onClick={() => void quitNow()}>
-            Quit
-          </AlertDialogAction>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogAction
+              // Not the destructive styling: this one keeps the music.
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={onKeepPlayingAsWidget}
+            >
+              Shrink to the desktop
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => void quitNow()}>
+              Quit
+            </AlertDialogAction>
+          </div>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

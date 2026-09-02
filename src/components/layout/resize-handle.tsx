@@ -25,6 +25,24 @@ import { cn } from '@/lib/utils';
  * The pane it drives has a width transition for the collapse animation. Leaving
  * that on during a drag makes the pane lag a few frames behind the pointer,
  * which reads as the app struggling. The parent turns it off while dragging.
+ *
+ * # Why the drag does not go through React
+ *
+ * It used to call `onResize` on every pointer move, and `onResize` is a
+ * `setState` at the top of the app. So one drag re-rendered the sidebar, the
+ * main view, the now-playing panel and the player bar — a hundred and twenty
+ * times a second, for a change that is one number on one element. On a full
+ * library that is tens of milliseconds a frame and the pane visibly trails the
+ * pointer.
+ *
+ * A width is a *layout* value, not application state, until the drag ends. So
+ * `onPreview` writes it straight to the element and React is not involved at
+ * all; `onResize` fires once, on release, to persist it. The pane follows the
+ * pointer exactly, and the app re-renders once per drag instead of per frame.
+ *
+ * Previews are coalesced to one per animation frame. A high-polling-rate mouse
+ * delivers several moves per frame and only the last of them is on screen, so
+ * the others are layout work for a picture nobody sees.
  */
 export function ResizeHandle({
   label,
@@ -32,6 +50,7 @@ export function ResizeHandle({
   limits,
   edge,
   onResize,
+  onPreview,
   onDragging,
   className,
 }: {
@@ -40,11 +59,42 @@ export function ResizeHandle({
   limits: PaneLimits;
   /** Which side of the pane the handle sits on. */
   edge: 'left' | 'right';
+  /** Commit the width. Once per drag, not once per frame. */
   onResize: (width: number) => void;
+  /**
+   * Show a width without committing it.
+   *
+   * Given a number during a drag and `null` when the drag ends, at which point
+   * the element should go back to taking its width from React. Optional: a
+   * handle without one falls back to committing on every move, which is
+   * correct and merely slower.
+   */
+  onPreview?: (width: number | null) => void;
   onDragging: (dragging: boolean) => void;
   className?: string;
 }) {
   const start = useRef<{ x: number; width: number } | null>(null);
+  /** The last width a move produced, and the frame that will show it. */
+  const pending = useRef<{ width: number; frame: number } | null>(null);
+
+  /**
+   * Ends a drag exactly once, from any of the three ways one can end.
+   *
+   * The pending frame is cancelled rather than allowed to run: it would write
+   * a preview width *after* the commit below, leaving the element showing the
+   * previous frame's value until the next render corrected it.
+   */
+  const finish = useCallback(() => {
+    const from = pending.current;
+    if (from) {
+      cancelAnimationFrame(from.frame);
+      pending.current = null;
+    }
+    start.current = null;
+    onPreview?.(null);
+    if (from) onResize(from.width);
+    onDragging(false);
+  }, [onPreview, onResize, onDragging]);
 
   // Read at pointer-down rather than on every move: the window cannot be
   // resized mid-drag, and reading it per frame forces a layout each time.
@@ -54,8 +104,15 @@ export function ResizeHandle({
   );
 
   // A drag left mid-flight — the tab is closed, the component unmounts — must
-  // not leave the app believing a drag is still in progress.
-  useEffect(() => () => onDragging(false), [onDragging]);
+  // not leave the app believing a drag is still in progress, or a queued frame
+  // writing to an element that has gone.
+  useEffect(
+    () => () => {
+      if (pending.current) cancelAnimationFrame(pending.current.frame);
+      onDragging(false);
+    },
+    [onDragging],
+  );
 
   const step = (by: number) => onResize(clamp(width + by));
 
@@ -79,18 +136,34 @@ export function ResizeHandle({
       onPointerMove={(event) => {
         const from = start.current;
         if (!from) return;
-        onResize(clamp(dragWidth(from.width, from.x, event.clientX, edge)));
+
+        const next = clamp(dragWidth(from.width, from.x, event.clientX, edge));
+        if (!onPreview) {
+          onResize(next);
+          return;
+        }
+
+        // One write per frame. The width is kept whatever happens, so the
+        // commit on release uses the last move rather than the last frame.
+        if (pending.current) {
+          pending.current.width = next;
+          return;
+        }
+        pending.current = {
+          width: next,
+          frame: requestAnimationFrame(() => {
+            const held = pending.current;
+            pending.current = null;
+            if (held) onPreview(held.width);
+          }),
+        };
       }}
       onPointerUp={(event) => {
         if (!start.current) return;
         event.currentTarget.releasePointerCapture(event.pointerId);
-        start.current = null;
-        onDragging(false);
+        finish();
       }}
-      onPointerCancel={() => {
-        start.current = null;
-        onDragging(false);
-      }}
+      onPointerCancel={finish}
       onKeyDown={(event) => {
         // The step is larger with Shift, because moving a pane 200px eight
         // pixels at a time is not a control anybody would use twice.

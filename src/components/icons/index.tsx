@@ -321,7 +321,7 @@ export function PanelLeft({ className, ...props }: IconProps) {
 }
 
 /**
- * A microphone, for voice search.
+ * A microphone. Podcasts in the destinations list, and lyrics in the player.
  *
  * The capsule lifts slightly on hover rather than pulsing: a microphone that
  * animates like it is listening while it is not is a small lie about what the
@@ -866,6 +866,25 @@ export function PictureInPicture({ className, ...props }: IconProps) {
     <Frame className={className} {...props}>
       <path d="M21 11V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h5" />
       <rect x="12" y="13" width="9" height="7" rx="1.5" />
+    </Frame>
+  );
+}
+
+/**
+ * Four corners pointing out: the full-screen player.
+ *
+ * Not `Maximise`, which is the window control and a plain square — the two sit
+ * within a few pixels of each other in the transport bar, and a reader has to
+ * be able to tell "make this window bigger" from "let this song take over the
+ * screen" at a glance.
+ */
+export function Fullscreen({ className, ...props }: IconProps) {
+  return (
+    <Frame className={className} {...props}>
+      <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9" />
+      <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9" />
+      <path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15" />
+      <path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
     </Frame>
   );
 }

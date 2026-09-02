@@ -16,7 +16,10 @@ import {
   type Mix,
   type Release,
 } from '@/lib/recommend';
+import type { Route } from '@/lib/routes';
+import { SHELF_KEYS } from '@/lib/shelf-source';
 import type { TrackRow } from '@/lib/store/types';
+import { Button } from '@/components/ui/button';
 
 /**
  * The generated shelves: daily mixes, weekly discovery, time of day, and
@@ -38,9 +41,17 @@ type Section = {
   title: string;
   blurb: string;
   mixes: Mix[];
+  /**
+   * The page behind "View all".
+   *
+   * A shelf of several mixes opens onto the mixes; a shelf that *is* one mix
+   * opens onto the songs inside it, because "all of Discovery" means the whole
+   * of the mix rather than one card again.
+   */
+  key: string;
 };
 
-export function MixShelves() {
+export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
   const { play } = usePlayer();
   const [sections, setSections] = useState<Section[] | null>(null);
 
@@ -67,6 +78,7 @@ export function MixShelves() {
           title: 'Made for you',
           blurb: 'Rebuilt every morning from what you play',
           mixes: dailyMix,
+          key: SHELF_KEYS.mixDaily,
         });
       }
 
@@ -77,6 +89,7 @@ export function MixShelves() {
           title: timelyMix.title,
           blurb: timelyMix.reason,
           mixes: [timelyMix],
+          key: SHELF_KEYS.mixTimely,
         });
       }
 
@@ -87,6 +100,7 @@ export function MixShelves() {
           title: 'Discovery',
           blurb: weeklyMix.reason,
           mixes: [weeklyMix],
+          key: SHELF_KEYS.mixWeekly,
         });
       }
 
@@ -97,6 +111,7 @@ export function MixShelves() {
           title: 'Because you listened',
           blurb: 'Following on from what you played recently',
           mixes: becauseMixes,
+          key: SHELF_KEYS.mixBecause,
         });
       }
 
@@ -119,7 +134,11 @@ export function MixShelves() {
 
   if (sections === null) {
     return (
-      <Shelf title="Made for you" blurb="Rebuilt every morning">
+      <Shelf
+        eyebrow="Made for"
+        title="Made for you"
+        blurb="Rebuilt every morning"
+      >
         {[0, 1, 2, 3, 4].map((card) => (
           <div key={card} className="w-[168px] shrink-0 p-2">
             <Skeleton className="aspect-square w-full rounded-xl" />
@@ -138,7 +157,28 @@ export function MixShelves() {
   return (
     <>
       {sections.map((section) => (
-        <Shelf key={section.id} title={section.title} blurb={section.blurb}>
+        <Shelf
+          key={section.id}
+          title={section.title}
+          blurb={section.blurb}
+          action={
+            onOpen && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  onOpen({
+                    name: 'shelf',
+                    key: section.key,
+                    title: section.title,
+                  })
+                }
+              >
+                View all
+              </Button>
+            )
+          }
+        >
           <Stagger count={section.mixes.length}>
             {section.mixes.map((mix) => (
               <MixCard
@@ -161,7 +201,11 @@ export function MixShelves() {
  * `releaseRadar` takes it as an argument rather than reaching for it: the
  * generator is pure and testable, and the network lives here.
  */
-export function ReleaseRadarShelf() {
+export function ReleaseRadarShelf({
+  onOpen,
+}: {
+  onOpen?: (route: Route) => void;
+}) {
   const { play } = usePlayer();
   const [releases, setReleases] = useState<Release[] | null>(null);
 
@@ -195,7 +239,27 @@ export function ReleaseRadarShelf() {
   if (!releases || releases.length === 0) return null;
 
   return (
-    <Shelf title="New releases" blurb="From artists you follow">
+    <Shelf
+      title="New releases"
+      blurb="From artists you follow"
+      action={
+        onOpen && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              onOpen({
+                name: 'shelf',
+                key: SHELF_KEYS.radar,
+                title: 'New releases',
+              })
+            }
+          >
+            View all
+          </Button>
+        )
+      }
+    >
       <Stagger count={releases.length}>
         {releases.map((release) => (
           <MixCard

@@ -65,7 +65,8 @@ describe('the shell', () => {
     const user = userEvent.setup();
     const { container } = renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Settings' }));
     await screen.findByRole('tab', { name: 'Appearance' });
     await expectAccessible(container);
   });
@@ -94,8 +95,9 @@ describe('reaching things with a keyboard', () => {
       /^back$/i,
       /^forward$/i,
       /^home$/i,
-      /command palette/i,
-      /^settings$/i,
+      // Settings and diagnostics are rows in this menu now, so its trigger is
+      // the app-level control the bar keeps — and the one that has to be named.
+      /^account$/i,
     ]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
@@ -130,7 +132,8 @@ describe('reaching things with a keyboard', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Settings' }));
     const appearance = await screen.findByRole('tab', { name: 'Appearance' });
 
     appearance.focus();
@@ -143,7 +146,8 @@ describe('reaching things with a keyboard', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Settings' }));
     const strip = await screen.findByRole('tablist', {
       name: /settings categories/i,
     });

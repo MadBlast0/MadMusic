@@ -15,7 +15,7 @@
  * # Why an action vocabulary
  *
  * Both kinds resolve to the same action names, so a binding can move from one to
- * the other without anything else changing, and so the command palette, the
+ * the other without anything else changing, and so the nav, the
  * media keys, the OS controls and the local endpoint all speak one language.
  */
 
@@ -39,7 +39,6 @@ export type Action =
   | 'repeat'
   | 'queue'
   | 'search'
-  | 'command-palette'
   | 'lyrics'
   | 'full-screen'
   | 'mini-player'
@@ -64,7 +63,6 @@ export const ACTION_LABELS: Record<Action, string> = {
   repeat: 'Repeat',
   queue: 'Show the queue',
   search: 'Search',
-  'command-palette': 'Command palette',
   lyrics: 'Lyrics',
   'full-screen': 'Full screen',
   'mini-player': 'Mini player',
@@ -78,8 +76,7 @@ export const ACTION_LABELS: Record<Action, string> = {
  * The defaults.
  *
  * Chosen to match what people already know: space for play/pause from every
- * media player there has ever been, `/` for search from the web, `Ctrl+K` for
- * the palette from every editor written since 2019.
+ * media player there has ever been, and `/` for search from the web.
  */
 export const DEFAULT_KEYS: Partial<Record<Action, string>> = {
   'play-pause': ' ',
@@ -95,7 +92,6 @@ export const DEFAULT_KEYS: Partial<Record<Action, string>> = {
   repeat: 'r',
   queue: 'q',
   search: '/',
-  'command-palette': 'Ctrl+k',
   lyrics: 'y',
   'full-screen': 'f',
   'mini-player': 'Ctrl+m',

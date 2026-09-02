@@ -1,19 +1,35 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { m } from 'motion/react';
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { animate, stagger } from 'animejs';
 import { toast } from 'sonner';
 
 import { useAsyncValue } from '@/hooks/use-async-value';
 import { fallbackCover } from '@/lib/library-model';
+import { dominantColour, gradientFrom, NEUTRAL } from '@/lib/colour';
 import { drawLyricImage } from '@/lib/lyric-image';
 import { romaniseLyrics, setTranslation, shareableExcerpt } from '@/lib/lyrics';
-import type { Line } from '@/lib/lyrics';
+import type { RenderedLine } from '@/lib/lyrics';
+import {
+  hasWordTimings,
+  interludeCells,
+  sungWords,
+  wordSpans,
+  type Cell,
+  type Span,
+} from '@/lib/lyrics-motion';
+import { ms, prefersReducedMotion } from '@/lib/motion';
 import { canRomanise } from '@/lib/romanise';
 import { safeFileName, saveDataUrl } from '@/lib/save-file';
 
-import {
-  usePlayer,
-  usePlayerProgress,
-} from '@/components/player/player-context';
+import { usePlayer } from '@/components/player/player-context';
+import { TrackVisual } from '@/components/player/track-visual';
 import { useSettings } from '@/components/common/settings-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +44,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   lineAt,
   lyricsFor,
-  forgetLyrics,
+  withInterludes,
   NO_LYRICS,
   type TrackLyrics,
 } from '@/lib/lyrics';
@@ -37,31 +53,54 @@ import { cn } from '@/lib/utils';
 /**
  * Lyrics, scrolling in time.
  *
- * # Why the current line is found on a frame loop
+ * # Where the animation actually happens
  *
- * Because the player's `progress` is written at most twenty times a second, and
- * a lyric that snaps a fifth of a second late is visibly out of time with the
- * voice. Reading the position per frame and searching the parsed lines — which
- * is a binary search over a few hundred entries — is cheap, and it is the
- * difference between lyrics that feel attached to the music and lyrics that
- * feel like a transcript.
+ * Not here. The sweep that crosses each word is CSS: every character span
+ * carries the window it occupies, the line carries `--t`, and a `calc()` in
+ * `globals.css` turns those into a fill fraction. This component writes `--t`
+ * on one element per frame and renders nothing at all while a line is sung.
  *
- * # Why the scroll is not `scrollIntoView`
+ * That is a deliberate reversal. The first version put a Motion component on
+ * every word and re-rendered the panel twenty times a second; it cost 156 ms
+ * per tick, which `lyrics-scroll.bench.test.tsx` was written to prove. React
+ * now re-renders about three times a minute — once per line — and the cost of
+ * a frame no longer grows with the length of the song.
+ *
+ * # Why the position is read rather than subscribed to
+ *
+ * `usePlayerProgress` publishes twenty times a second, which is both too slow
+ * for a sweep and too fast for React. `progressNow()` reads the same value
+ * without subscribing, and the gap between writes is filled from the wall
+ * clock — so the fill moves at the refresh rate while costing no renders.
+ *
+ * # Why the scroll is neither `scrollIntoView` nor a jump
  *
  * `scrollIntoView({ behavior: 'smooth' })` queues an animation per call, and
  * calling it once a line queues dozens that fight each other on a fast verse.
- * Setting `scrollTop` against a measured offset is one write and always lands
- * where it was asked to.
+ * Writing `scrollTop` outright avoids that and reads as a cut. So the loop
+ * eases towards a target instead: one continuous motion with no queue to
+ * fight, which a new line redirects rather than restarts. See `GLIDE`.
  */
+
+/**
+ * How hard the scroller is pulled towards the sung line, per second.
+ *
+ * Nine covers about 99% of the remaining distance in half a second, which is
+ * fast enough to keep up with a busy verse and slow enough to read as a glide
+ * rather than a jump. Raise it for a snappier panel; lower it and a fast song
+ * leaves the highlight ahead of the scroll.
+ */
+const GLIDE = 9;
+
 export function LyricsPanel({ compact = false }: { compact?: boolean }) {
-  const { current, seek } = usePlayer();
-  const { progress } = usePlayerProgress();
+  const { current, seek, playing, progressNow, speed } = usePlayer();
   const { settings } = useSettings();
 
   /** Set while the user scrolls by hand, so the auto-scroll stands down. */
   const [manual, setManual] = useState(false);
 
   const container = useRef<HTMLDivElement | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
   const manualTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -92,30 +131,41 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
     NO_LYRICS,
   );
 
+  const still = settings.reduceMotion;
+  /** The sweep, versus the word-at-a-time fallback it degrades to. */
+  const sweep = settings.lyricsInterpolate && !still;
   /**
-   * The current line.
+   * The artwork wash behind the words.
    *
-   * Derived during render rather than written from an effect. It changes about
-   * twenty times a second, and an effect writing state at that rate is twenty
-   * extra renders a second for a number that render already had in hand.
+   * Gated on `trackVisuals` rather than on a switch of its own. That setting
+   * already means "generate a backdrop in this track's colours", and this is
+   * that backdrop in a second place — a separate control would be two names
+   * for one idea and two things to keep in step.
    */
-  const active = useMemo(
-    () => (lyrics.lines.length === 0 ? -1 : lineAt(lyrics.lines, progress)),
-    [lyrics.lines, progress],
+  const wash = settings.trackVisuals;
+
+  /**
+   * The colours actually on the cover.
+   *
+   * `TrackVisual` defaults to `fallbackCover`, which hashes the *title* into
+   * one of eight fixed pairs — stable, pretty, and unrelated to the record. So
+   * the wash behind a blue album could be orange, which is what "the
+   * background does not match the image" means.
+   *
+   * `dominantColour` reads the artwork itself: it samples a 48×48 draw of the
+   * cover, drops every pixel below 0.22 saturation so grey backgrounds cannot
+   * win, sorts the rest into thirty-six hue buckets and takes the busiest one
+   * — the most-used *colour*, rather than the most-used pixel. It caches per
+   * URL and returns a neutral swatch rather than throwing when a cross-origin
+   * cover cannot be read, so the wash degrades to grey instead of vanishing.
+   */
+  const artworkUrl = current?.artworkUrl ?? '';
+  const { value: swatch } = useAsyncValue(
+    `swatch:${artworkUrl}`,
+    () => (artworkUrl ? dominantColour(artworkUrl) : Promise.resolve(NEUTRAL)),
+    NEUTRAL,
   );
-
-  // Keeps the current line in the middle, unless the user is reading elsewhere.
-  useEffect(() => {
-    if (manual || active < 0) return;
-    const scroller = container.current;
-    const line = scroller?.querySelector<HTMLElement>(
-      `[data-line="${active}"]`,
-    );
-    if (!scroller || !line) return;
-
-    scroller.scrollTop =
-      line.offsetTop - scroller.clientHeight / 2 + line.clientHeight / 2;
-  }, [active, manual]);
+  const washColours = useMemo(() => gradientFrom(swatch), [swatch]);
 
   const [translating, setTranslating] = useState(false);
 
@@ -132,16 +182,24 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
    * original when an alternative is shorter than the original is deliberate: a
    * blank line half-way through a verse reads as a bug, and a line of the
    * original reads as a line that was not translated.
+   *
+   * Interludes are inserted *after* that mapping, never before. Translations
+   * are matched to their line by position, and an inserted row shifts every
+   * position after it — which would silently slide a whole song's translation
+   * up by one line per instrumental break.
    */
-  const shownLines = useMemo(() => {
-    if (showing === 'original') return lyrics.lines;
-
+  const rendered = useMemo<RenderedLine[]>(() => {
     const source =
-      showing === 'romanised' ? lyrics.romanised : lyrics.translation;
-    if (!source) return lyrics.lines;
+      showing === 'romanised'
+        ? lyrics.romanised
+        : showing === 'translation'
+          ? lyrics.translation
+          : '';
+
+    if (!source) return withInterludes(lyrics.lines);
 
     const replacements = source.split('\n');
-    return lyrics.lines.map((line, index) => {
+    const swapped = lyrics.lines.map((line, index) => {
       const text = replacements[index];
       if (text === undefined) return line;
 
@@ -150,9 +208,329 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
       // highlighting the fourth word of a line that no longer has four is
       // worse than not highlighting at all. The line's own timing is kept, so
       // the scroll still follows the song.
-      return { at: line.at, text };
+      return { at: line.at, text, until: line.until };
     });
+
+    return withInterludes(swapped);
   }, [showing, lyrics]);
+
+  /* ── The clock ───────────────────────────────────────────────────
+     Everything below reads from refs rather than props so the frame loop can
+     be set up once and left alone. A loop that re-subscribed whenever the
+     position changed would build a new `requestAnimationFrame` chain every
+     frame, which is the cost this whole design exists to avoid. */
+
+  const [active, setActive] = useState(-1);
+  /** Only the reduced-motion path uses this; the sweep needs no React state. */
+  const [sung, setSung] = useState(0);
+
+  const activeRef = useRef(-1);
+  const sungRef = useRef(0);
+  const linesRef = useRef<RenderedLine[]>(rendered);
+  const activeElement = useRef<HTMLElement | null>(null);
+  const stillRef = useRef(still);
+  const playingRef = useRef(playing);
+  const speedRef = useRef(speed);
+  /** The last position the provider published, and when we first saw it. */
+  const seen = useRef({ value: -1, at: 0 });
+  /** The line the entrance has already played for. */
+  const entered = useRef(-1);
+  /** Where the scroller is heading, and the last value we put there. */
+  const scrollTarget = useRef<number | null>(null);
+  const lastWritten = useRef(-1);
+  /** Set when the next move should jump rather than glide. */
+  const snapNext = useRef(true);
+  const manualRef = useRef(manual);
+
+  useEffect(() => {
+    linesRef.current = rendered;
+  }, [rendered]);
+  useEffect(() => {
+    stillRef.current = still;
+  }, [still]);
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+  useEffect(() => {
+    manualRef.current = manual;
+  }, [manual]);
+
+  // A new song, or a switch to a translation, relaid the whole column. Gliding
+  // across that is gliding to where a line used to be.
+  useEffect(() => {
+    snapNext.current = true;
+  }, [rendered]);
+
+  /**
+   * The playback position, smoothed to the refresh rate.
+   *
+   * The provider writes its position only when it has moved by 50 ms or more,
+   * which is right for a scrubber and visibly steppy for a fill crossing a
+   * word in 400 ms. Between writes this advances from the wall clock and
+   * resynchronises the moment a real value arrives, so it is never more than
+   * one provider tick out.
+   *
+   * The drift is capped because a stalled tab keeps a wall clock running: on
+   * the frame after a long stall the estimate would otherwise leap seconds
+   * ahead of the audio.
+   */
+  const clock = useCallback(() => {
+    const value = progressNow();
+    const now = performance.now();
+
+    if (value !== seen.current.value) {
+      seen.current = { value, at: now };
+      return value;
+    }
+    if (!playingRef.current) return value;
+
+    const drift = Math.min((now - seen.current.at) / 1000, 0.25);
+    return value + drift * speedRef.current;
+  }, [progressNow]);
+
+  const timed = rendered.length > 0;
+  /**
+   * The sung line, or none.
+   *
+   * Derived rather than reset from an effect. When a track changes, `active`
+   * still holds the last line of the previous song for the one frame before
+   * the loop corrects it — reading it through `timed` means that frame cannot
+   * light up a line of the new song, and costs no render to arrange.
+   */
+  const activeIndex = timed ? active : -1;
+
+  /**
+   * Whether the panel is on screen at all.
+   *
+   * Both the right-hand sidebar and the full-screen player mount a
+   * `LyricsPanel`, and a collapsed sidebar keeps its copy mounted. Without
+   * this, a song plays a frame loop for a panel nobody can see — and on the
+   * screen where both exist, two of them.
+   *
+   * Guarded rather than assumed: jsdom has no `IntersectionObserver`, and a
+   * panel that decided it was invisible under test would stop working there.
+   */
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const scroller = container.current;
+    if (!scroller || typeof IntersectionObserver !== 'function') return;
+
+    const observer = new IntersectionObserver((entries) => {
+      setVisible(entries.some((entry) => entry.isIntersecting));
+    });
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * One frame loop for the whole panel.
+   *
+   * It does three things, in descending order of how often they matter: write
+   * `--t` on the sung line, which is one property set and no React work at
+   * all; move `active` when the line changes, which is about three times a
+   * minute; and — only under reduced motion, where there is no sweep to carry
+   * the timing — count sung words, which changes two or three times a second.
+   *
+   * # Why it is not always `requestAnimationFrame`
+   *
+   * Because a paused song does not move. `requestAnimationFrame` is the right
+   * rate for a fill crossing a word and the wrong one for a screen holding
+   * still: it wakes the compositor sixty times a second to discover that
+   * nothing has changed, which on a laptop is measurable battery for no
+   * picture. Paused, this polls ten times a second instead — enough that
+   * seeking while paused still lands under the eye's threshold, and a sixth of
+   * the wake-ups.
+   *
+   * It does not stop entirely, because a seek while paused has to move the
+   * highlight and there is nothing to subscribe to that would say so.
+   */
+  useEffect(() => {
+    if (!timed || !visible) return;
+
+    let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let last = Number.NaN;
+    let previous = performance.now();
+
+    // 100ms while paused, a frame while playing.
+    const again = playing
+      ? () => {
+          frame = requestAnimationFrame(tick);
+        }
+      : () => {
+          timer = setTimeout(tick, 100);
+        };
+
+    function tick() {
+      again();
+
+      const now = performance.now();
+      const dt = Math.min((now - previous) / 1000, 0.25);
+      previous = now;
+
+      /* # The glide
+         Setting `scrollTop` to the answer is a cut, and a lyric that cuts
+         reads as stiff no matter how good the sweep on it is. This eases
+         towards the target instead, by a fraction of the remaining distance
+         each frame.
+
+         Exponential rather than a fixed duration, for two reasons. It is
+         frame-rate independent — the `exp(-k·dt)` means a 30 Hz display and a
+         120 Hz one travel the same distance in the same time, where a
+         per-frame percentage would not. And it has no end, so a line arriving
+         mid-glide simply moves the target and the motion bends towards it;
+         there is no second animation to fight the first, which is the failure
+         the old `scrollIntoView` comment describes. */
+      const scroller = container.current;
+      const target = scrollTarget.current;
+      if (scroller && target !== null && !manualRef.current) {
+        const from = scroller.scrollTop;
+        const gap = target - from;
+
+        if (Math.abs(gap) < 0.5) {
+          // Asymptotes never arrive. Land it rather than writing forever.
+          if (gap !== 0) {
+            scroller.scrollTop = target;
+            lastWritten.current = target;
+          }
+        } else {
+          const next = from + gap * (1 - Math.exp(-GLIDE * dt));
+          scroller.scrollTop = next;
+          lastWritten.current = next;
+        }
+      }
+
+      const at = clock();
+      // Nothing has moved. The whole wake-up costs one comparison.
+      if (at === last) return;
+      last = at;
+
+      const lines = linesRef.current;
+      const index = lineAt(lines, at);
+
+      if (index !== activeRef.current) {
+        activeRef.current = index;
+        setActive(index);
+      }
+
+      // Written even on the frame the line changes: the effect below sets it
+      // once on the new element, and this keeps it current from then on.
+      activeElement.current?.style.setProperty('--t', at.toFixed(3));
+
+      if (stillRef.current) {
+        const line = index >= 0 ? lines[index] : undefined;
+        const count = line ? sungWords(line, at) : 0;
+        if (count !== sungRef.current) {
+          sungRef.current = count;
+          setSung(count);
+        }
+      }
+    }
+
+    again();
+    return () => {
+      cancelAnimationFrame(frame);
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [timed, visible, playing, clock]);
+
+  /**
+   * Follows the sung line, and hands it the clock it is missing.
+   *
+   * The element is found once per line rather than once per frame — a
+   * `querySelector` sixty times a second for a node that changes three times a
+   * minute is the kind of cost that hides well and adds up.
+   *
+   * Measured with rectangles rather than `offsetTop` because the scroller is a
+   * container-query container, and containment can change what counts as an
+   * element's `offsetParent`. Rectangles do not care.
+   */
+  useEffect(() => {
+    const scroller = container.current;
+    const line =
+      activeIndex >= 0
+        ? (scroller?.querySelector<HTMLElement>(
+            `[data-line="${activeIndex}"]`,
+          ) ?? null)
+        : null;
+
+    activeElement.current = line;
+    if (line) line.style.setProperty('--t', clock().toFixed(3));
+
+    /* # Depth, written once per line
+       Every row learns how far it is from the sung one, and the stylesheet
+       turns that into opacity, blur and scale. Done here rather than in the
+       frame loop because the answer only changes when the line does — about
+       three times a minute against sixty times a second. */
+    if (scroller) {
+      for (const row of scroller.querySelectorAll<HTMLElement>('[data-line]')) {
+        const index = Number(row.dataset.line);
+        row.style.setProperty(
+          '--d',
+          String(activeIndex < 0 ? 0 : Math.abs(index - activeIndex)),
+        );
+      }
+    }
+
+    /* # The arrival
+       A line does not appear, it lands — word by word, in the order it will be
+       sung. anime.js rather than Motion for the same reason `audio-bars.tsx`
+       gives: this drives the DOM directly, so a stagger across six words costs
+       zero React renders. It is handed elements rather than a selector, so it
+       cannot reach another panel's words and needs no scope to prevent it.
+
+       Skipped when the line is already the one we animated, so a re-run of
+       this effect — a manual scroll, a translation being switched — does not
+       replay the entrance under somebody who is only reading. */
+    if (
+      line &&
+      activeIndex !== entered.current &&
+      !still &&
+      !prefersReducedMotion()
+    ) {
+      entered.current = activeIndex;
+      const words = line.querySelectorAll('.lyric-word');
+      if (words.length > 0) {
+        animate(words, {
+          opacity: [0.3, 1],
+          translateY: [8, 0],
+          duration: ms(0.42),
+          delay: stagger(ms(0.026)),
+          ease: 'outExpo',
+        });
+      }
+    }
+
+    if (!line || !scroller || manual) return;
+
+    // The anchor lives in CSS so the presets can move it, and is read here
+    // rather than duplicated. Once per line is cheap; per frame would not be.
+    const declared = stage.current
+      ? Number.parseFloat(
+          getComputedStyle(stage.current).getPropertyValue('--lyric-anchor'),
+        )
+      : Number.NaN;
+    const anchor = Number.isFinite(declared) ? declared : 0.2;
+
+    const top =
+      line.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top +
+      scroller.scrollTop;
+
+    const target = Math.max(0, top - scroller.clientHeight * anchor);
+    scrollTarget.current = target;
+
+    // The first line of a song has nowhere to glide from.
+    if (snapNext.current) {
+      snapNext.current = false;
+      scroller.scrollTop = target;
+      lastWritten.current = target;
+    }
+  }, [activeIndex, manual, clock, rendered, still]);
 
   /** Generates a romanisation, where one can honestly be produced. */
   const makeRomanisation = useCallback(async () => {
@@ -173,6 +551,9 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
    * Saved to a file rather than copied to the clipboard: clipboard image
    * support is inconsistent across platforms and a silent failure there looks
    * identical to success, which is the worst outcome for a share action.
+   *
+   * Takes the *original* line index, not the rendered one — an interlude
+   * between here and the top would otherwise quote the wrong three lines.
    */
   const shareLine = useCallback(
     async (index: number) => {
@@ -205,6 +586,15 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
   );
 
   const onScroll = () => {
+    // The glide above scrolls this element sixty times a second, and every one
+    // of those raises this event. Without the comparison the panel would
+    // decide the user had grabbed it half a second into every song and stand
+    // down for the rest of the track.
+    const scroller = container.current;
+    if (scroller && Math.abs(scroller.scrollTop - lastWritten.current) <= 1.5) {
+      return;
+    }
+
     setManual(true);
     if (manualTimer.current) clearTimeout(manualTimer.current);
     // Five seconds of not touching it, then the lyrics take the wheel back.
@@ -212,6 +602,13 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
     // control to re-enable it.
     manualTimer.current = setTimeout(() => setManual(false), 5000);
   };
+
+  useEffect(
+    () => () => {
+      if (manualTimer.current) clearTimeout(manualTimer.current);
+    },
+    [],
+  );
 
   const body = useMemo(() => {
     if (!settings.showLyrics) {
@@ -232,7 +629,7 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
       );
     }
 
-    if (lyrics.lines.length === 0) {
+    if (rendered.length === 0) {
       // Unsynced lyrics exist. Shown as prose rather than pretending to be
       // timed, because a fake highlight moving through untimed text is worse
       // than plain text.
@@ -243,58 +640,86 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
       );
     }
 
-    return (
-      <div className="space-y-3">
-        {shownLines.map((line, index) => (
-          <LyricLine
-            key={`${line.at}-${index}`}
-            line={line}
-            index={index}
-            active={index === active}
-            // Only the line being sung counts its words. Every other line is
-            // handed 0 and, being memoised, does not re-render at all while
-            // the position ticks.
-            sung={index === active ? sungWords(line, progress) : 0}
-            compact={compact}
-            still={settings.reduceMotion}
-            onSeek={seek}
-            onShare={shareLine}
-          />
-        ))}
-      </div>
-    );
+    return rendered.map((line, index) => (
+      <LyricLine
+        key={`${line.source}-${line.at}-${index}`}
+        line={line}
+        index={index}
+        active={index === activeIndex}
+        // Zero for every line but the sung one, and zero on the sweep path
+        // altogether — where CSS carries the timing this prop never changes,
+        // so `memo` skips every line on every frame.
+        sung={still && index === activeIndex ? sung : 0}
+        sweep={sweep}
+        still={still}
+        onSeek={seek}
+        onShare={shareLine}
+      />
+    ));
   }, [
-    shownLines,
+    rendered,
     settings.showLyrics,
     current,
     loading,
     lyrics,
-    active,
-    progress,
-    compact,
+    activeIndex,
+    sung,
+    sweep,
+    still,
     seek,
     shareLine,
-    settings.reduceMotion,
   ]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* # The ground
+          A lyric screen on a flat charcoal rectangle looks like a text file.
+          The track's own colours already exist and are already generated for
+          the full-screen player, so this is the same `TrackVisual` rather than
+          a second implementation of it — reactive off, because a backdrop
+          pulsing on the beat fights a highlight that is already moving with
+          the words.
+
+          The scrim is not optional. Lyrics are the one thing on this screen
+          that has to stay readable, and two saturated shapes behind them are
+          exactly how contrast gets lost. */}
+      {wash && current && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <TrackVisual
+            seed={current.title}
+            colours={washColours}
+            reactive={false}
+            className="opacity-35"
+          />
+          <div className="absolute inset-0 bg-background/75" />
+        </div>
+      )}
+
       <div
         ref={container}
         onScroll={onScroll}
         className={cn(
-          'min-h-0 flex-1 overflow-y-auto scroll-smooth',
+          'lyrics-stage relative min-h-0 flex-1 overflow-y-auto',
           compact ? 'px-4 py-6' : 'px-8 py-16',
         )}
       >
-        {body}
+        <div
+          ref={stage}
+          className="lyric-lines"
+          data-still={still}
+          // Only a timed lyric gets the capped, centred column; a message is
+          // prose and wants the full width at prose size.
+          data-timed={rendered.length > 0}
+        >
+          {body}
+        </div>
       </div>
 
       {/* The alternatives, offered only where one exists or can be made.
           Buttons for things that cannot happen would be worse than none:
           "Romanise" on an English song is a control that does nothing. */}
       {lyrics.lines.length > 0 && current && (
-        <div className="flex flex-wrap items-center gap-1 border-t px-4 py-2">
+        <div className="relative flex flex-wrap items-center gap-1 border-t px-4 py-2">
           <Button
             variant={showing === 'original' ? 'secondary' : 'ghost'}
             size="xs"
@@ -362,28 +787,6 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
           }}
         />
       )}
-
-      {lyrics.source && (
-        <footer className="flex items-center justify-between gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
-          <span>Lyrics from LRCLIB</span>
-          {/* Wrong lyrics happen: LRCLIB matches on duration, and a mismatched
-              rip occasionally gets somebody else's words in perfect time. */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (!current) return;
-              // Forgetting clears the stored answer; the next render's key is
-              // unchanged, so the panel is refreshed by re-selecting the track.
-              // That is deliberate — silently refetching would hide whether the
-              // second attempt found anything different.
-              void forgetLyrics(current.id);
-            }}
-          >
-            These are wrong
-          </Button>
-        </footer>
-      )}
     </div>
   );
 }
@@ -445,78 +848,115 @@ function TranslationDialog({
 }
 
 /**
- * How many of a line's words have been sung by now.
+ * The two numbers a span needs in order to know when it is sung.
  *
- * Returned as a count rather than a set of flags because it is what makes the
- * line cheap: the panel re-renders about twenty times a second, and a count
- * that has not changed since the last tick means `memo` can skip the line
- * entirely. A word only arrives two or three times a second, so most ticks
- * change nothing and cost nothing.
+ * Written as custom properties rather than as a class, because there are as
+ * many distinct values as there are characters in the song and a stylesheet
+ * cannot hold that. The names are short for the same reason they are on every
+ * span: `--cs` and `--cd` are set thousands of times over a listening session.
  */
-function sungWords(line: Line, position: number): number {
-  const words = line.words;
-  if (!words) return 0;
-
-  let count = 0;
-  // A short linear walk beats a binary search here: a line is a handful of
-  // words, and this runs on lines that are already on screen.
-  while (count < words.length && words[count].at <= position) count += 1;
-  return count;
+function timing(cell: Cell | Span): React.CSSProperties {
+  return {
+    '--cs': cell.at.toFixed(3),
+    '--cd': cell.dur.toFixed(3),
+  } as React.CSSProperties;
 }
 
 /**
- * One line of lyrics, lighting up as it is sung.
+ * One line of lyrics.
  *
- * # Why Motion rather than anime.js
+ * # Why only the sung line is split into words
  *
- * Both are already dependencies. Motion wins here because every other
- * animation in this app is Motion, because it animates React state
- * declaratively — a word's appearance is a function of whether it has been
- * sung, which is exactly what `animate` takes — and because it interrupts
- * cleanly when someone seeks backwards mid-line. anime.js would want an
- * imperative timeline per line, torn down and rebuilt on every seek.
+ * A span per word of every line of an eighty-line song is hundreds of
+ * elements, laid out and painted, for the handful anybody can see moving. Only
+ * the line being sung is split; every other line is a single text node. The
+ * split costs one layout when a line becomes current — about three times a
+ * minute — and buys a highlight that costs no React at all.
  *
- * # Why only the current line is animated
+ * # Why there is no `will-change`
  *
- * Because a Motion component per word of every line is a Motion component per
- * word of every line: an eighty-line song is around five hundred of them, all
- * mounted, all subscribing, for the six that anybody can see lighting up. The
- * first version of this did exactly that and cost 156 ms per tick — measured
- * in `lyrics-scroll.bench.test.tsx`, which is why the benchmark was written
- * before the feature was called done. Every other line is plain text.
- *
- * # Why the animation is opacity and transform only
- *
- * Those two are the properties a browser can animate on the compositor,
- * without laying out or painting the line again. A colour transition would
- * repaint every word on every frame of the fade, which on a fast verse is the
- * one place this screen could plausibly drop frames. The colour is a class
- * that flips once; the motion is what carries the eye.
+ * Because it would be a compositor layer per word, held for the three seconds
+ * the line is on screen and then thrown away. The repaint is confined to one
+ * line of text; promoting every word would cost far more memory than the paint
+ * it saved.
  */
 const LyricLine = memo(function LyricLine({
   line,
   index,
   active,
   sung,
-  compact,
+  sweep,
   still,
   onSeek,
   onShare,
 }: {
-  line: Line;
+  line: RenderedLine;
   index: number;
   active: boolean;
-  /** How many words are already sung; 0 for any line that is not current. */
+  /** How many words are sung. The reduced-motion path only; 0 otherwise. */
   sung: number;
-  compact: boolean;
+  /** Light the sung line word by word, where the file timed the words. */
+  sweep: boolean;
   /** The reduced-motion setting: the highlight stays, the movement goes. */
   still: boolean;
   onSeek: (at: number) => void;
   onShare: (index: number) => void;
 }) {
+  // Computed once per line activation. Under reduced motion `sung` re-renders
+  // this line a few times a second, and keeping this out of that path is the
+  // only work worth memoising here.
+  /**
+   * The words of the sung line, each with the window it is sung in.
+   *
+   * Only when the file actually stamped them. A plain-LRC line knows when it
+   * starts and nothing about what happens inside it, and lighting invented
+   * words on a schedule nobody wrote is how the highlight ends up a word ahead
+   * of the singer — the line lights as a whole instead, which is the truth.
+   */
+  const words = useMemo(
+    () =>
+      active && line.text && (sweep || still) && hasWordTimings(line)
+        ? wordSpans(line)
+        : [],
+    [active, sweep, still, line],
+  );
+
+  const dots = useMemo(
+    () =>
+      line.kind === 'interlude'
+        ? interludeCells(line.at, line.until ?? line.at)
+        : null,
+    [line],
+  );
+
+  if (dots) {
+    return (
+      <div
+        data-line={index}
+        data-active={active}
+        className="lyric-interlude"
+        role="button"
+        tabIndex={0}
+        aria-label="Instrumental break"
+        // An interlude is silence. Seeking to its start is what clicking a
+        // line has always meant here, and skipping past it would be a
+        // different gesture wearing the same clothes.
+        onClick={() => onSeek(line.at)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') onSeek(line.at);
+        }}
+      >
+        {dots.map((dot, at) => (
+          <span key={at} className="lyric-dot" style={timing(dot)} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <p
       data-line={index}
+      data-active={active}
       role="button"
       tabIndex={0}
       // Clicking a line seeks to it. Every lyrics view that offers this gets
@@ -531,47 +971,37 @@ const LyricLine = memo(function LyricLine({
       // noise on the screen people came here to read.
       onContextMenu={(event) => {
         event.preventDefault();
-        onShare(index);
+        onShare(line.source);
       }}
-      className={cn(
-        'cursor-pointer text-balance transition-colors duration-base',
-        compact ? 'text-base' : 'text-2xl font-semibold',
-        active
-          ? 'text-foreground'
-          : 'text-muted-foreground/60 hover:text-muted-foreground',
-      )}
+      className="lyric-line"
     >
-      {active && line.words && line.words.length > 0 ? (
-        // A word at a time, where the file carries the timings for it.
-        line.words.map((word, at) => (
-          <m.span
-            key={`${word.at}-${at}`}
-            className="inline-block will-change-transform"
-            animate={
-              still
-                ? { opacity: at < sung ? 1 : 0.55 }
-                : {
-                    opacity: at < sung ? 1 : 0.45,
-                    // A small lift as the word lands, and nothing else. Enough
-                    // to read as alive next to the voice; not enough to make a
-                    // verse jump about while somebody is trying to read it.
-                    y: at < sung ? -1.5 : 0,
-                    scale: at < sung ? 1.02 : 1,
-                  }
-            }
-            transition={
-              still
-                ? { duration: 0 }
-                : // A spring, because a word being sung is a physical event and
-                  // an eased fade reads as a slideshow. Stiff and well damped:
-                  // it settles inside the gap between two sung words.
-                  { type: 'spring', stiffness: 520, damping: 34, mass: 0.5 }
-            }
-          >
-            {word.text}
-            {at < line.words!.length - 1 ? ' ' : ''}
-          </m.span>
-        ))
+      {words.length > 0 ? (
+        <>
+          {words.map((word, at) => (
+            // The space lives *between* the spans, never inside one. A
+            // `.lyric-word` is an `inline-block` so it cannot be broken across
+            // lines, and an inline-block discards the whitespace at its own
+            // edge — which is exactly how every space in the sung line used to
+            // disappear the moment it lit up.
+            <Fragment key={`${word.at}-${at}`}>
+              <span
+                className="lyric-word"
+                // Under reduced motion the count says which words are sung, so
+                // nothing has to be interpolated per frame. Otherwise the word
+                // carries its own window and CSS decides from `--t`.
+                style={still ? undefined : timing(word)}
+                data-sung={still ? at < sung : undefined}
+                aria-hidden
+              >
+                {word.text}
+              </span>
+              {at < words.length - 1 ? ' ' : ''}
+            </Fragment>
+          ))}
+          {/* Announced once, as one string: a screen reader should read the
+              line, not a list of spans. */}
+          <span className="sr-only">{line.text}</span>
+        </>
       ) : (
         <>{line.text || '♪'}</>
       )}

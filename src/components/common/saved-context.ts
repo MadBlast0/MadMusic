@@ -32,6 +32,14 @@ export type SavedState = {
    * to be distinguishable from "leave it alone".
    */
   setPlaylistRemote: (id: string, remoteId: string) => void;
+  /**
+   * Sets the playlist's cover, or clears it with `null`.
+   *
+   * The URL has to be one a track in the playlist already carries — that is
+   * what the picker offers, and it is what keeps a cover from outliving the
+   * songs it came from.
+   */
+  setPlaylistArtwork: (id: string, artworkUrl: string | null) => void;
   deletePlaylist: (id: string) => void;
   /** Keeps a playlist at the top of the sidebar. */
   togglePinned: (id: string) => void;

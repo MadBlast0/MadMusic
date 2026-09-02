@@ -10,7 +10,7 @@ import { EMPTY_TRACK, type TrackRow } from '@/lib/store/types';
  * Adapts a scanned file into the shape the player takes.
  *
  * Lives in `lib` rather than beside the track list because half the app builds
- * queues — home, search, the command palette, the folder tree — and a helper
+ * queues — home, search, the folder tree — and a helper
  * exported from a component file breaks React Fast Refresh for that file.
  */
 export function toPlayerTrack(track: LocalTrack): PlayerTrack {

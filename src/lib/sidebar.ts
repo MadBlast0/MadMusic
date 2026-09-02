@@ -190,9 +190,13 @@ export const DEFAULT_LAYOUT: SidebarLayout = {
  *
  * - `search` is the field in the middle of the bar.
  * - `browse` is that same field's empty state, opened by the button inside it.
- * - `settings` is the cog on the right, one click rather than a menu's two.
+ * - `settings` is a row in the account menu on the right, beside the other
+ *   thing that is about the app rather than about your music.
  * - `liked` and `history` are in the library panel, among the playlists, which
  *   is what they are.
+ * - `home` is its own button, parked against the left edge of the search field
+ *   rather than out among the destinations — it is where you start, so it sits
+ *   beside the other thing you reach for without looking.
  *
  * It lives here rather than in the bar because the settings screen has to agree
  * with it: a panel offering to reorder a destination that can never appear is a
@@ -204,7 +208,19 @@ export const BAR_EXCLUDES = new Set<SidebarItemId>([
   'settings',
   'liked',
   'history',
+  'home',
 ]);
+
+/**
+ * Destinations that keep their place in the bar but never take an icon.
+ *
+ * `library` is the one. Its icon was a second control for a panel already on
+ * screen down the left-hand side, so it is gone — but the panel is a list of
+ * playlists, not the library view, and dropping the destination outright left
+ * that page with no way in at all. It lives in the overflow menu, where it is
+ * named rather than drawn.
+ */
+export const BAR_MENU_ONLY = new Set<SidebarItemId>(['library']);
 
 /** What the sidebar should actually render, given the environment. */
 export function visibleItems(

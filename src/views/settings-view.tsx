@@ -1199,6 +1199,18 @@ function Playback() {
           }
         />
         <Row
+          label="Sweep the lyric highlight"
+          hint="Fills each word as it is sung, rather than switching it on at its timestamp. Held still for anybody who asked for reduced motion."
+          control={
+            <Switch
+              checked={settings.lyricsInterpolate}
+              onCheckedChange={(value) => set('lyricsInterpolate', value)}
+              aria-label="Sweep the lyric highlight"
+              disabled={settings.reduceMotion}
+            />
+          }
+        />
+        <Row
           label="Loudness meter"
           hint="A live level meter in the now-playing bar."
           control={
@@ -1565,6 +1577,17 @@ function General() {
           />
         }
       />
+      <Row
+        label="Keep the compact player above other windows"
+        hint="Off by default. The compact player has its own pin, and this is what it remembers."
+        control={
+          <Switch
+            checked={settings.compactAlwaysOnTop}
+            onCheckedChange={(value) => set('compactAlwaysOnTop', value)}
+            aria-label="Keep the compact player above other windows"
+          />
+        }
+      />
     </Group>
   );
 }
@@ -1580,7 +1603,6 @@ const SHORTCUTS: [string, string[]][] = [
   ['Mute', ['M']],
   ['Shuffle', ['S']],
   ['Cycle repeat', ['R']],
-  ['Command palette', ['Ctrl', 'K']],
   ['Search', ['Ctrl', 'F']],
   ['Toggle sidebar', ['Ctrl', 'B']],
   ['Toggle queue', ['Ctrl', 'Q']],

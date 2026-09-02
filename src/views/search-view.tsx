@@ -1,18 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import {
-  TrackCard,
-  CollectionCard,
-  Shelf,
-  Stagger,
-  Art,
-} from '@/components/home/shelves';
-import { CoverArt } from '@/components/library/cover-art';
-import { TrackList } from '@/components/library/track-list';
-import { useLibrary } from '@/components/library/library-context';
+import { Art } from '@/components/home/shelves';
 import { useSettings } from '@/components/common/settings-context';
+import { SaveButton } from '@/components/library/save-button';
 import { useDebounced } from '@/hooks/use-debounced';
-import { Search } from '@/components/icons';
+import { Play, Search } from '@/components/icons';
 import { usePlayer } from '@/components/player/player-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -20,23 +12,13 @@ import {
   type CatalogueSource,
   type SearchResults,
   type ArtistCard,
+  type CatalogueTrack,
+  type Collection,
 } from '@/lib/catalogue';
-import { allTracks, groupAlbums, groupArtists } from '@/lib/library-model';
-import { toCatalogueTrack, toPlayerTrack } from '@/lib/player-track';
-import {
-  applyExclusions,
-  describeQuery,
-  matchesParsed,
-  parseQuery,
-  rank,
-} from '@/lib/search-query';
+import { toCatalogueTrack } from '@/lib/player-track';
+import { describeQuery, parseQuery } from '@/lib/search-query';
 import { store } from '@/lib/store';
-import { toTrackRows } from '@/lib/track-bridge';
-import { useAsyncValue } from '@/hooks/use-async-value';
-import type { LocalTrack } from '@/lib/local-source';
 import type { Route } from '@/lib/routes';
-import { cardTransition } from '@/lib/motion';
-import { m } from 'motion/react';
 import { ViewShell } from '@/views/view-shell';
 import { BrowseView } from '@/views/browse-view';
 import { cn } from '@/lib/utils';
@@ -81,6 +63,12 @@ import { pageOf } from '@/lib/paging';
  */
 type Scope = 'all' | 'songs' | 'albums' | 'artists';
 
+/** One line of results, carrying what it is alongside what it holds. */
+type Row =
+  | { kind: 'Song'; id: string; track: CatalogueTrack }
+  | { kind: 'Album'; id: string; album: Collection }
+  | { kind: 'Artist'; id: string; artist: ArtistCard };
+
 const SCOPES: { id: Scope; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'songs', label: 'Songs' },
@@ -91,11 +79,13 @@ const SCOPES: { id: Scope; label: string }[] = [
 export function SearchView({
   query,
   onOpen,
+  onSearch,
 }: {
   query: string;
   onOpen: (route: Route) => void;
+  /** Puts a query in the field — used by recent searches on the browse page. */
+  onSearch?: (value: string) => void;
 }) {
-  const { root } = useLibrary();
   const { settings } = useSettings();
   const { play, current, playing } = usePlayer();
 
@@ -166,8 +156,6 @@ export function SearchView({
   const found = answer?.query === deferred ? answer.found : null;
   const results = found?.tracks ?? null;
 
-  const localTracks = useMemo(() => (root ? allTracks(root) : []), [root]);
-
   /**
    * What the query actually asked for.
    *
@@ -177,20 +165,6 @@ export function SearchView({
    * exactly as fast as it was.
    */
   const parsed = useMemo(() => parseQuery(deferred), [deferred]);
-
-  const localMatches = useMemo(() => {
-    if (!searching) return [];
-
-    const rows = toTrackRows(localTracks).filter((row) =>
-      matchesParsed(row, parsed),
-    );
-    const kept = applyExclusions(rows, parsed.exclude);
-
-    // Ranked rather than left in folder order. Relevance decides; play count
-    // only breaks a near-tie, which is what makes "the one I actually listen
-    // to" come first without letting it beat a better match.
-    return rank(kept, parsed.text);
-  }, [localTracks, parsed, searching]);
 
   /**
    * The catalogue half, hidden when only playable things should show.
@@ -204,71 +178,68 @@ export function SearchView({
     return results ?? [];
   }, [results, settings.offlineOnly]);
 
-  /** Back to the scanner's shape, which is what the shelves below render. */
-  const localAsLocal = useMemo(() => {
-    const byId = new Map(localTracks.map((track) => [track.id, track]));
-    return localMatches
-      .map((row) => byId.get(row.id))
-      .filter((track): track is LocalTrack => Boolean(track));
-  }, [localMatches, localTracks]);
-
-  /** Tracks whose *lyrics* contain the query, which the text never would. */
-  const { value: lyricHits } = useAsyncValue<string[]>(
-    parsed.text.length >= 4 ? parsed.text : '',
-    async () => {
-      // Short queries match everything and are not worth a table scan.
-      if (parsed.text.length < 4) return [];
-      return store.lyricsSearch(parsed.text).catch(() => []);
-    },
-    [],
-  );
-
-  const lyricMatches = useMemo(() => {
-    if (lyricHits.length === 0) return [];
-    const found = new Set(lyricHits);
-    const already = new Set(localMatches.map((row) => row.id));
-    return localTracks.filter(
-      (track) => found.has(track.id) && !already.has(track.id),
-    );
-  }, [lyricHits, localTracks, localMatches]);
-
   // Remembered once the query has settled, so every keystroke on the way to
   // "radiohead" does not become nine entries in the history.
   useEffect(() => {
     if (!searching || deferred.trim().length < 2) return;
     void store.searchRemember(deferred.trim()).catch(() => {});
   }, [deferred, searching]);
-  const localAlbums = useMemo(
-    () => groupAlbums(localAsLocal).slice(0, 8),
-    [localAsLocal],
-  );
-  const localArtists = useMemo(
-    () => groupArtists(localAsLocal).slice(0, 8),
-    [localAsLocal],
-  );
-
-  function playCollection(collection: { id: string }) {
-    void (async () => {
-      if (!source) return;
-      const tracks = await source.tracksIn(collection.id);
-      if (tracks.length === 0) return;
-      const queue = tracks.map(toCatalogueTrack);
-      play(queue[0], queue);
-    })();
-  }
-
-  // Nothing typed yet: this *is* the browse page. See the note on `Scope`
-  // below for why the two are one screen rather than two destinations.
-  if (!searching) return <BrowseView />;
 
   const showSongs = scope === 'all' || scope === 'songs';
   const showAlbums = scope === 'all' || scope === 'albums';
   const showArtists = scope === 'all' || scope === 'artists';
 
+  // The single best answer, lifted out of the list. `null` while the search is
+  // still running, so the hero does not appear and then change under the eye.
+  const top = catalogueResults.length > 0 ? catalogueResults[0] : null;
+
   const page = paging.query === deferred ? paging.page : 1;
-  const shown = pageOf(catalogueResults.length, settings.paging, page);
+  /**
+   * Everything found, in one list, each row saying what it is.
+   *
+   * Songs, albums and artists used to be three shelves. One list is what the
+   * page is actually answering — "what is there for this word" — and it is the
+   * only shape the filter chips make sense over: "Albums" hiding two of three
+   * shelves is a different gesture from "Albums" narrowing one list.
+   *
+   * Songs lead because they are what most searches want, and the hero has
+   * already taken the first of them.
+   */
+  const rows = useMemo(() => {
+    const built: Row[] = [];
+    if (showSongs) {
+      for (const track of top ? catalogueResults.slice(1) : catalogueResults)
+        built.push({ kind: 'Song', id: track.id, track });
+    }
+    if (showAlbums && found)
+      for (const album of found.albums)
+        built.push({ kind: 'Album', id: album.id, album });
+    if (showArtists && found && !settings.offlineOnly)
+      for (const artist of found.artists)
+        built.push({ kind: 'Artist', id: artist.id, artist });
+    return built;
+  }, [
+    showSongs,
+    showAlbums,
+    showArtists,
+    found,
+    catalogueResults,
+    top,
+    settings.offlineOnly,
+  ]);
+
+  // Nothing typed yet: this *is* the browse page. See the note on `Scope`
+  // below for why the two are one screen rather than two destinations.
+  //
+  // Below every hook, not above them. It used to sit before the `rows` memo,
+  // which made that memo conditional — React counts hooks by call order, so
+  // the first keystroke after this branch changed added a hook mid-list and
+  // every hook after it read the previous one's state.
+  if (!searching) return <BrowseView onSearch={onSearch} />;
+
+  const shown = pageOf(rows.length, settings.paging, page);
   const catalogueEmpty = results !== null && catalogueResults.length === 0;
-  const nothingAnywhere = catalogueEmpty && localMatches.length === 0;
+  const nothingAnywhere = catalogueEmpty;
 
   return (
     <ViewShell density="search">
@@ -277,7 +248,7 @@ export function SearchView({
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {results === null
               ? 'Searching…'
-              : `${catalogueResults.length + localMatches.length} results for “${deferred}”`}
+              : `${catalogueResults.length} results for “${deferred}”`}
           </p>
 
           {/* What the operators were understood to mean. Shown only when some
@@ -328,168 +299,190 @@ export function SearchView({
 
         {results === null && <ResultSkeleton />}
 
-        {showArtists &&
-          !settings.offlineOnly &&
-          found !== null &&
-          found.artists.length > 0 && (
-            <Shelf title="Artists">
-              <Stagger count={found.artists.length}>
-                {found.artists.map((artist) => (
-                  <ArtistResultCard
-                    key={artist.id}
-                    artist={artist}
-                    onOpen={() =>
-                      onOpen({
-                        name: 'artist',
-                        id: artist.id,
-                        artistName: artist.name,
-                      })
-                    }
-                  />
-                ))}
-              </Stagger>
-            </Shelf>
-          )}
+        {/* The top result, given the room the best answer deserves.
 
-        {showAlbums && found !== null && found.albums.length > 0 && (
-          <Shelf title="Albums">
-            <Stagger count={found.albums.length}>
-              {found.albums.map((album) => (
-                <CollectionCard
-                  key={album.id}
-                  collection={album}
-                  onOpen={() =>
-                    onOpen({ name: 'album', id: album.id, title: album.title })
-                  }
-                  onPlay={() => playCollection(album)}
+            A ranked list whose first row looks exactly like its fortieth makes
+            the reader do the ranking again by eye. This is the same track as
+            the first row of the shelf below — promoted, not duplicated: the
+            shelf starts at the second result. */}
+        {showSongs && top !== null && (
+          <section aria-label="Top result">
+            {/* No heading over it.
+
+                The card *is* the statement — it is three times the size of
+                every row below it and sits directly under the filters. A
+                label saying "Top result" above the obviously-top result is
+                the caption on a photograph of itself. */}
+            <div className="group/top flex w-full items-center gap-5 rounded-xl bg-card p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const queue = catalogueResults.map(toCatalogueTrack);
+                  play(queue[0], queue);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-5 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Art
+                  src={top.artworkUrl}
+                  seedCover={top.cover}
+                  alt=""
+                  className="size-22 shrink-0 rounded-lg"
                 />
-              ))}
-            </Stagger>
-          </Shelf>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-3xl font-bold tracking-tight">
+                    {top.title}
+                  </span>
+                  <span className="mt-1.5 block truncate text-sm text-muted-foreground">
+                    Song • {top.artist || 'Unknown artist'}
+                  </span>
+                </span>
+              </button>
+
+              <SaveButton track={toCatalogueTrack(top)} />
+
+              {/* Always drawn, not revealed on hover. This is the one thing
+                  the page is recommending; hiding its play button until the
+                  pointer arrives makes the reader hunt for it. */}
+              <button
+                type="button"
+                aria-label={`Play ${top.title}`}
+                onClick={() => {
+                  const queue = catalogueResults.map(toCatalogueTrack);
+                  play(queue[0], queue);
+                }}
+                className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-fast hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Play className="size-6" />
+              </button>
+            </div>
+          </section>
         )}
 
-        {showSongs && catalogueResults.length > 0 && (
-          <Shelf title="From the catalogue">
-            {/* Paged rather than hard-capped at sixteen, which is what this was.
-                A cap is a silent refusal: the count above says "312 results"
-                and the shelf shows sixteen with no way to see the rest. */}
-            <Stagger count={shown.to - shown.from}>
-              {catalogueResults.slice(shown.from, shown.to).map((track, at) => {
-                const index = shown.from + at;
-                return (
-                  <TrackCard
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    isCurrent={current?.id === track.id}
-                    playing={playing}
-                    onPlay={() => {
-                      const queue = catalogueResults.map(toCatalogueTrack);
-                      play(queue[index], queue);
-                    }}
-                  />
-                );
-              })}
-            </Stagger>
+        {rows.length > 0 && (
+          <section aria-label="Results">
+            {/* A flat list rather than shelves of cards.
 
+                Cards are for browsing, where the picture is the point and the
+                order is loose. These are ranked answers to a question, and a
+                list reads top to bottom in the order they were ranked — which
+                a grid actively hides. Each row carries what it is, because a
+                song and an album can share a name and the difference decides
+                what opening it does. */}
+            <ul>
+              {rows.slice(shown.from, shown.to).map((row) => (
+                <li key={`${row.kind}:${row.id}`}>
+                  <div className="group/row flex w-full items-center gap-4 rounded-lg px-3 py-2 transition-colors duration-fast hover:bg-accent/40">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (row.kind === 'Song') {
+                          const queue = catalogueResults.map(toCatalogueTrack);
+                          const at = catalogueResults.findIndex(
+                            (entry) => entry.id === row.id,
+                          );
+                          play(queue[Math.max(0, at)], queue);
+                        } else if (row.kind === 'Album') {
+                          onOpen({
+                            name: 'album',
+                            id: row.album.id,
+                            title: row.album.title,
+                          });
+                        } else {
+                          onOpen({
+                            name: 'artist',
+                            id: row.artist.id,
+                            artistName: row.artist.name,
+                          });
+                        }
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-4 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                      <Art
+                        src={
+                          row.kind === 'Song'
+                            ? row.track.artworkUrl
+                            : row.kind === 'Album'
+                              ? row.album.artworkUrl
+                              : row.artist.artworkUrl
+                        }
+                        seedCover={
+                          row.kind === 'Song'
+                            ? row.track.cover
+                            : row.kind === 'Album'
+                              ? row.album.cover
+                              : row.artist.cover
+                        }
+                        alt=""
+                        className={cn(
+                          'size-11 shrink-0',
+                          // Round for a person, square for a record. The shape
+                          // says which before the badge is read.
+                          row.kind === 'Artist' ? 'rounded-full' : 'rounded',
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            'block truncate text-sm font-medium',
+                            row.kind === 'Song' &&
+                              current?.id === row.id &&
+                              playing &&
+                              'text-primary',
+                          )}
+                        >
+                          {row.kind === 'Song'
+                            ? row.track.title
+                            : row.kind === 'Album'
+                              ? row.album.title
+                              : row.artist.name}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {row.kind === 'Song'
+                            ? `Song • ${row.track.artist || 'Unknown artist'}`
+                            : row.kind === 'Album'
+                              ? `Album • ${row.album.subtitle}`
+                              : 'Artist'}
+                        </span>
+                      </span>
+                    </button>
+
+                    {/* The kind, stated rather than implied by which shelf it
+                        landed in — there are no shelves now. */}
+                    <span className="hidden shrink-0 rounded bg-accent/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:block">
+                      {row.kind}
+                    </span>
+
+                    {/* Only a song can be saved. An album or an artist is a
+                        place to go, not a thing a playlist holds. */}
+                    {row.kind === 'Song' ? (
+                      <SaveButton track={toCatalogueTrack(row.track)} />
+                    ) : (
+                      <span className="size-8 shrink-0" aria-hidden />
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {/* Paged rather than hard-capped at sixteen, which is what this
+                was. A cap is a silent refusal: the count above says "312
+                results" and the list shows sixteen with no way to see the
+                rest. */}
             <Pager
               mode={settings.paging}
               page={shown}
               onShow={(next) => setPaging({ query: deferred, page: next })}
-              className="col-span-full"
+              className="mt-4"
             />
-          </Shelf>
-        )}
-
-        {showArtists && localArtists.length > 0 && (
-          <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
-              Artists on this machine
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {localArtists.map((artist) => (
-                <button
-                  key={artist.name}
-                  type="button"
-                  onClick={() => {
-                    const queue = artist.tracks.map(toPlayerTrack);
-                    play(queue[0], queue);
-                  }}
-                  className="flex items-center gap-3 rounded-full border border-border bg-card py-1.5 pr-4 pl-1.5 text-sm transition-colors duration-fast hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <CoverArt
-                    track={artist.cover}
-                    seed={artist.name}
-                    className="size-8"
-                    rounded="rounded-full"
-                  />
-                  <span className="font-medium">{artist.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {artist.tracks.length}
-                  </span>
-                </button>
-              ))}
-            </div>
           </section>
         )}
 
-        {showAlbums && localAlbums.length > 0 && (
-          <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
-              Albums on this machine
-            </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-              {localAlbums.map((album) => (
-                <button
-                  key={album.key}
-                  type="button"
-                  onClick={() => {
-                    const queue = album.tracks.map(toPlayerTrack);
-                    play(queue[0], queue);
-                  }}
-                  className="rounded-lg bg-card p-3 text-left shadow-xs transition-colors duration-fast hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <CoverArt
-                    track={album.cover}
-                    seed={`${album.artist} ${album.title}`}
-                    className="aspect-square w-full"
-                  />
-                  <p className="mt-3 truncate text-sm font-medium">
-                    {album.title}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {album.artist}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Nothing "on this machine" here any more.
 
-        {showSongs && localAsLocal.length > 0 && (
-          <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
-              Songs on this machine
-            </h2>
-            <TrackList tracks={localAsLocal} />
-          </section>
-        )}
-
-        {/* Tracks whose *lyrics* match. Kept in its own section rather than
-            mixed in, because "this song contains that line" is a different
-            claim from "this song is called that" and a reader deserves to
-            know which one they are looking at. */}
-        {showSongs && lyricMatches.length > 0 && (
-          <section>
-            <h2 className="mb-1 font-display text-xl font-semibold tracking-tight">
-              Found in lyrics
-            </h2>
-            <p className="mb-3 text-xs text-muted-foreground">
-              These do not match the title or artist, but the words do.
-            </p>
-            <TrackList tracks={lyricMatches} />
-          </section>
-        )}
+            The top bar searches the catalogue and only the catalogue — music on
+            this device has its own field in the library panel. Two sets of
+            results under one query meant the page answered a question nobody
+            had asked, and the same word ranked twice by two different engines. */}
       </div>
     </ViewShell>
   );
@@ -525,32 +518,3 @@ function Empty({ title, body }: { title: string; body: string }) {
 }
 
 /** A round artist result. Circles read as people; squares read as records. */
-function ArtistResultCard({
-  artist,
-  onOpen,
-}: {
-  artist: ArtistCard;
-  onOpen: () => void;
-}) {
-  return (
-    <m.button
-      type="button"
-      onClick={onOpen}
-      variants={{
-        hidden: { opacity: 0, y: 10 },
-        show: { opacity: 1, y: 0, transition: cardTransition },
-      }}
-      aria-label={`Open ${artist.name}`}
-      className="w-[168px] shrink-0 snap-start rounded-lg p-2 text-center transition-colors duration-fast hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-    >
-      <Art
-        seedCover={artist.cover}
-        src={artist.artworkUrl}
-        alt=""
-        className="aspect-square w-full rounded-full shadow-sm"
-      />
-      <p className="mt-2.5 truncate text-sm font-medium">{artist.name}</p>
-      <p className="truncate text-xs text-muted-foreground">Artist</p>
-    </m.button>
-  );
-}

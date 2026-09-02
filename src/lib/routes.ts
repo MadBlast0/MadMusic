@@ -51,6 +51,14 @@ export type Route =
   | { name: 'smart'; id: string }
   /** The library cut by genre, decade and tempo. */
   | { name: 'browse' }
+  /**
+   * The whole of one of Home's shelves.
+   *
+   * One route rather than a page each, because "view all" is the same question
+   * thirteen times over — see `lib/shelf-source.ts`. `title` is carried so the
+   * header paints before the data lands, as it is for an album.
+   */
+  | { name: 'shelf'; key: string; title: string }
   /** Versions, logs and the integrity check. */
   | { name: 'diagnostics' }
   /** What the app does with your data, and what it is built from. */
@@ -76,6 +84,8 @@ export function routeKey(route: Route): string {
       return `podcast:${route.id}`;
     case 'smart':
       return `smart:${route.id}`;
+    case 'shelf':
+      return `shelf:${route.key}`;
     default:
       return route.name;
   }
@@ -164,7 +174,7 @@ export function isTab(name: string): name is Tab {
   return (TABS as string[]).includes(name);
 }
 
-/** The route for a tab, for the nav and the command palette. */
+/** The route for a tab, for the nav. */
 export function tabRoute(tab: Tab): Route {
   return { name: tab } as Route;
 }
@@ -196,6 +206,8 @@ export function routeLabel(route: Route): string {
       return 'Playlist';
     case 'smart':
       return 'Smart playlists';
+    case 'shelf':
+      return route.title || 'More';
     case 'uploads':
       return 'Your uploads';
     case 'podcasts':

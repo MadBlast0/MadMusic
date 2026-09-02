@@ -136,6 +136,13 @@ export type PlayerState = {
    */
   reorderQueue: (from: number, to: number) => void;
   clearQueue: () => void;
+  /**
+   * Ends the session: nothing playing, nothing queued.
+   *
+   * Not the same as pausing. Pause keeps your place; this puts the bar back to
+   * the state it has before the first track of the day.
+   */
+  stop: () => void;
   seek: (seconds: number) => void;
   /**
    * The position right now, without subscribing to it.

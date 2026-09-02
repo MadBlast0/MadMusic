@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App from '@/App';
 import { renderWithProviders } from '@/test/utils';
+import { DEFAULT_LAYOUT } from '@/lib/sidebar';
+import { store } from '@/lib/store';
+import { keys } from '@/lib/store/keys';
 
 /**
  * Every screen, mounted.
@@ -34,21 +37,93 @@ import { renderWithProviders } from '@/test/utils';
  * screen passes because the boundary did its job.
  */
 
-/** Where the app can be sent from the command palette. */
-const DESTINATIONS = [
-  'go home',
-  'go search',
-  'go library',
-  'go settings',
-  'go liked songs',
-  'go recently played history',
-  'go statistics listening',
-  'go downloads',
-  'go browse',
-  'go smart playlists',
-  'go radio',
-  'go podcasts',
-  'go diagnostics',
+/**
+ * Every destination, and the control that opens it.
+ *
+ * There is no command palette any more, so each case walks the path a person
+ * walks: a destination icon or the overflow menu in the top bar, the account
+ * menu for the two app-level screens, the library panel for the lists that
+ * live among the playlists, and the search field for itself.
+ *
+ * `open` returning without clicking anything is allowed. Downloads, podcasts
+ * and radio need the desktop build and uploads needs a backend, so in this
+ * environment their controls are legitimately absent — the case then proves
+ * the app survives being asked, which is all it ever proved for them.
+ */
+type Destination = { name: string; open: (user: User) => Promise<void> };
+
+type User = ReturnType<typeof userEvent.setup>;
+
+const titleBar = () => screen.getByRole('banner', { name: /title bar/i });
+
+/** A destination icon in the bar, or its row in the overflow menu. */
+async function openFromNav(user: User, label: string) {
+  const inline = within(titleBar()).queryByRole('button', { name: label });
+  if (inline) {
+    await user.click(inline);
+    return;
+  }
+
+  const more = within(titleBar()).queryByRole('button', {
+    name: 'More destinations',
+  });
+  if (!more) return;
+
+  await user.click(more);
+  const row = screen.queryByRole('menuitem', { name: label });
+  if (row) await user.click(row);
+  else await user.keyboard('{Escape}');
+}
+
+/** Settings and diagnostics, which are rows in the account menu. */
+async function openFromAccount(user: User, label: string) {
+  await user.click(screen.getByRole('button', { name: 'Account' }));
+  await user.click(await screen.findByRole('menuitem', { name: label }));
+}
+
+const DESTINATIONS: Destination[] = [
+  { name: 'home', open: (user) => openFromNav(user, 'Home') },
+  {
+    name: 'search',
+    open: (user) =>
+      user.click(screen.getByRole('searchbox', { name: 'Search music' })),
+  },
+  { name: 'library', open: (user) => openFromNav(user, 'Library') },
+  { name: 'settings', open: (user) => openFromAccount(user, 'Settings') },
+  {
+    name: 'liked songs',
+    open: (user) => user.click(screen.getByText('Liked Songs')),
+  },
+  {
+    name: 'recently played history',
+    open: async (user) => {
+      // Only present once something has been played, which is the right
+      // behaviour for a list of what you played.
+      const row = screen.queryByText('Recently played');
+      if (row) await user.click(row);
+    },
+  },
+  {
+    name: 'statistics listening',
+    open: (user) => openFromNav(user, 'Statistics'),
+  },
+  { name: 'downloads', open: (user) => openFromNav(user, 'Downloads') },
+  {
+    name: 'browse',
+    open: (user) =>
+      user.click(
+        within(screen.getByRole('search')).getByRole('button', {
+          name: /browse/i,
+        }),
+      ),
+  },
+  {
+    name: 'smart playlists',
+    open: (user) => openFromNav(user, 'Smart playlists'),
+  },
+  { name: 'radio', open: (user) => openFromNav(user, 'Radio') },
+  { name: 'podcasts', open: (user) => openFromNav(user, 'Podcasts') },
+  { name: 'diagnostics', open: (user) => openFromAccount(user, 'Diagnostics') },
 ];
 
 describe('every screen mounts', () => {
@@ -82,25 +157,23 @@ describe('every screen mounts', () => {
   }
 
   for (const destination of DESTINATIONS) {
-    it(`renders ${destination.replace(/^go /, '')}`, async () => {
+    it(`renders ${destination.name}`, async () => {
+      // Nothing hidden, so a destination that starts out of the sidebar still
+      // has a control to click. Written before the render, so the layout
+      // provider's first load reads it.
+      await store.kvSet(
+        keys.SIDEBAR,
+        JSON.stringify({ ...DEFAULT_LAYOUT, hidden: [] }),
+      );
+
       const user = userEvent.setup();
       renderWithProviders(<App />);
 
-      // Through the palette rather than the sidebar: it reaches every
-      // destination including the ones the sidebar hides by default, and it is
-      // the same path a keyboard user takes.
-      await user.keyboard('{Control>}k{/Control}');
-      const field = await screen.findByPlaceholderText(/search/i);
-      await user.type(field, destination.replace(/^go /, ''));
-
-      const option = await screen
-        .findAllByRole('option')
-        .catch(() => [] as HTMLElement[]);
-      if (option.length > 0) await user.click(option[0]);
+      await destination.open(user);
 
       // Something is on screen, and nothing threw on the way.
-      expect(screen.getByRole('banner', { name: /title bar/i })).toBeVisible();
-      expectNoErrors(destination);
+      expect(titleBar()).toBeVisible();
+      expectNoErrors(destination.name);
     });
   }
 });

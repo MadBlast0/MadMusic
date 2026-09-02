@@ -102,6 +102,11 @@ export function PlaylistTrackList({
                   <button
                     type="button"
                     onClick={() => play(queue[index], queue)}
+                    // The page behind this list has a context menu of its own.
+                    // Radix runs the child's handler before its own, so this
+                    // keeps the row's menu and stops the playlist's — without
+                    // it a right-click here opens both, stacked.
+                    onContextMenu={(event) => event.stopPropagation()}
                     onKeyDown={(event) => {
                       // The same move from the keyboard. Dragging as the only
                       // way to reorder makes the list unusable for anybody who
