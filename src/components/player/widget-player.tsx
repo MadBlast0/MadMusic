@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 export function WidgetPlayer({
   className,
   chrome,
+  draggable = false,
 }: {
   className?: string;
   /**
@@ -67,6 +68,18 @@ export function WidgetPlayer({
    * nothing, visibly detached from the thing they act on.
    */
   chrome?: ReactNode;
+  /**
+   * Whether the card's own surface drags the window.
+   *
+   * Tauri's drag region is checked against the element actually under the
+   * pointer, not its ancestors, so "grab anywhere on the card" means marking
+   * every part of the card a press can land on — the shell, the rows, the
+   * text. Controls are deliberately left out: a press on the play button must
+   * play, not start a drag.
+   *
+   * False in the browser, where there is no window to move.
+   */
+  draggable?: boolean;
 }) {
   const player = useWidgetTransport();
   const track = player.track;
@@ -85,6 +98,9 @@ export function WidgetPlayer({
   const duration = track?.duration ?? 0;
   const seekable = Boolean(track) && duration > 0;
 
+  /** Spread onto every part of the card that is not a control. */
+  const drag = draggable ? { 'data-tauri-drag-region': '' } : {};
+
   return (
     <div
       className={cn(
@@ -96,6 +112,7 @@ export function WidgetPlayer({
         className,
       )}
       data-open={scrubbing || undefined}
+      {...drag}
     >
       {/* The record, which tucks behind the pill as it opens.
           `h-16 → h-0` rather than a translate: the pill has to move up into
@@ -110,24 +127,31 @@ export function WidgetPlayer({
         <Disc track={track} spinning={player.playing} size={128} />
       </div>
 
-      {/* Wraps the pill so the chrome can be positioned against it. The pill
-          itself clips its contents, which is what lets the rows slide, so
-          anything overlapping its edge has to live out here. */}
-      <div className="relative z-30">
-        {chrome && <div className="absolute -top-2 right-2 z-40">{chrome}</div>}
-
+      <div className="relative z-30" {...drag}>
         <div
+          {...drag}
           className={cn(
-            'flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
+            'relative flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
             'bg-card text-card-foreground shadow-lg ring-1 ring-border',
             'transition-all duration-300',
             'group-hover/widget:h-[10.5rem] group-hover/widget:w-72',
             'group-data-[open]/widget:h-[10.5rem] group-data-[open]/widget:w-72',
           )}
         >
+          {/* The window's controls, inside the card and clipped by it.
+
+              Inside rather than floating above: they belong to the thing they
+              act on, and a card is where a window's own controls live. The
+              pill's `overflow-hidden` is what makes the reveal work — closed,
+              they are simply outside its bounds. */}
+          {chrome && (
+            <div className="absolute top-2 right-2 z-40">{chrome}</div>
+          )}
+
           {/* Title row. Absent until open — closed, the pill is the transport
             and nothing else. */}
           <div
+            {...drag}
             className={cn(
               'flex h-0 shrink-0 flex-row items-center overflow-hidden transition-all duration-300',
               'group-hover/widget:h-[4.5rem] group-data-[open]/widget:h-[4.5rem]',
@@ -144,12 +168,17 @@ export function WidgetPlayer({
               <Disc track={track} spinning={player.playing} size={64} />
             </div>
 
-            <div className="flex min-w-0 flex-col justify-center px-3">
-              <p className="truncate text-base font-semibold">
+            {/* Right padding leaves the controls their corner, so a long title
+              truncates before it runs underneath them. */}
+            <div
+              {...drag}
+              className="flex min-w-0 flex-col justify-center pr-24 pl-3"
+            >
+              <p {...drag} className="truncate text-base font-semibold">
                 {track?.title ?? 'Nothing playing'}
               </p>
               {track?.artist && (
-                <p className="truncate text-sm text-muted-foreground">
+                <p {...drag} className="truncate text-sm text-muted-foreground">
                   {track.artist}
                 </p>
               )}
@@ -170,7 +199,10 @@ export function WidgetPlayer({
             buttons that move through the queue, close enough to read as part
             of the same control. Spread to the corners they looked like two
             unrelated toggles that happened to share a row. */}
-          <div className="flex flex-1 flex-row items-center justify-center gap-1 pb-1">
+          <div
+            {...drag}
+            className="flex flex-1 flex-row items-center justify-center gap-1 pb-1"
+          >
             <WidgetButton
               label={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
               onClick={player.toggleShuffle}

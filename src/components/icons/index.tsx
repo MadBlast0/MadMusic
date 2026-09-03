@@ -87,7 +87,10 @@ export function Play({ className, ...props }: IconProps) {
       {/* Nudged right because a triangle's optical centre sits left of its
           bounding box. Baked into the path so no call site has to remember
           `translate-x-px`. */}
-      <path d="M8.5 5.2v13.6L19.5 12z" />
+      <m.path
+        variants={{ hover: { x: 1.5, transition: t } }}
+        d="M8.5 5.2v13.6L19.5 12z"
+      />
     </Solid>
   );
 }
@@ -95,7 +98,16 @@ export function Play({ className, ...props }: IconProps) {
 export function Pause({ className, ...props }: IconProps) {
   return (
     <Solid className={className} {...props}>
-      <path d="M6.5 4.8h3.6v14.4H6.5zM13.9 4.8h3.6v14.4h-3.6z" />
+      {/* The bars part slightly — the visual opposite of Play's forward
+          lean, so the pair reads as one control changing its mind. */}
+      <m.path
+        variants={{ hover: { x: -0.8, transition: t } }}
+        d="M6.5 4.8h3.6v14.4H6.5z"
+      />
+      <m.path
+        variants={{ hover: { x: 0.8, transition: t } }}
+        d="M13.9 4.8h3.6v14.4h-3.6z"
+      />
     </Solid>
   );
 }
@@ -201,10 +213,22 @@ export function Repeat({
 }: IconProps & { one?: boolean }) {
   return (
     <Frame className={className} {...props}>
-      <path d="m17 2 4 4-4 4" />
-      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-      <path d="m7 22-4-4 4-4" />
-      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      {/* The loop goes round once. Repeat is the one control whose meaning
+       *is* a cycle, so the gesture is the definition. */}
+      <m.g
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{
+          hover: {
+            rotate: 180,
+            transition: { duration: 0.5, ease: ease.enter },
+          },
+        }}
+      >
+        <path d="m17 2 4 4-4 4" />
+        <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+        <path d="m7 22-4-4 4-4" />
+        <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      </m.g>
       {/* A numeral rather than a second colour: repeat-one and repeat-all must
           be distinguishable without relying on hue. */}
       {one && (
@@ -432,10 +456,15 @@ export function Library({ className, ...props }: IconProps) {
 export function Users({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      {/* The one behind steps out from the one in front. */}
+      <m.g variants={{ hover: { x: -0.6, transition: t } }}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+      </m.g>
+      <m.g variants={{ hover: { x: 1, transition: t } }}>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </m.g>
     </Frame>
   );
 }
@@ -443,10 +472,21 @@ export function Users({ className, ...props }: IconProps) {
 export function Disc({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="2.5" />
-      <path d="M6.5 8.5h.01" />
-      <path d="M17.5 15.5h.01" />
+      {/* It is a record. It turns. */}
+      <m.g
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{
+          hover: {
+            rotate: 60,
+            transition: { duration: 0.5, ease: ease.enter },
+          },
+        }}
+      >
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="2.5" />
+        <path d="M6.5 8.5h.01" />
+        <path d="M17.5 15.5h.01" />
+      </m.g>
     </Frame>
   );
 }
@@ -482,7 +522,8 @@ export function X({ className, ...props }: IconProps) {
 export function Minimise({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M5 12h14" />
+      {/* Drops towards the taskbar it is about to go to. */}
+      <m.path variants={{ hover: { y: 2, transition: t } }} d="M5 12h14" />
     </Frame>
   );
 }
@@ -490,7 +531,16 @@ export function Minimise({ className, ...props }: IconProps) {
 export function Maximise({ className, ...props }: IconProps) {
   return (
     <Frame className={className} strokeWidth={2.2} {...props}>
-      <rect x="4.5" y="4.5" width="15" height="15" rx="1.5" />
+      {/* Grows, which is the whole of what it does. */}
+      <m.rect
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{ hover: { scale: 1.1, transition: t } }}
+        x="4.5"
+        y="4.5"
+        width="15"
+        height="15"
+        rx="1.5"
+      />
     </Frame>
   );
 }
@@ -498,8 +548,20 @@ export function Maximise({ className, ...props }: IconProps) {
 export function Restore({ className, ...props }: IconProps) {
   return (
     <Frame className={className} strokeWidth={2} {...props}>
-      <rect x="3.5" y="7.5" width="12" height="12" rx="1.5" />
-      <path d="M7.5 7.5v-2a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      {/* The front pane draws back from the one behind it — the window
+          stepping down out of full screen. */}
+      <m.rect
+        variants={{ hover: { x: -1, y: 1, transition: t } }}
+        x="3.5"
+        y="7.5"
+        width="12"
+        height="12"
+        rx="1.5"
+      />
+      <m.path
+        variants={{ hover: { x: 1, y: -1, transition: t } }}
+        d="M7.5 7.5v-2a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"
+      />
     </Frame>
   );
 }
@@ -557,7 +619,15 @@ export function Moon({ className, ...props }: IconProps) {
 export function Monitor({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <rect x="2" y="3" width="20" height="14" rx="2" />
+      {/* The screen wakes: the panel lifts off its stand a little. */}
+      <m.rect
+        variants={{ hover: { y: -1, transition: t } }}
+        x="2"
+        y="3"
+        width="20"
+        height="14"
+        rx="2"
+      />
       <path d="M8 21h8M12 17v4" />
     </Frame>
   );
@@ -567,7 +637,20 @@ export function Contrast({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <circle cx="12" cy="12" r="9" />
-      <path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none" />
+      {/* The filled half sweeps round — light becoming dark, which is the one
+          thing this icon is ever used to mean. */}
+      <m.path
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{
+          hover: {
+            rotate: 180,
+            transition: { duration: 0.45, ease: ease.enter },
+          },
+        }}
+        d="M12 3a9 9 0 0 1 0 18Z"
+        fill="currentColor"
+        stroke="none"
+      />
     </Frame>
   );
 }
@@ -604,7 +687,12 @@ export function Download({ className, ...props }: IconProps) {
 export function Folder({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      {/* Opens a little, hinged at the bottom edge. */}
+      <m.path
+        style={{ transformOrigin: '12px 20px' }}
+        variants={{ hover: { scaleY: 1.08, y: -0.5, transition: t } }}
+        d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
+      />
     </Frame>
   );
 }
@@ -634,8 +722,10 @@ export function SortAsc({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <path d="M11 5h10M11 12h7M11 19h4" />
-      <path d="m3 8 3-3 3 3" />
-      <path d="M6 5v14" />
+      <m.g variants={{ hover: { y: -1.5, transition: t } }}>
+        <path d="m3 8 3-3 3 3" />
+        <path d="M6 5v14" />
+      </m.g>
     </Frame>
   );
 }
@@ -643,7 +733,17 @@ export function SortAsc({ className, ...props }: IconProps) {
 export function Check({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M20 6 9 17l-5-5" />
+      {/* Drawn rather than scaled: a tick that writes itself is the one
+          gesture this glyph has, and `pathLength` is how Motion does it. */}
+      <m.path
+        d="M20 6 9 17l-5-5"
+        variants={{
+          hover: {
+            pathLength: [0, 1],
+            transition: { duration: 0.35, ease: ease.enter },
+          },
+        }}
+      />
     </Frame>
   );
 }
@@ -716,7 +816,12 @@ export function Sparkle({ className, ...props }: IconProps) {
 export function Palette({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M12 21a9 9 0 1 1 9-9c0 1.7-1.3 3-3 3h-1.5a2.5 2.5 0 0 0-1.8 4.2A1.9 1.9 0 0 1 12 21Z" />
+      {/* Tilts, the way a palette is held. */}
+      <m.path
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{ hover: { rotate: -8, transition: t } }}
+        d="M12 21a9 9 0 1 1 9-9c0 1.7-1.3 3-3 3h-1.5a2.5 2.5 0 0 0-1.8 4.2A1.9 1.9 0 0 1 12 21Z"
+      />
       <circle cx="7.6" cy="12" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="9.9" cy="8" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="14.4" cy="7.8" r="1.1" fill="currentColor" stroke="none" />
@@ -740,7 +845,18 @@ export function Globe({ className, ...props }: IconProps) {
     <Frame className={className} {...props}>
       <circle cx="12" cy="12" r="9" />
       <path d="M3.2 9.5h17.6M3.2 14.5h17.6" />
-      <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z" />
+      {/* The meridian narrows and fills again, which is what a globe turning
+          looks like from the front. */}
+      <m.path
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{
+          hover: {
+            scaleX: [1, 0.3, 1],
+            transition: { duration: 0.7, ease: ease.enter },
+          },
+        }}
+        d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"
+      />
     </Frame>
   );
 }
@@ -748,7 +864,12 @@ export function Globe({ className, ...props }: IconProps) {
 export function Shield({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M12 21.4c4.3-1.8 7-5.6 7-10V5.9l-7-2.6-7 2.6v5.5c0 4.4 2.7 8.2 7 10Z" />
+      {/* Braces, which is a shield's one job. */}
+      <m.path
+        style={{ transformOrigin: '12px 12px' }}
+        variants={{ hover: { scale: 1.08, transition: t } }}
+        d="M12 21.4c4.3-1.8 7-5.6 7-10V5.9l-7-2.6-7 2.6v5.5c0 4.4 2.7 8.2 7 10Z"
+      />
     </Frame>
   );
 }
@@ -757,7 +878,16 @@ export function Keyboard({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <rect x="2.5" y="6" width="19" height="12" rx="2" />
-      <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8" />
+      {/* The keys press and come back up. */}
+      <m.path
+        variants={{
+          hover: {
+            y: [0, 1.2, 0],
+            transition: { duration: 0.4, ease: ease.enter },
+          },
+        }}
+        d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"
+      />
     </Frame>
   );
 }
@@ -766,8 +896,18 @@ export function Info({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" />
-      <path d="M12 7.8h.01" />
+      {/* The stem and its dot bob, like something being pointed out. */}
+      <m.g
+        variants={{
+          hover: {
+            y: [0, -1.2, 0],
+            transition: { duration: 0.45, ease: ease.enter },
+          },
+        }}
+      >
+        <path d="M12 11v5" />
+        <path d="M12 7.8h.01" />
+      </m.g>
     </Frame>
   );
 }
@@ -786,10 +926,30 @@ export function Radio({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <circle cx="12" cy="12" r="2" />
-      <path d="M8.5 8.5a5 5 0 0 0 0 7" />
-      <path d="M15.5 15.5a5 5 0 0 0 0-7" />
-      <path d="M5.6 5.6a9 9 0 0 0 0 12.8" />
-      <path d="M18.4 18.4a9 9 0 0 0 0-12.8" />
+      {/* The waves leave the centre in turn — the inner pair, then the outer.
+          A broadcast, rather than a ring that pulses all at once. */}
+      <m.g
+        variants={{
+          hover: {
+            opacity: [0.3, 1],
+            transition: { duration: 0.4, ease: ease.enter },
+          },
+        }}
+      >
+        <path d="M8.5 8.5a5 5 0 0 0 0 7" />
+        <path d="M15.5 15.5a5 5 0 0 0 0-7" />
+      </m.g>
+      <m.g
+        variants={{
+          hover: {
+            opacity: [0.3, 1],
+            transition: { duration: 0.4, delay: 0.12, ease: ease.enter },
+          },
+        }}
+      >
+        <path d="M5.6 5.6a9 9 0 0 0 0 12.8" />
+        <path d="M18.4 18.4a9 9 0 0 0 0-12.8" />
+      </m.g>
     </Frame>
   );
 }
@@ -797,9 +957,37 @@ export function Radio({ className, ...props }: IconProps) {
 export function Chart({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M4 20V10" />
-      <path d="M10 20V4" />
-      <path d="M16 20v-7" />
+      {/* Each bar grows from the axis, left to right. */}
+      <m.path
+        style={{ transformOrigin: '4px 20px' }}
+        variants={{
+          hover: {
+            scaleY: [0.4, 1],
+            transition: { duration: 0.35, ease: ease.enter },
+          },
+        }}
+        d="M4 20V10"
+      />
+      <m.path
+        style={{ transformOrigin: '10px 20px' }}
+        variants={{
+          hover: {
+            scaleY: [0.4, 1],
+            transition: { duration: 0.35, delay: 0.06, ease: ease.enter },
+          },
+        }}
+        d="M10 20V4"
+      />
+      <m.path
+        style={{ transformOrigin: '16px 20px' }}
+        variants={{
+          hover: {
+            scaleY: [0.4, 1],
+            transition: { duration: 0.35, delay: 0.12, ease: ease.enter },
+          },
+        }}
+        d="M16 20v-7"
+      />
       <path d="M22 20H2" />
     </Frame>
   );
@@ -809,8 +997,11 @@ export function Upload({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="M7 8l5-5 5 5" />
-      <path d="M12 3v12" />
+      {/* The arrow leaves, which is the direction of the word. */}
+      <m.g variants={{ hover: { y: -2, transition: t } }}>
+        <path d="M7 8l5-5 5 5" />
+        <path d="M12 3v12" />
+      </m.g>
     </Frame>
   );
 }
@@ -820,7 +1011,16 @@ export function PictureInPicture({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <path d="M21 11V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h5" />
-      <rect x="12" y="13" width="9" height="7" rx="1.5" />
+      {/* The inset lifts out of the frame, which is the thing it does. */}
+      <m.rect
+        style={{ transformOrigin: '16.5px 16.5px' }}
+        variants={{ hover: { scale: 1.12, transition: t } }}
+        x="12"
+        y="13"
+        width="9"
+        height="7"
+        rx="1.5"
+      />
     </Frame>
   );
 }
@@ -836,10 +1036,24 @@ export function PictureInPicture({ className, ...props }: IconProps) {
 export function Fullscreen({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9" />
-      <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9" />
-      <path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15" />
-      <path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
+      {/* Each corner pushes towards its own corner: the picture opening out,
+          rather than the icon simply growing. */}
+      <m.path
+        variants={{ hover: { x: -1.2, y: -1.2, transition: t } }}
+        d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9"
+      />
+      <m.path
+        variants={{ hover: { x: 1.2, y: -1.2, transition: t } }}
+        d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9"
+      />
+      <m.path
+        variants={{ hover: { x: 1.2, y: 1.2, transition: t } }}
+        d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15"
+      />
+      <m.path
+        variants={{ hover: { x: -1.2, y: 1.2, transition: t } }}
+        d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"
+      />
     </Frame>
   );
 }
@@ -860,9 +1074,24 @@ export function Fullscreen({ className, ...props }: IconProps) {
 export function More({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      {/* The outer two spread away from the middle: there is more here. */}
+      <m.circle
+        variants={{ hover: { cx: 3.6, transition: t } }}
+        cx="5"
+        cy="12"
+        r="1.4"
+        fill="currentColor"
+        stroke="none"
+      />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <m.circle
+        variants={{ hover: { cx: 20.4, transition: t } }}
+        cx="19"
+        cy="12"
+        r="1.4"
+        fill="currentColor"
+        stroke="none"
+      />
     </Frame>
   );
 }
@@ -870,12 +1099,17 @@ export function More({ className, ...props }: IconProps) {
 export function Grip({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
-      <circle cx="9" cy="6" r=".8" />
-      <circle cx="9" cy="12" r=".8" />
-      <circle cx="9" cy="18" r=".8" />
-      <circle cx="15" cy="6" r=".8" />
-      <circle cx="15" cy="12" r=".8" />
-      <circle cx="15" cy="18" r=".8" />
+      {/* The two columns loosen apart, the way a handle gives when held. */}
+      <m.g variants={{ hover: { x: -1, transition: t } }}>
+        <circle cx="9" cy="6" r=".8" />
+        <circle cx="9" cy="12" r=".8" />
+        <circle cx="9" cy="18" r=".8" />
+      </m.g>
+      <m.g variants={{ hover: { x: 1, transition: t } }}>
+        <circle cx="15" cy="6" r=".8" />
+        <circle cx="15" cy="12" r=".8" />
+        <circle cx="15" cy="18" r=".8" />
+      </m.g>
     </Frame>
   );
 }

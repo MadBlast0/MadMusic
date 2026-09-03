@@ -129,6 +129,7 @@ export function ArtistView({
       actions={
         <>
           <Button
+            animate
             size="sm"
             disabled={queue.length === 0}
             onClick={() => play(queue[0], queue)}

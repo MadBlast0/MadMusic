@@ -78,6 +78,7 @@ function Live() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          animate
           variant="ghost"
           size="icon"
           // Coloured when the audio is on another device, because that is the

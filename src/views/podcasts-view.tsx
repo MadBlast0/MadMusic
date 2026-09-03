@@ -272,6 +272,7 @@ function EpisodeSection({
             <li key={episode.id} className="rounded-lg border bg-card p-3">
               <div className="flex items-start gap-3">
                 <Button
+                  animate
                   size="icon"
                   variant="ghost"
                   onClick={() => start(episode, at)}

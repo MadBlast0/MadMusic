@@ -242,6 +242,7 @@ export function DiagnosticsView() {
           />
           <div className="mt-2 flex gap-2">
             <Button
+              animate
               size="sm"
               onClick={() => {
                 void navigator.clipboard.writeText(text).then(() => {
@@ -277,6 +278,7 @@ export function DiagnosticsView() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
+              animate
               variant="outline"
               size="sm"
               disabled={busy}

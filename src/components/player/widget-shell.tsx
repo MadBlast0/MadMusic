@@ -45,16 +45,25 @@ export function WidgetShell() {
       // nowhere else to be grabbed, and the controls inside opt out so a press
       // is not read as the start of a drag.
       data-tauri-drag-region
-      className="group/card relative flex h-screen w-screen items-center justify-center bg-transparent"
+      className="relative flex h-screen w-screen items-center justify-center bg-transparent"
     >
-      <div data-tauri-drag-region={undefined}>
+      <div>
         <WidgetPlayer
+          draggable
           chrome={
-            /* Grouped into one pill so the three read as a set and align to
-               each other. They wait for the card's 300ms expansion before
-               fading in - arriving over something still moving looks like they
-               landed in the wrong place. */
-            <div className="flex items-center gap-0.5 rounded-full bg-background/90 p-0.5 opacity-0 shadow-sm ring-1 ring-border backdrop-blur transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
+            /* Revealed *by* the expansion rather than beside it.
+               
+               They key off `group/widget` - the same hover that opens the
+               pill - so they cannot appear over a card that is still closed.
+               They were on a group covering the whole window before, which is
+               why they showed up while the widget was collapsed and the
+               pointer was nowhere near it.
+               
+               And they rise into place rather than fading on the spot: from
+               two pixels down and slightly small, on the same 300ms as the
+               card, starting halfway through it. They read as coming out of
+               the card because they arrive with it. */
+            <div className="flex items-center gap-0.5 -translate-y-3 scale-75 opacity-0 transition-all duration-300 group-hover/widget:translate-y-0 group-hover/widget:scale-100 group-hover/widget:opacity-100 group-hover/widget:delay-150 group-data-[open]/widget:translate-y-0 group-data-[open]/widget:scale-100 group-data-[open]/widget:opacity-100 group-data-[open]/widget:delay-150 focus-within:translate-y-0 focus-within:scale-100 focus-within:opacity-100 focus-within:delay-0">
               <IconButton
                 label={
                   onDesktop

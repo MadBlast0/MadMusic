@@ -59,7 +59,7 @@ export function SortMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button animate variant="outline" size="sm">
           <SortAsc className="size-4" />
           {SORT_LABELS[sort]}
         </Button>

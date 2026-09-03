@@ -134,7 +134,13 @@ export function FolderBar({
       {/* A labelled button, not an icon. Choosing where the library reads from
           is the one action this row has, and the icon it used to be was
           indistinguishable from a rescan. */}
-      <Button size="sm" variant="outline" disabled={picking} onClick={onChoose}>
+      <Button
+        animate
+        size="sm"
+        variant="outline"
+        disabled={picking}
+        onClick={onChoose}
+      >
         {picking ? (
           <Spinner className="size-4" />
         ) : (

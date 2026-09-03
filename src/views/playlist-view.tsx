@@ -153,7 +153,12 @@ function PlaylistPage({
               }
               actions={
                 <>
-                  <Button size="sm" disabled={empty} onClick={actions.playAll}>
+                  <Button
+                    animate
+                    size="sm"
+                    disabled={empty}
+                    onClick={actions.playAll}
+                  >
                     <Play className="size-4" />
                     Play
                   </Button>

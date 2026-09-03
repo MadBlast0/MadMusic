@@ -206,6 +206,7 @@ export function ImmersivePlayer({ onClose }: { onClose: () => void }) {
               <SkipBack className="size-6" />
             </Button>
             <Button
+              animate
               size="icon"
               className="size-14 rounded-full"
               onClick={player.toggle}

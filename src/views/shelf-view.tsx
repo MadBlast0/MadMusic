@@ -163,7 +163,7 @@ export function ShelfView({
 
           {queue.length > 0 && (
             <>
-              <Button size="sm" onClick={() => play(queue[0], queue)}>
+              <Button animate size="sm" onClick={() => play(queue[0], queue)}>
                 <Play className="size-4" />
                 Play
               </Button>

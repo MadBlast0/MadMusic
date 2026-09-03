@@ -295,7 +295,12 @@ export function CastControl() {
   return (
     <DropdownMenu open={open} onOpenChange={opened}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Play on another device">
+        <Button
+          animate
+          variant="ghost"
+          size="icon"
+          aria-label="Play on another device"
+        >
           <Globe className="size-4" />
         </Button>
       </DropdownMenuTrigger>

@@ -298,7 +298,12 @@ function StationRow({
         <Heart className={saved ? 'size-4 fill-current' : 'size-4'} />
       </Button>
 
-      <Button size="icon" onClick={start} aria-label={`Play ${station.name}`}>
+      <Button
+        animate
+        size="icon"
+        onClick={start}
+        aria-label={`Play ${station.name}`}
+      >
         <Play className="size-4" />
       </Button>
     </li>

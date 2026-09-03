@@ -220,6 +220,7 @@ function UploadRow({
 
       {upload.audioUrl && (
         <Button
+          animate
           size="icon"
           variant="ghost"
           aria-label={`Play ${upload.title}`}

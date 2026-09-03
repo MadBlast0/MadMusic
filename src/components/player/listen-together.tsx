@@ -166,6 +166,7 @@ function ListenTogetherPanel() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          animate
           variant="ghost"
           size="icon"
           className={cn(sessionId && session?.open && 'text-primary')}
