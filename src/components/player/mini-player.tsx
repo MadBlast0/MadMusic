@@ -1,345 +1,84 @@
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { useEffect } from 'react';
 
-import { useSettings } from '@/components/common/settings-context';
 import { WidgetPlayer } from '@/components/player/widget-player';
 import { IconButton } from '@/components/icons/icon-button';
 import { X } from '@/components/icons';
-import { isNative } from '@/lib/native';
-import { setWidgetMode } from '@/lib/desktop';
-import { cn } from '@/lib/utils';
+import { invoke, isNative } from '@/lib/native';
+import { onShellEvent } from '@/lib/desktop';
+import { WIDGET_EVENTS } from '@/lib/widget-link';
 
 /**
- * The window the compact player lives in.
+ * The compact player, in whichever form this platform can give it.
  *
- * This module is the *posture* — how big the window is, whether it floats
- * above everything or sits on the desktop, and how to get out. What it
- * contains is [`WidgetPlayer`], which is the same in both postures and in the
- * browser; keeping them apart is what stops "the small player" and "the
- * desktop widget" from becoming two implementations of one thing.
+ * # On the desktop: a second window
  *
- * # Why it resizes the real window rather than opening a second one
+ * This renders nothing there. It opens the widget window and closes it again,
+ * and that window draws itself — see `widget-shell.tsx`.
  *
- * A second window means a second webview: another React tree, another audio
- * element, another copy of the store — and then the two have to agree about
- * what is playing. Shrinking the window the app already has avoids all of
- * that, and the audio never stops because nothing is torn down. The cost is
- * that the main interface is not visible while this is, which is exactly what
- * somebody asking for a mini player wants.
+ * It used to shrink *this* window instead, on the reasoning that a second
+ * webview means a second React tree and a second audio element. That reasoning
+ * was sound and the conclusion was wrong: shrinking the only window meant
+ * opening the compact player made the application disappear, so nobody could
+ * keep their library open beside it, or minimise the app and keep the widget.
+ * A widget you cannot have *alongside* anything is not a widget.
  *
- * `PipPlayer` is the case where a *second* window is the right answer, because
- * there the point is to keep using the main interface at the same time.
+ * The second webview is real, and the fix is that it owns nothing. It mounts
+ * no player, holds no audio element, and asks this window for everything. See
+ * `lib/widget-link.ts`.
  *
- * # The two postures
+ * # In the browser: a card
  *
- * **Floating** is the ordinary one. Whether it stays above other windows is
- * the user's call — `compactAlwaysOnTop`, off by default, with a pin here
- * because that is where the question arises.
- *
- * **Widget** pins to the desktop instead: below other windows and out of the
- * taskbar. That is the arrangement a desktop widget has, and it is
- * the honest Windows and Linux answer to "menu-bar player" — macOS has a menu
- * bar, and what these platforms have is a desktop and a tray.
- *
- * They are opposite postures, so pinning is unavailable while in widget mode
- * rather than being a control that contradicts the one beside it.
- *
- * # In the browser
- *
- * There is no window to resize and no always-on-top to ask for, so this
- * renders as a floating card over the app. A smaller version of the same idea
- * rather than a stub — every control works.
+ * There is no window to open, so the same widget renders as a floating card
+ * over the app. A smaller version of the same idea rather than a stub — every
+ * control works, and the app stays visible behind it, which is the behaviour
+ * the desktop now matches.
  */
-export function MiniPlayer({
-  widget,
-  onWidgetChange,
-  onClose,
-}: {
-  /** Whether the window is pinned to the desktop rather than floating. */
-  widget: boolean;
-  onWidgetChange: (on: boolean) => void;
-  onClose: () => void;
-}) {
-  const { settings, set } = useSettings();
-  const [restore, setRestore] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-
-  /**
-   * The window, cut to the widget.
-   *
-   * # Why it is this exact size
-   *
-   * `WidgetPlayer` is `w-72` — 288 — and at its tallest 196: 36 of padding for
-   * the half of the record that hangs above the layout, then the pill at 168
-   * with the record's box collapsed behind it. The rest is room for the
-   * pill's shadow, which would otherwise be clipped at the window edge.
-   *
-   * Fitting it matters more here than on an ordinary window, because this one
-   * is transparent and floats. Tauri has no per-region hit testing: a window
-   * captures the pointer over its *whole* rectangle whether or not anything is
-   * painted there, and `setIgnoreCursorEvents` is all-or-nothing — it would
-   * make the widget itself unclickable too. So every pixel of window that is
-   * not widget is a pixel the user cannot click the application underneath
-   * through. The only real fix available is to not have those pixels.
-   *
-   * # Why logical rather than physical
-   *
-   * `LogicalSize` is in device-independent pixels: the OS scale factor is
-   * applied on top, so this is the same apparent size on a 4K display at 200%
-   * as on a 1080p one at 100%. Sizing in physical pixels is what produces a
-   * widget the size of a postage stamp on a dense screen.
-   */
-  const SIZE = { width: 304, height: 212 };
-
-  /**
-   * The main window's floor, mirrored from `tauri.conf.json`.
-   *
-   * It has to be *lifted* before the window can shrink. A minimum size is not
-   * advice — the window manager clamps to it — so `setSize(320, 248)` against a
-   * 900x600 minimum left the window at 900x600 with the pill floating in the
-   * middle of a large empty rectangle. That is the bug this pair of calls
-   * fixes, and it is why the minimum goes back on the way out: without it the
-   * full interface could be dragged down to a size it cannot lay out in.
-   */
-  const MIN = { width: 900, height: 600 };
-
+export function MiniPlayer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!isNative()) return;
 
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const { getCurrentWindow, LogicalSize } =
-          await import('@tauri-apps/api/window');
-        const window = getCurrentWindow();
-
-        // Remembered before shrinking, so leaving restores the size the user
-        // had rather than a guess.
-        const size = await window.innerSize();
-        const factor = await window.scaleFactor();
-        if (cancelled) return;
-        setRestore({
-          width: size.width / factor,
-          height: size.height / factor,
-        });
-
-        await window.setMinSize(null);
-        await window.setSize(new LogicalSize(SIZE.width, SIZE.height));
-        // The window is transparent here, so the OS drop shadow is a faint
-        // rectangle traced around empty space - the one thing still giving
-        // away that the widget is a window.
-        await window.setShadow(false);
-      } catch (cause) {
-        console.warn('could not shrink the window', cause);
-      }
-    })();
+    void invoke('widget_open').catch(() => {
+      // The window would not open. Leaving the app in a mode whose window does
+      // not exist is worse than not entering it.
+      onClose();
+    });
 
     return () => {
-      cancelled = true;
+      void invoke('widget_close').catch(() => {});
     };
-    // Intentionally once: this is the *entry* into compact mode. Pinning and
-    // widget mode are applied by the effects below, which do re-run.
+    // Once. `onClose` is only read on the failure path, and depending on it
+    // would tear the window down and rebuild it whenever the parent
+    // re-rendered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
-   * Applies the pin, and takes it off again in widget mode.
+   * The widget closing itself.
    *
-   * Separate from the resize so that changing the setting while the compact
-   * player is open takes effect immediately, rather than the next time it is
-   * opened.
+   * Its own ✕ destroys the window, and without this the app would still
+   * believe the compact player was open — offering to close a window that is
+   * already gone.
    */
-  useEffect(() => {
-    if (!isNative()) return;
+  useEffect(() => onShellEvent(WIDGET_EVENTS.closed, onClose), [onClose]);
 
-    // Applied here rather than by whichever control asked for it, because two
-    // now can: the toggle in the corner and the menu in the transport bar. An
-    // effect on the value means both go through one path and neither can leave
-    // the window and the mode disagreeing.
-    void setWidgetMode(widget).then((applied) => {
-      if (applied || !widget) return;
-      // Said out loud rather than left as a switch that did nothing:
-      // `always_on_bottom` is not implemented on every platform.
-      toast('This system cannot pin a window to the desktop.');
-      onWidgetChange(false);
-    });
-  }, [widget, onWidgetChange]);
-
-  useEffect(() => {
-    if (!isNative()) return;
-
-    void (async () => {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        // A widget sits *below* other windows, so the pin cannot also apply.
-        // `widget_mode` clears always-on-top itself; this keeps the two in
-        // step when the setting changes while widget mode is on.
-        await getCurrentWindow().setAlwaysOnTop(
-          !widget && settings.compactAlwaysOnTop,
-        );
-      } catch {
-        // A window manager that will not pin is not a failure worth a dialog.
-      }
-    })();
-  }, [widget, settings.compactAlwaysOnTop]);
-
-  const leave = () => {
-    // Un-pinned on the way out, whatever it was. Leaving the window skipping
-    // the taskbar and stuck below everything else would be a genuinely bad
-    // state to be left in — the app would be running and unreachable.
-    if (widget) void setWidgetMode(false);
-
-    if (isNative()) {
-      void (async () => {
-        try {
-          const { getCurrentWindow, LogicalSize } =
-            await import('@tauri-apps/api/window');
-          const window = getCurrentWindow();
-          await window.setAlwaysOnTop(false);
-          if (restore)
-            await window.setSize(
-              new LogicalSize(restore.width, restore.height),
-            );
-          // After the resize, not before: the minimum would clamp the very
-          // call that puts the window back.
-          await window.setMinSize(new LogicalSize(MIN.width, MIN.height));
-          await window.setShadow(true);
-        } catch {
-          // A window that will not resize back is a window-manager decision.
-          // The app is still usable; it is just the wrong size.
-        }
-      })();
-    }
-    onClose();
-  };
+  // The window is the interface on the desktop; there is nothing to draw here.
+  if (isNative()) return null;
 
   return (
-    <div
-      // Marks the window as the widget's, which is what `globals.css` keys the
-      // transparent body off. Without it the desktop never shows through and
-      // the widget is a small dark rectangle again.
-      data-window={isNative() ? 'widget' : undefined}
-      className={cn(
-        'group/window z-50 flex items-center justify-center',
-        // No background in the native shell. The window is transparent and
-        // undecorated, so what is left on screen is the disc and the pill —
-        // the widget appears to sit *on* the desktop rather than inside a
-        // shrunken app window, which is the whole difference between a widget
-        // and a small window.
-        //
-        // In a browser there is no window to be, so it stays a floating card
-        // over the app and keeps a surface of its own.
-        isNative()
-          ? 'fixed inset-0'
-          : 'fixed bottom-24 right-4 rounded-xl border bg-background/95 p-4 shadow-xl backdrop-blur',
-      )}
-      // The surface drags the window, which is what a chromeless compact
-      // player has to offer or it cannot be moved at all. The controls inside
-      // opt back out, or every button press would start a drag.
-      data-tauri-drag-region={isNative() ? '' : undefined}
-    >
-      {/* `group/card` is the hover target, not the window.
-          
-          It used to be `group/window`, which is the full-bleed layer — so the
-          chrome lit up when the pointer entered anywhere in the window,
-          including the transparent space several centimetres from the widget.
-          The buttons appeared to react to nothing. */}
-      <div className="group/card relative" data-tauri-drag-region={undefined}>
+    <div className="group/window fixed right-4 bottom-24 z-50 flex items-center justify-center rounded-xl border bg-background/95 p-4 shadow-xl backdrop-blur">
+      <div className="group/card relative">
         <WidgetPlayer />
 
-        {/* Chrome, on the player itself and only once it has finished
-            opening. A widget covered in buttons is a toolbar; a widget with
-            none cannot be closed.
-
-            The delay matters: the pill takes 300ms to expand, and buttons
-            fading in over a card that is still moving read as arriving in the
-            wrong place. They wait for it, then appear. Leaving is immediate —
-            a control that lingers after the pointer has gone is a control
-            that looks stuck. */}
-        <div className="absolute top-1 right-1 z-40 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
-          {/* Desktop only: there is no window to pin in a browser tab, and no
-              desktop to pin it to. */}
-          {isNative() && (
-            <>
-              <IconButton
-                label={
-                  widget
-                    ? 'Pinning is unavailable on the desktop'
-                    : settings.compactAlwaysOnTop
-                      ? 'Stop floating above other windows'
-                      : 'Float above other windows'
-                }
-                size="sm"
-                active={!widget && settings.compactAlwaysOnTop}
-                disabled={widget}
-                onClick={() =>
-                  set('compactAlwaysOnTop', !settings.compactAlwaysOnTop)
-                }
-              >
-                <Pin />
-              </IconButton>
-
-              <IconButton
-                label={widget ? 'Leave the desktop' : 'Pin to the desktop'}
-                size="sm"
-                active={widget}
-                onClick={() => onWidgetChange(!widget)}
-              >
-                <Desktop />
-              </IconButton>
-            </>
-          )}
-
+        <div className="absolute top-1 right-1 z-40 flex items-center gap-0.5 rounded-full bg-background/80 p-0.5 opacity-0 shadow-sm ring-1 ring-border backdrop-blur transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
           <IconButton
             label="Leave the compact player"
             size="sm"
-            onClick={leave}
+            onClick={onClose}
           >
             <X className="size-3.5" />
           </IconButton>
         </div>
       </div>
     </div>
-  );
-}
-
-/** A drawing pin, for the float-above-everything toggle. */
-function Pin() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-3.5"
-      aria-hidden
-    >
-      <path d="M12 17v5" />
-      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
-    </svg>
-  );
-}
-
-/** A monitor, for the pin-to-desktop toggle. */
-function Desktop() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-3.5"
-      aria-hidden
-    >
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8M12 17v4" />
-    </svg>
   );
 }

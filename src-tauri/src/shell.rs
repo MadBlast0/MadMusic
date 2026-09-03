@@ -537,6 +537,105 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Opens the widget in a window of its own, or focuses the one already open.
+///
+/// # Why a second window rather than resizing this one
+///
+/// Because the compact player used to *be* the main window, shrunk, and that
+/// is why opening it made the application vanish. There was one window, it had
+/// become the widget, and leaving was the only way back to the app. A second
+/// window lets somebody keep the library open behind the widget, or minimise
+/// it and keep only the widget, which is what a widget is for.
+///
+/// The widget owns no playback. It is loaded with `#widget`, which the
+/// frontend routes to a tree with no `PlayerProvider` in it — a second one
+/// would be a second audio element, and everything would play twice. It draws
+/// what the main window sends and sends back what was pressed. See
+/// `lib/widget-link.ts`.
+///
+/// Transparent, undecorated and out of the taskbar: it is a widget, not an
+/// application. `always_on_top` is the caller's choice and applied separately,
+/// because the same window serves both postures.
+#[tauri::command]
+pub fn widget_open(app: AppHandle) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(existing) = app.get_webview_window("widget") {
+        // Already there. Raising it is what a second press should do, rather
+        // than building a duplicate the user cannot tell apart.
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let url = WebviewUrl::App("index.html#widget".into());
+
+    WebviewWindowBuilder::new(&app, "widget", url)
+        .title("MadMusic")
+        .inner_size(304.0, 212.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .skip_taskbar(true)
+        .visible(true)
+        .build()
+        .map_err(|e| format!("could not open the widget: {e}"))?;
+
+    Ok(())
+}
+
+/// Closes the widget window, if it is open.
+///
+/// Silent when it is not: the frontend calls this on the way out of widget
+/// mode whether or not the window survived, and a window the user already
+/// closed is the expected case rather than a failure.
+#[tauri::command]
+pub fn widget_close(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("widget") {
+        window
+            .close()
+            .map_err(|e| format!("could not close the widget: {e}"))?;
+    }
+
+    Ok(())
+}
+
+/// Floats the widget above other windows, or stops.
+///
+/// Separate from `widget_open` because it is a setting the user changes while
+/// the widget is up, and it applies to the widget window rather than to this
+/// one — which is the whole difference from `widget_mode` above.
+#[tauri::command]
+pub fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("widget")
+        .ok_or("the widget is not open")?;
+
+    window
+        .set_always_on_top(on)
+        .map_err(|e| format!("could not change the window: {e}"))?;
+
+    Ok(())
+}
+
+/// Puts the widget on the desktop, below other windows.
+#[tauri::command]
+pub fn widget_on_desktop(app: AppHandle, on: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("widget")
+        .ok_or("the widget is not open")?;
+
+    window
+        .set_always_on_top(false)
+        .map_err(|e| format!("could not change the window: {e}"))?;
+    window
+        .set_always_on_bottom(on)
+        .map_err(|e| format!("this platform cannot pin a window to the desktop: {e}"))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tray_tests {
     use super::*;

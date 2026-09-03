@@ -9,6 +9,7 @@ import { LibraryProvider } from '@/components/library/library-provider';
 import { OsBridge } from '@/components/player/os-bridge';
 import { Connect } from '@/components/player/connect';
 import { RemoteProvider } from '@/components/player/remote-provider';
+import { LocalWidgetTransport } from '@/components/player/widget-transport-local';
 import { OfflineProvider } from '@/components/common/offline-provider';
 import { PlayerProvider } from '@/components/player/player-provider';
 import { BackupScheduler } from '@/components/common/backup-scheduler';
@@ -96,14 +97,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
                               screen showing the wrong track, or an equaliser
                               that applies to some tracks and not others. */}
                                 <RemoteProvider>
-                                  <Scrobbler />
-                                  <AudioSettings />
-                                  <OsBridge />
-                                  <Connect />
-                                  <BackupScheduler />
-                                  <QueueDownloader />
-                                  <EpisodeProgress />
-                                  {children}
+                                  <LocalWidgetTransport>
+                                    <Scrobbler />
+                                    <AudioSettings />
+                                    <OsBridge />
+                                    <Connect />
+                                    <BackupScheduler />
+                                    <QueueDownloader />
+                                    <EpisodeProgress />
+                                    {children}
+                                  </LocalWidgetTransport>
                                 </RemoteProvider>
                               </SidebarLayoutProvider>
                             </TrackActionsProvider>

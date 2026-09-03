@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import App from '@/App';
 import { DesktopLinkView } from '@/views/desktop-link-view';
 import { Providers } from '@/components/common/providers';
+import { WidgetWindow } from '@/widget-window';
+import { isWidgetWindow } from '@/lib/widget-link';
 import { ErrorBoundary } from '@/components/common/error-boundary';
 import { mark } from '@/lib/startup';
 import '@/globals.css';
@@ -46,7 +48,17 @@ createRoot(container).render(
       to click. This is what stands between a fault and that.
     */}
     <ErrorBoundary what="MadMusic">
-      <Providers>{isDesktopLink ? <DesktopLinkView /> : <App />}</Providers>
+      {/*
+        The widget window is a different application in the same bundle. It
+        must not go through `Providers`, which mounts the player and therefore
+        the audio element — a second one would play everything twice. See
+        `widget-window.tsx`.
+      */}
+      {isWidgetWindow() ? (
+        <WidgetWindow />
+      ) : (
+        <Providers>{isDesktopLink ? <DesktopLinkView /> : <App />}</Providers>
+      )}
     </ErrorBoundary>
   </StrictMode>,
 );

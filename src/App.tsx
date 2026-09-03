@@ -165,7 +165,7 @@ const Onboarding = lazy(() =>
 import { migrateLegacyStorage, describeMigration } from '@/lib/store/migrate';
 import { needsOnboarding } from '@/lib/profiles';
 import { onShellEvent, signalReady } from '@/lib/desktop';
-import { EVENTS, isNative } from '@/lib/native';
+import { EVENTS } from '@/lib/native';
 import { parseShareLink } from '@/lib/share-link';
 import { openPaths } from '@/lib/open-files';
 import { toPlayerTrack } from '@/lib/player-track';
@@ -259,7 +259,6 @@ function App() {
 
   const immersive = presentation === 'immersive';
   const mini = presentation === 'compact' || presentation === 'widget';
-  const widget = presentation === 'widget';
   const pip = presentation === 'pip';
   const bigScreen = presentation === 'bigscreen';
   const [onboarding, setOnboarding] = useState(false);
@@ -582,22 +581,7 @@ function App() {
           rounded cards. That is what makes the app read as one body with
           regions rather than as columns divided by hairlines — and it means
           the gaps do the grouping work that a dozen 1px borders used to. */}
-      <div
-        className={cn(
-          'flex h-screen flex-col bg-background text-foreground',
-          // Hidden, not unmounted, while the compact player has the window to
-          // itself. It shrinks to about 320px there and this layout has a
-          // floor well above that, so leaving it laid out behind the overlay
-          // put scrollbars around a widget. Unmounting would lose every view's
-          // scroll position and remount the tree on the way back for a screen
-          // nobody can see.
-          //
-          // Native only: in a browser there is no window to shrink, so the
-          // compact player is a card floating *over* the app — and hiding the
-          // app would leave it floating over nothing.
-          mini && isNative() && 'hidden',
-        )}
-      >
+      <div className="flex h-screen flex-col bg-background text-foreground">
         <TopBar
           view={tab}
           route={route}
@@ -912,13 +896,7 @@ function App() {
           already playing, and neither is somewhere you can navigate back to. */}
       <Suspense fallback={null}>
         {immersive && <ImmersivePlayer onClose={leaveMode} />}
-        {mini && (
-          <MiniPlayer
-            widget={widget}
-            onWidgetChange={(on) => setPresentation(on ? 'widget' : 'compact')}
-            onClose={leaveMode}
-          />
-        )}
+        {mini && <MiniPlayer onClose={leaveMode} />}
         {pip && <PipPlayer onClose={closePip} />}
         {bigScreen && <BigScreen onClose={leaveMode} />}
         {onboarding && <Onboarding onDone={() => setOnboarding(false)} />}

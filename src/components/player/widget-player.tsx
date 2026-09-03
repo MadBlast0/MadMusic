@@ -10,9 +10,9 @@ import {
   SkipForward,
 } from '@/components/icons';
 import {
-  usePlayer,
-  usePlayerProgress,
-} from '@/components/player/player-context';
+  useWidgetTransport,
+  type WidgetTransport,
+} from '@/components/player/widget-transport';
 import { memo, type ReactNode } from 'react';
 import { formatTime } from '@/lib/library-model';
 import { cn } from '@/lib/utils';
@@ -53,8 +53,8 @@ import { cn } from '@/lib/utils';
  * already the width of the screen.
  */
 export function WidgetPlayer({ className }: { className?: string }) {
-  const player = usePlayer();
-  const track = player.current;
+  const player = useWidgetTransport();
+  const track = player.track;
 
   /**
    * Held open while the scrubber is in use.
@@ -137,17 +137,19 @@ export function WidgetPlayer({ className }: { className?: string }) {
 
         <Scrubber
           duration={duration}
+          progress={player.progress}
           seekable={seekable}
           onSeek={player.seek}
           onScrubbingChange={setScrubbing}
         />
 
-        {/* Shuffle and repeat *flank* the transport rather than queueing up
-            beside it. They are modes - they change what the next press does -
-            and the three buttons that move through the queue read as one
-            control only when nothing is wedged between them. It is the
-            arrangement every player uses for the same reason. */}
-        <div className="flex flex-1 flex-row items-center justify-between px-4 pb-1">
+        {/* Shuffle and repeat sit at the ends of one evenly spaced row, not
+            pushed out to the pill's edges. They are modes - they change what
+            the next press does - so they belong either side of the three
+            buttons that move through the queue, close enough to read as part
+            of the same control. Spread to the corners they looked like two
+            unrelated toggles that happened to share a row. */}
+        <div className="flex flex-1 flex-row items-center justify-center gap-1 pb-1">
           <WidgetButton
             label={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
             onClick={player.toggleShuffle}
@@ -157,7 +159,7 @@ export function WidgetPlayer({ className }: { className?: string }) {
             <Shuffle className="size-4" />
           </WidgetButton>
 
-          <div className="flex flex-row items-center gap-1">
+          <div className="flex flex-row items-center gap-0.5">
             <WidgetButton label="Previous" onClick={player.previous}>
               <SkipBack className="size-5" />
             </WidgetButton>
@@ -215,17 +217,17 @@ export function WidgetPlayer({ className }: { className?: string }) {
  */
 function Scrubber({
   duration,
+  progress,
   seekable,
   onSeek,
   onScrubbingChange,
 }: {
   duration: number;
+  progress: number;
   seekable: boolean;
   onSeek: (seconds: number) => void;
   onScrubbingChange: (scrubbing: boolean) => void;
 }) {
-  const { progress } = usePlayerProgress();
-
   // How far along, as a percentage, for the filled half of the track. Guarded
   // against a zero duration, which is every track's first moment.
   const played =
@@ -360,7 +362,7 @@ const Disc = memo(function Disc({
   spinning,
   size,
 }: {
-  track: ReturnType<typeof usePlayer>['current'];
+  track: WidgetTransport['track'];
   spinning: boolean;
   size: number;
 }) {
