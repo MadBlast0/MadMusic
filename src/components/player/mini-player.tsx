@@ -36,8 +36,8 @@ import { cn } from '@/lib/utils';
  * the user's call — `compactAlwaysOnTop`, off by default, with a pin here
  * because that is where the question arises.
  *
- * **Widget** pins to the desktop instead: below other windows, out of the
- * taskbar, no frame. That is the arrangement a desktop widget has, and it is
+ * **Widget** pins to the desktop instead: below other windows and out of the
+ * taskbar. That is the arrangement a desktop widget has, and it is
  * the honest Windows and Linux answer to "menu-bar player" — macOS has a menu
  * bar, and what these platforms have is a desktop and a tray.
  *
@@ -73,6 +73,18 @@ export function MiniPlayer({
    */
   const SIZE = { width: 320, height: 248 };
 
+  /**
+   * The main window's floor, mirrored from `tauri.conf.json`.
+   *
+   * It has to be *lifted* before the window can shrink. A minimum size is not
+   * advice — the window manager clamps to it — so `setSize(320, 248)` against a
+   * 900x600 minimum left the window at 900x600 with the pill floating in the
+   * middle of a large empty rectangle. That is the bug this pair of calls
+   * fixes, and it is why the minimum goes back on the way out: without it the
+   * full interface could be dragged down to a size it cannot lay out in.
+   */
+  const MIN = { width: 900, height: 600 };
+
   useEffect(() => {
     if (!isNative()) return;
 
@@ -94,6 +106,7 @@ export function MiniPlayer({
           height: size.height / factor,
         });
 
+        await window.setMinSize(null);
         await window.setSize(new LogicalSize(SIZE.width, SIZE.height));
       } catch (cause) {
         console.warn('could not shrink the window', cause);
@@ -166,6 +179,9 @@ export function MiniPlayer({
             await window.setSize(
               new LogicalSize(restore.width, restore.height),
             );
+          // After the resize, not before: the minimum would clamp the very
+          // call that puts the window back.
+          await window.setMinSize(new LogicalSize(MIN.width, MIN.height));
         } catch {
           // A window that will not resize back is a window-manager decision.
           // The app is still usable; it is just the wrong size.

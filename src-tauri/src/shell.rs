@@ -526,9 +526,13 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
     window
         .set_skip_taskbar(on)
         .map_err(|e| format!("could not change the taskbar entry: {e}"))?;
-    window
-        .set_decorations(!on)
-        .map_err(|e| format!("could not change the window frame: {e}"))?;
+
+    // Decorations are deliberately untouched. The window is frameless for its
+    // whole life - `tauri.conf.json` sets `"decorations": false` and the app
+    // draws its own title bar - so there is nothing here to turn off. Turning
+    // them *on* when leaving widget mode was worse than a no-op: it gave the
+    // compact player an OS title bar it had never had, and left the main
+    // window with two title bars stacked once you went back to it.
 
     Ok(())
 }
