@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -49,7 +49,13 @@ async function openPlaylist(
     JSON.stringify({ liked: [], history: [], playlists: [playlist] }),
   );
   renderWithProviders(<App />);
-  await user.click(screen.getByText('Late nights'));
+  // Scoped to the panel. A playlist is a home tile now as well as a sidebar
+  // row, so its name is on screen twice and an unscoped query is ambiguous.
+  await user.click(
+    within(
+      screen.getByRole('complementary', { name: 'Your Library' }),
+    ).getByText('Late nights'),
+  );
   await screen.findByRole('heading', { name: 'Late nights' });
 }
 

@@ -14,7 +14,26 @@ export type QuickPick = {
   subtitle?: string;
   cover: [string, string];
   artworkUrl?: string;
+  /** Opens the thing's own page — what clicking the tile does. */
   onOpen: () => void;
+  /**
+   * Plays it, without leaving the page.
+   *
+   * Separate from `onOpen` because the two are different intentions and
+   * Spotify keeps them apart: the tile navigates, the button on it plays. One
+   * control doing both means you cannot look at a playlist without starting
+   * it, which is the more common of the two.
+   */
+  onPlay?: () => void;
+  /**
+   * Whether what is playing came from here.
+   *
+   * A flag rather than an id comparison. These tiles are collections now, so
+   * "is this the current one" is a question about *membership* — the playing
+   * track's id never equals a playlist's — and only the caller building the
+   * tile knows what is inside it.
+   */
+  playingFrom?: boolean;
 };
 
 /**
@@ -53,12 +72,9 @@ export type QuickPick = {
  */
 export function QuickPicks({
   picks,
-  currentId,
   playing,
 }: {
   picks: QuickPick[];
-  /** Marks the tile that is playing, the way every other surface does. */
-  currentId?: string;
   playing: boolean;
 }) {
   if (picks.length === 0) return null;
@@ -80,77 +96,89 @@ export function QuickPicks({
         className="grid grid-cols-1 gap-2 @xl/picks:grid-cols-2 @5xl/picks:grid-cols-4"
       >
         {picks.slice(0, 8).map((pick) => {
-          const isCurrent = pick.id === currentId;
+          const isCurrent = pick.playingFrom === true;
 
           return (
-            <m.button
+            <m.div
               key={pick.id}
-              type="button"
-              onClick={pick.onOpen}
               variants={{
                 hidden: { opacity: 0, y: 8 },
                 show: { opacity: 1, y: 0, transition: cardTransition },
               }}
-              className={cn(
-                'group/pick flex items-center gap-3 overflow-hidden rounded-md text-left',
-                // A translucent white rather than the card token, and it
-                // *lifts* on hover instead of changing hue. That is what makes
-                // a tile read as a raised surface on a coloured page: a solid
-                // card colour sits on top of the artwork wash and cancels it,
-                // where a wash of white takes the page's colour with it.
-                'bg-foreground/[0.07] hover:bg-foreground/[0.14]',
-                'transition-colors duration-fast',
-                'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-              )}
+              className="group/pick relative"
             >
-              <Art
-                seedCover={pick.cover}
-                src={pick.artworkUrl}
-                alt=""
-                // Square and flush to the left edge: the tile has no padding on
-                // that side, so the art *is* the corner.
-                className="size-14 shrink-0"
-              />
-
-              <span className="min-w-0 flex-1 py-1">
-                <span
-                  className={cn(
-                    'block truncate text-sm font-bold',
-                    isCurrent && 'text-primary',
-                  )}
-                >
-                  {pick.title}
-                </span>
-                {pick.subtitle && (
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {pick.subtitle}
-                  </span>
+              <button
+                type="button"
+                onClick={pick.onOpen}
+                className={cn(
+                  'flex w-full items-center gap-3 overflow-hidden rounded-md text-left',
+                  // A translucent white rather than the card token, and it
+                  // *lifts* on hover instead of changing hue. That is what makes
+                  // a tile read as a raised surface on a coloured page: a solid
+                  // card colour sits on top of the artwork wash and cancels it,
+                  // where a wash of white takes the page's colour with it.
+                  'bg-foreground/[0.07] hover:bg-foreground/[0.14]',
+                  'transition-colors duration-fast',
+                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 )}
-              </span>
+              >
+                <Art
+                  seedCover={pick.cover}
+                  src={pick.artworkUrl}
+                  alt=""
+                  // Square and flush to the left edge: the tile has no padding on
+                  // that side, so the art *is* the corner.
+                  className="size-14 shrink-0"
+                />
 
-              <span className="flex shrink-0 items-center pr-3">
-                {isCurrent ? (
-                  <AudioBars playing={playing} className="h-3" />
-                ) : (
-                  // Appears on hover rather than sitting there: eight permanent
-                  // play buttons in a block this small is eight competing
-                  // targets, and the tile itself is already the target.
+                <span className="min-w-0 flex-1 py-1">
                   <span
                     className={cn(
-                      'flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg',
-                      // Rises rather than slides. A play button that grows out
-                      // of the tile reads as belonging to it; one that slides
-                      // in from the edge reads as a separate control arriving.
-                      'translate-y-1 scale-90 opacity-0 transition-all duration-base',
-                      'group-hover/pick:translate-y-0 group-hover/pick:scale-100 group-hover/pick:opacity-100',
-                      'group-focus-visible/pick:translate-y-0 group-focus-visible/pick:scale-100 group-focus-visible/pick:opacity-100',
+                      'block truncate text-sm font-bold',
+                      isCurrent && 'text-primary',
                     )}
                   >
-                    <StaticPlay className="size-4" />
+                    {pick.title}
                   </span>
-                )}
-              </span>
-            </m.button>
+                  {pick.subtitle && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {pick.subtitle}
+                    </span>
+                  )}
+                </span>
+
+                {/* Reserves the space the play button sits in, so the title
+                    does not reflow when it appears. */}
+                <span className="flex size-10 shrink-0 items-center justify-center">
+                  {isCurrent && <AudioBars playing={playing} className="h-3" />}
+                </span>
+                <span className="w-1 shrink-0" />
+              </button>
+
+              {/* Outside the tile button, because a button cannot contain
+                  another one. Positioned over the space reserved above, so it
+                  lands where the eye already is. */}
+              {!isCurrent && pick.onPlay && (
+                <button
+                  type="button"
+                  onClick={pick.onPlay}
+                  aria-label={`Play ${pick.title}`}
+                  className={cn(
+                    'absolute top-1/2 right-3 -translate-y-1/2',
+                    'flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg',
+                    // Rises rather than slides. A play button that grows out
+                    // of the tile reads as belonging to it; one that slides
+                    // in from the edge reads as a separate control arriving.
+                    'scale-90 opacity-0 transition-all duration-base',
+                    'hover:scale-105',
+                    'group-hover/pick:scale-100 group-hover/pick:opacity-100',
+                    'focus-visible:scale-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  )}
+                >
+                  <StaticPlay className="size-4" />
+                </button>
+              )}
+            </m.div>
           );
         })}
       </m.div>

@@ -86,7 +86,7 @@ describe('the library panel', () => {
     seed({ playlists: [aPlaylist()] });
     renderWithProviders(<App />);
 
-    fireEvent.contextMenu(screen.getByText('Late nights'));
+    fireEvent.contextMenu(within(panel()).getByText('Late nights'));
 
     // The same items the playlist page's three-dot menu carries — one
     // definition, rendered into whichever menu asked for it.
@@ -104,7 +104,12 @@ describe('the library panel', () => {
     await user.type(name, 'Early mornings');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(await screen.findByText('Early mornings')).toBeInTheDocument();
+    // In the panel specifically: the rename reaches the home tiles too, so an
+    // unscoped query now matches twice — which is itself the thing being
+    // checked, that one edit updates every surface showing the playlist.
+    expect(
+      await within(panel()).findByText('Early mornings'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Late nights')).not.toBeInTheDocument();
   });
 
@@ -114,10 +119,10 @@ describe('the library panel', () => {
     seed({ liked: [aTrack('l1')], history: [aTrack('h1')] });
     renderWithProviders(<App />);
 
-    fireEvent.contextMenu(screen.getByText('Liked Songs'));
+    fireEvent.contextMenu(within(panel()).getByText('Liked Songs'));
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
 
-    fireEvent.contextMenu(screen.getByText('Recently played'));
+    fireEvent.contextMenu(within(panel()).getByText('Recently played'));
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
   });
 
@@ -126,7 +131,7 @@ describe('the library panel', () => {
     seed({ playlists: [aPlaylist()] });
     renderWithProviders(<App />);
 
-    fireEvent.contextMenu(screen.getByText('Late nights'));
+    fireEvent.contextMenu(within(panel()).getByText('Late nights'));
     await user.click(
       await screen.findByRole('menuitem', { name: 'Edit details' }),
     );
@@ -141,7 +146,7 @@ describe('the library panel', () => {
 
     // Reopening shows the stored choice rather than a fresh default, which is
     // the whole point of the field being seeded on each opening.
-    fireEvent.contextMenu(screen.getByText('Late nights'));
+    fireEvent.contextMenu(within(panel()).getByText('Late nights'));
     await user.click(
       await screen.findByRole('menuitem', { name: 'Edit details' }),
     );
@@ -152,7 +157,7 @@ describe('the library panel', () => {
     await user.click(screen.getByRole('button', { name: 'Automatic cover' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    fireEvent.contextMenu(screen.getByText('Late nights'));
+    fireEvent.contextMenu(within(panel()).getByText('Late nights'));
     await user.click(
       await screen.findByRole('menuitem', { name: 'Edit details' }),
     );

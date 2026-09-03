@@ -52,7 +52,7 @@ export function HomeView({
   onOpen: (route: Route) => void;
 }) {
   const { root } = useLibrary();
-  const { history } = useSaved();
+  const { history, liked, playlists } = useSaved();
   const { play, current, playing } = usePlayer();
 
   /**
@@ -90,47 +90,6 @@ export function HomeView({
     return groupAlbums(allTracks(root)).slice(0, 12);
   }, [root]);
 
-  /**
-   * The eight tiles at the top.
-   *
-   * Taken from listening history rather than from a chart, and deduplicated by
-   * *artist*: playing six songs off one record should put that artist in the
-   * block once, not fill the block with them. What is left is eight different
-   * things you were recently listening to, which is what makes a block worth
-   * aiming at without reading it.
-   *
-   * Deduplicating by album would be the better rule and is not available —
-   * `SavedTrack` carries no album, because history is written from the player
-   * and the player does not always know one. Artist is the closest thing that
-   * is always there.
-   */
-  const picks = useMemo<QuickPick[]>(() => {
-    const seen = new Set<string>();
-    const out: QuickPick[] = [];
-
-    for (const [index, track] of history.entries()) {
-      const key = track.artist || track.title;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      out.push({
-        id: track.id,
-        title: track.title,
-        subtitle: track.artist,
-        cover: track.cover,
-        artworkUrl: track.artworkUrl,
-        onOpen: () => {
-          const queue = history.map(fromSaved);
-          play(queue[index], queue);
-        },
-      });
-
-      if (out.length === 8) break;
-    }
-
-    return out;
-  }, [history, play]);
-
   function playCollection(collection: Collection) {
     void (async () => {
       if (!source) return;
@@ -149,6 +108,134 @@ export function HomeView({
   function openCollection(collection: Collection) {
     onOpen({ name: 'album', id: collection.id, title: collection.title });
   }
+
+  /**
+   * The eight tiles at the top.
+   *
+   * # Why these are collections rather than songs
+   *
+   * Because that is what the row is for, and it is what Spotify puts there.
+   * Their engineering write-up on Shortcuts is explicit that a tile is "a
+   * specific user playlist, an album, or a podcast" — never a bare track. The
+   * reason is not taxonomy: a shortcut exists so one click resumes *what you
+   * were doing*, and what you were doing was listening to a record or a list,
+   * not to one song in isolation. Eight individual tracks is a queue somebody
+   * has to reassemble by hand.
+   *
+   * It also fixes what the block looked like. Eight songs off two albums
+   * showed the same sleeve four times; eight collections are eight different
+   * covers, which is what makes the block recognisable without reading it.
+   *
+   * # The order
+   *
+   * The two lists everybody has come first and stay put — they are the ones
+   * muscle memory reaches for. After them, the playlists you touched most
+   * recently, then your own albums, then the catalogue. Filling from the most
+   * personal outwards means a new install still shows a full block.
+   */
+  const picks = useMemo<QuickPick[]>(() => {
+    const out: QuickPick[] = [];
+
+    if (liked.length > 0) {
+      out.push({
+        id: 'saved:liked',
+        title: 'Liked Songs',
+        subtitle: `${liked.length} ${liked.length === 1 ? 'song' : 'songs'}`,
+        cover: liked[0]?.cover ?? ['#4c1d95', '#2563eb'],
+        artworkUrl: liked[0]?.artworkUrl,
+        playingFrom: liked.some((t) => t.id === current?.id),
+        onOpen: () => onOpen({ name: 'saved', kind: 'liked' }),
+        onPlay: () => {
+          const queue = liked.map(fromSaved);
+          play(queue[0], queue);
+        },
+      });
+    }
+
+    if (history.length > 0) {
+      out.push({
+        id: 'saved:history',
+        title: 'Recently played',
+        cover: history[0]?.cover ?? ['#3f3f46', '#18181b'],
+        artworkUrl: history[0]?.artworkUrl,
+        playingFrom: history.some((t) => t.id === current?.id),
+        onOpen: () => onOpen({ name: 'saved', kind: 'history' }),
+        onPlay: () => {
+          const queue = history.map(fromSaved);
+          play(queue[0], queue);
+        },
+      });
+    }
+
+    for (const playlist of [...playlists].sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    )) {
+      if (out.length === 8) break;
+      out.push({
+        id: `playlist:${playlist.id}`,
+        title: playlist.name,
+        subtitle: 'Playlist',
+        cover: playlist.cover,
+        artworkUrl: playlist.artworkUrl ?? playlist.tracks[0]?.artworkUrl,
+        playingFrom: playlist.tracks.some((t) => t.id === current?.id),
+        onOpen: () => onOpen({ name: 'playlist', id: playlist.id }),
+        onPlay: () => {
+          if (playlist.tracks.length === 0) return;
+          const queue = playlist.tracks.map(fromSaved);
+          play(queue[0], queue);
+        },
+      });
+    }
+
+    for (const album of yourAlbums) {
+      if (out.length === 8) break;
+      out.push({
+        id: `local-album:${album.key}`,
+        title: album.title,
+        subtitle: album.artist,
+        cover: ['#3f3f46', '#18181b'],
+        playingFrom: album.tracks.some((t) => t.id === current?.id),
+        onOpen: () =>
+          onOpen({ name: 'local-album', key: album.key, title: album.title }),
+        onPlay: () => {
+          const queue = album.tracks.map(toPlayerTrack);
+          play(queue[0], queue);
+        },
+      });
+    }
+
+    for (const collection of feed?.featured ?? []) {
+      if (out.length === 8) break;
+      out.push({
+        id: `album:${collection.id}`,
+        title: collection.title,
+        subtitle: collection.subtitle,
+        cover: collection.cover,
+        artworkUrl: collection.artworkUrl,
+        // The preview catalogue has cards with nothing behind them, so there
+        // it plays rather than opening a page that would only apologise.
+        onOpen: canOpen
+          ? () => openCollection(collection)
+          : () => playCollection(collection),
+        onPlay: () => playCollection(collection),
+      });
+    }
+
+    return out.slice(0, 8);
+    // `playCollection` and `openCollection` are hoisted declarations in this
+    // component and stable for its life, so they are deliberately not deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    liked,
+    history,
+    playlists,
+    yourAlbums,
+    feed,
+    canOpen,
+    onOpen,
+    play,
+    current,
+  ]);
 
   function playFrom(tracks: CatalogueTrack[], index: number) {
     const queue = tracks.map(toCatalogueTrack);
@@ -207,9 +294,7 @@ export function HomeView({
 
         {/* Straight under the filters and above every shelf: the things you
             were already listening to beat anything the screen can suggest. */}
-        {showLibrary && (
-          <QuickPicks picks={picks} currentId={current?.id} playing={playing} />
-        )}
+        {showLibrary && <QuickPicks picks={picks} playing={playing} />}
 
         {/* Above the catalogue, deliberately: the thing you were already
             listening to is more likely to be what you came back for than
