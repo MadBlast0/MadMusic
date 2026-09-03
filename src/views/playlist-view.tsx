@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 
 import { PlaylistTrackList } from '@/components/library/playlist-track-list';
+import {
+  PLAYLIST_SORTS,
+  type PlaylistSort,
+  type PlaylistView,
+} from '@/lib/playlist-sort';
 import { PlaylistMenuItems } from '@/components/library/playlist-menu';
 import { CONTEXT_KIT, DROPDOWN_KIT } from '@/components/library/menu-kit';
 import { usePlaylistActions } from '@/hooks/use-playlist-actions';
@@ -17,6 +22,9 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatTime } from '@/lib/library-model';
@@ -26,6 +34,7 @@ import { useFilterBox, useFiltered } from '@/hooks/use-filtered';
 import { mosaic } from '@/lib/playlist-io';
 import { toTrackRowFromPlayer } from '@/lib/player-track';
 import type { Playlist } from '@/lib/saved';
+import { cn } from '@/lib/utils';
 import { DetailError, DetailShell } from '@/views/detail-shell';
 
 export function PlaylistView({
@@ -72,6 +81,15 @@ function PlaylistPage({
   const { removeFromPlaylist, reorderPlaylist, notePlaylistEntry } = useSaved();
   const actions = usePlaylistActions(playlist);
   const [editing, setEditing] = useState(false);
+  /**
+   * How the rows are ordered and how much of each one is shown.
+   *
+   * Held here rather than persisted: Spotify keeps these per playlist for the
+   * session and resets them, and a stored sort is a trap — you set it once,
+   * forget, and later wonder why dragging does nothing.
+   */
+  const [sort, setSort] = useState<PlaylistSort>('custom');
+  const [view, setView] = useState<PlaylistView>('list');
 
   const { query: filter, setQuery: setFilter } = useFilterBox();
   const tracks = playlist.tracks;
@@ -89,6 +107,10 @@ function PlaylistPage({
     () => mosaic(tracks.map(toTrackRowFromPlayer)),
     [tracks],
   );
+
+  const sortLabel =
+    PLAYLIST_SORTS.find((option) => option.id === sort)?.label ??
+    'Custom order';
 
   const runtime = tracks.reduce((total, t) => total + t.duration, 0);
   const empty = tracks.length === 0;
@@ -200,18 +222,83 @@ function PlaylistPage({
                 </div>
               ) : (
                 <>
-                  {tracks.length > 8 && (
-                    <div className="mb-3">
-                      <FilterBox
-                        value={filter}
-                        onChange={setFilter}
-                        placeholder="Filter this playlist"
-                        count={visibleTracks.length}
-                      />
-                    </div>
+                  {/* Filter on the left, ordering and density on the right —
+                      the arrangement every list-with-a-toolbar uses, and the
+                      one Spotify puts above its own track list. */}
+                  <div className="mb-3 flex items-center gap-3">
+                    {tracks.length > 8 && (
+                      <div className="min-w-0 flex-1">
+                        <FilterBox
+                          value={filter}
+                          onChange={setFilter}
+                          placeholder="Filter this playlist"
+                          count={visibleTracks.length}
+                        />
+                      </div>
+                    )}
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto shrink-0 text-muted-foreground"
+                        >
+                          {sortLabel}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                        {PLAYLIST_SORTS.map((option) => (
+                          <DropdownMenuItem
+                            key={option.id}
+                            onSelect={() => setSort(option.id)}
+                          >
+                            <span
+                              className={cn(
+                                sort === option.id && 'font-semibold',
+                              )}
+                            >
+                              {option.label}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>View as</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => setView('list')}>
+                          <span
+                            className={cn(view === 'list' && 'font-semibold')}
+                          >
+                            List
+                          </span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setView('compact')}>
+                          <span
+                            className={cn(
+                              view === 'compact' && 'font-semibold',
+                            )}
+                          >
+                            Compact
+                          </span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* Says so rather than leaving the user to discover it by
+                      dragging a row that springs back. */}
+                  {sort !== 'custom' && (
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Sorted by {sortLabel.toLowerCase()}. Choose custom order
+                      to drag songs again.
+                    </p>
                   )}
+
                   <PlaylistTrackList
                     tracks={visibleTracks}
+                    sort={sort}
+                    view={view}
                     onReorder={(from, to) =>
                       reorderPlaylist(playlist.id, from, to)
                     }

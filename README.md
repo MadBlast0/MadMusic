@@ -39,8 +39,8 @@ sign in to.
   path that hands samples to the device at the file's own rate.
 - **Lyrics that follow the song.** Synced lyrics, word by word where the source
   provides them, with romanisation for scripts you cannot read.
-- **A library you can shape.** Liked songs, ratings, tags, playlists, smart
-  playlists built from rules, listening history, and statistics.
+- **A library you can shape.** Playlists you drag into order, sort and filter,
+  with liked songs, ratings, tags, listening history, and statistics.
 - **Sign in once.** Clerk authentication, and playback state that follows an
   account across its devices, so the desktop at home can hand the queue to the
   laptop on the train.
