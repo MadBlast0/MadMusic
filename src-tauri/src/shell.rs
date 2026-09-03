@@ -556,8 +556,21 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
 /// Transparent, undecorated and out of the taskbar: it is a widget, not an
 /// application. `always_on_top` is the caller's choice and applied separately,
 /// because the same window serves both postures.
+///
+/// # Why every one of these is `async`
+///
+/// Because a synchronous Tauri command runs *on the main thread*, and creating
+/// a window needs the main thread's event loop to pump before `build` returns.
+/// A synchronous version deadlocks: the command holds the thread the window is
+/// waiting for, and the whole application stops — no repaint, no minimise, no
+/// close, no logging. It looks like a crash except the process is alive.
+///
+/// `async` puts the command on Tauri's runtime instead, which leaves the main
+/// thread free to do the work being asked of it. The same applies to closing a
+/// window and to changing its layer, so all four are async rather than only
+/// the one that first showed the fault.
 #[tauri::command]
-pub fn widget_open(app: AppHandle) -> Result<(), String> {
+pub async fn widget_open(app: AppHandle) -> Result<(), String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
     if let Some(existing) = app.get_webview_window("widget") {
@@ -591,7 +604,7 @@ pub fn widget_open(app: AppHandle) -> Result<(), String> {
 /// mode whether or not the window survived, and a window the user already
 /// closed is the expected case rather than a failure.
 #[tauri::command]
-pub fn widget_close(app: AppHandle) -> Result<(), String> {
+pub async fn widget_close(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("widget") {
         window
             .close()
@@ -607,7 +620,7 @@ pub fn widget_close(app: AppHandle) -> Result<(), String> {
 /// the widget is up, and it applies to the widget window rather than to this
 /// one — which is the whole difference from `widget_mode` above.
 #[tauri::command]
-pub fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
+pub async fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("widget")
         .ok_or("the widget is not open")?;
@@ -621,7 +634,7 @@ pub fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
 
 /// Puts the widget on the desktop, below other windows.
 #[tauri::command]
-pub fn widget_on_desktop(app: AppHandle, on: bool) -> Result<(), String> {
+pub async fn widget_on_desktop(app: AppHandle, on: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("widget")
         .ok_or("the widget is not open")?;

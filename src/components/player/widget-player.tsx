@@ -52,7 +52,22 @@ import { cn } from '@/lib/utils';
  * exactly where this is used. It would be an odd way to treat a bar that is
  * already the width of the screen.
  */
-export function WidgetPlayer({ className }: { className?: string }) {
+export function WidgetPlayer({
+  className,
+  chrome,
+}: {
+  className?: string;
+  /**
+   * The window's own controls, drawn against the card.
+   *
+   * Passed in rather than placed by the caller because only this component
+   * knows where the card *is*. Above it sits padding for the record, which is
+   * empty once the pill opens and the record tucks inside — so a caller
+   * positioning against the outer box put the buttons in the middle of
+   * nothing, visibly detached from the thing they act on.
+   */
+  chrome?: ReactNode;
+}) {
   const player = useWidgetTransport();
   const track = player.track;
 
@@ -95,105 +110,112 @@ export function WidgetPlayer({ className }: { className?: string }) {
         <Disc track={track} spinning={player.playing} size={128} />
       </div>
 
-      <div
-        className={cn(
-          'z-30 flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
-          'bg-card text-card-foreground shadow-lg ring-1 ring-border',
-          'transition-all duration-300',
-          'group-hover/widget:h-[10.5rem] group-hover/widget:w-72',
-          'group-data-[open]/widget:h-[10.5rem] group-data-[open]/widget:w-72',
-        )}
-      >
-        {/* Title row. Absent until open — closed, the pill is the transport
-            and nothing else. */}
+      {/* Wraps the pill so the chrome can be positioned against it. The pill
+          itself clips its contents, which is what lets the rows slide, so
+          anything overlapping its edge has to live out here. */}
+      <div className="relative z-30">
+        {chrome && <div className="absolute -top-2 right-2 z-40">{chrome}</div>}
+
         <div
           className={cn(
-            'flex h-0 shrink-0 flex-row items-center overflow-hidden transition-all duration-300',
-            'group-hover/widget:h-[4.5rem] group-data-[open]/widget:h-[4.5rem]',
+            'flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
+            'bg-card text-card-foreground shadow-lg ring-1 ring-border',
+            'transition-all duration-300',
+            'group-hover/widget:h-[10.5rem] group-hover/widget:w-72',
+            'group-data-[open]/widget:h-[10.5rem] group-data-[open]/widget:w-72',
           )}
         >
+          {/* Title row. Absent until open — closed, the pill is the transport
+            and nothing else. */}
           <div
             className={cn(
-              'relative flex w-0 shrink-0 items-center justify-center opacity-0',
-              'transition-all duration-300',
-              'group-hover/widget:w-[4.5rem] group-hover/widget:opacity-100',
-              'group-data-[open]/widget:w-[4.5rem] group-data-[open]/widget:opacity-100',
+              'flex h-0 shrink-0 flex-row items-center overflow-hidden transition-all duration-300',
+              'group-hover/widget:h-[4.5rem] group-data-[open]/widget:h-[4.5rem]',
             )}
           >
-            <Disc track={track} spinning={player.playing} size={64} />
-          </div>
+            <div
+              className={cn(
+                'relative flex w-0 shrink-0 items-center justify-center opacity-0',
+                'transition-all duration-300',
+                'group-hover/widget:w-[4.5rem] group-hover/widget:opacity-100',
+                'group-data-[open]/widget:w-[4.5rem] group-data-[open]/widget:opacity-100',
+              )}
+            >
+              <Disc track={track} spinning={player.playing} size={64} />
+            </div>
 
-          <div className="flex min-w-0 flex-col justify-center px-3">
-            <p className="truncate text-base font-semibold">
-              {track?.title ?? 'Nothing playing'}
-            </p>
-            {track?.artist && (
-              <p className="truncate text-sm text-muted-foreground">
-                {track.artist}
+            <div className="flex min-w-0 flex-col justify-center px-3">
+              <p className="truncate text-base font-semibold">
+                {track?.title ?? 'Nothing playing'}
               </p>
-            )}
+              {track?.artist && (
+                <p className="truncate text-sm text-muted-foreground">
+                  {track.artist}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
-        <Scrubber
-          duration={duration}
-          progress={player.progress}
-          seekable={seekable}
-          onSeek={player.seek}
-          onScrubbingChange={setScrubbing}
-        />
+          <Scrubber
+            duration={duration}
+            progress={player.progress}
+            seekable={seekable}
+            onSeek={player.seek}
+            onScrubbingChange={setScrubbing}
+          />
 
-        {/* Shuffle and repeat sit at the ends of one evenly spaced row, not
+          {/* Shuffle and repeat sit at the ends of one evenly spaced row, not
             pushed out to the pill's edges. They are modes - they change what
             the next press does - so they belong either side of the three
             buttons that move through the queue, close enough to read as part
             of the same control. Spread to the corners they looked like two
             unrelated toggles that happened to share a row. */}
-        <div className="flex flex-1 flex-row items-center justify-center gap-1 pb-1">
-          <WidgetButton
-            label={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
-            onClick={player.toggleShuffle}
-            active={player.shuffle}
-            secondary
-          >
-            <Shuffle className="size-4" />
-          </WidgetButton>
-
-          <div className="flex flex-row items-center gap-0.5">
-            <WidgetButton label="Previous" onClick={player.previous}>
-              <SkipBack className="size-5" />
+          <div className="flex flex-1 flex-row items-center justify-center gap-1 pb-1">
+            <WidgetButton
+              label={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
+              onClick={player.toggleShuffle}
+              active={player.shuffle}
+              secondary
+            >
+              <Shuffle className="size-4" />
             </WidgetButton>
+
+            <div className="flex flex-row items-center gap-0.5">
+              <WidgetButton label="Previous" onClick={player.previous}>
+                <SkipBack className="size-5" />
+              </WidgetButton>
+
+              <WidgetButton
+                label={player.playing ? 'Pause' : 'Play'}
+                onClick={player.toggle}
+              >
+                {player.playing ? (
+                  <Pause className="size-6" />
+                ) : (
+                  <Play className="size-6" />
+                )}
+              </WidgetButton>
+
+              <WidgetButton label="Next" onClick={player.next}>
+                <SkipForward className="size-5" />
+              </WidgetButton>
+            </div>
 
             <WidgetButton
-              label={player.playing ? 'Pause' : 'Play'}
-              onClick={player.toggle}
+              label={
+                player.repeat === 'off'
+                  ? 'Repeat'
+                  : player.repeat === 'one'
+                    ? 'Repeating this track'
+                    : 'Repeating the queue'
+              }
+              onClick={player.cycleRepeat}
+              active={player.repeat !== 'off'}
+              secondary
             >
-              {player.playing ? (
-                <Pause className="size-6" />
-              ) : (
-                <Play className="size-6" />
-              )}
-            </WidgetButton>
-
-            <WidgetButton label="Next" onClick={player.next}>
-              <SkipForward className="size-5" />
+              <Repeat one={player.repeat === 'one'} className="size-4" />
             </WidgetButton>
           </div>
-
-          <WidgetButton
-            label={
-              player.repeat === 'off'
-                ? 'Repeat'
-                : player.repeat === 'one'
-                  ? 'Repeating this track'
-                  : 'Repeating the queue'
-            }
-            onClick={player.cycleRepeat}
-            active={player.repeat !== 'off'}
-            secondary
-          >
-            <Repeat one={player.repeat === 'one'} className="size-4" />
-          </WidgetButton>
         </div>
       </div>
     </div>

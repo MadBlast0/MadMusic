@@ -66,18 +66,20 @@ export function MiniPlayer({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="group/window fixed right-4 bottom-24 z-50 flex items-center justify-center rounded-xl border bg-background/95 p-4 shadow-xl backdrop-blur">
-      <div className="group/card relative">
-        <WidgetPlayer />
-
-        <div className="absolute top-1 right-1 z-40 flex items-center gap-0.5 rounded-full bg-background/80 p-0.5 opacity-0 shadow-sm ring-1 ring-border backdrop-blur transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
-          <IconButton
-            label="Leave the compact player"
-            size="sm"
-            onClick={onClose}
-          >
-            <X className="size-3.5" />
-          </IconButton>
-        </div>
+      <div className="group/card">
+        <WidgetPlayer
+          chrome={
+            <div className="flex items-center rounded-full bg-background/90 p-0.5 opacity-0 shadow-sm ring-1 ring-border backdrop-blur transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
+              <IconButton
+                label="Leave the compact player"
+                size="sm"
+                onClick={onClose}
+              >
+                <X className="size-3.5" />
+              </IconButton>
+            </div>
+          }
+        />
       </div>
     </div>
   );

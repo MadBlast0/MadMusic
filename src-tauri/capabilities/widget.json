@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widget",
+  "description": "What the floating widget window may do, which is almost nothing. Capabilities are per-window and `default.json` names only `main`, so without this file the widget could not listen for a single event - it opened, drew an empty player, and stayed empty, because the channel carrying the current track was denied. It gets events, so it can be told what is playing and can say what was pressed; window dragging, because it has no title bar and would otherwise be stuck where it opened; and closing itself. It has no filesystem, no dialogs, no updater, no notifications and no shell access: it renders what the main window sends it and owns nothing of its own. Commands defined by this application are not gated here - only plugin and core permissions are - so `widget_close` and the two posture commands work without being listed.",
+  "windows": ["widget"],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
+    "core:app:allow-version"
+  ]
+}

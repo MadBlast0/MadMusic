@@ -47,8 +47,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MAX_VOLUME } from '@/lib/audio/curve';
 import { formatTime } from '@/lib/library-model';
-import { isNative } from '@/lib/native';
-import { pipAvailable } from '@/lib/pip';
 import { ShareDialog } from '@/components/player/share-dialog';
 import { EqualiserPanel } from '@/components/player/equaliser-panel';
 import { DevicesControl } from '@/components/player/devices-control';
@@ -527,53 +525,26 @@ export function NowPlayingBar({
           </div>
         </div>
 
-        {/* One control for every way of making the player small.
+        {/* One button, one thing.
 
-            They were not all reachable before: the compact player was a
-            keyboard shortcut with no button anywhere, and widget mode was a
-            toggle buried inside it — so the two most-asked-for arrangements
-            were the two nobody could find. They are one menu because "make
-            this small" is one intent; which posture is the detail. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              label="Compact player"
-              size="sm"
-              active={compact !== 'normal'}
-            >
-              <PictureInPicture />
-            </IconButton>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel>Compact player</DropdownMenuLabel>
-
-            <DropdownMenuItem onSelect={() => onPresent('compact')}>
-              {compact === 'compact'
-                ? 'Back to the full window'
-                : 'Shrink to the player'}
-            </DropdownMenuItem>
-
-            {/* Desktop only: a browser tab has no desktop to pin to. */}
-            {isNative() && (
-              <DropdownMenuItem onSelect={() => onPresent('widget')}>
-                {compact === 'widget'
-                  ? 'Take off the desktop'
-                  : 'Pin to the desktop'}
-              </DropdownMenuItem>
-            )}
-
-            {/* The only one that leaves the main interface usable, which is
-                why it is worth offering alongside rather than instead. */}
-            {pipAvailable() && (
-              <DropdownMenuItem onSelect={() => onPresent('pip')}>
-                {compact === 'pip'
-                  ? 'Close the floating window'
-                  : 'Open in a floating window'}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            This was a menu of four: shrink, pin to the desktop, open a
+            floating window, and back again. Every one of them was "make the
+            player small", and asking which posture before doing anything made
+            the common case - I want the little player - two clicks and a
+            decision. The widget is a window of its own now, so pinning and
+            floating are properties *of that window* and live on it, where they
+            can be seen while they apply. What is left here is the toggle:
+            press to show it, press to put it away. */}
+        <IconButton
+          label={
+            compact === 'normal' ? 'Compact player' : 'Close the compact player'
+          }
+          size="sm"
+          active={compact !== 'normal'}
+          onClick={() => onPresent('compact')}
+        >
+          <PictureInPicture />
+        </IconButton>
 
         <IconButton
           label={immersive ? 'Leave full screen' : 'Full screen'}
