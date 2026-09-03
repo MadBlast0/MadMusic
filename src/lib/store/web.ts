@@ -22,7 +22,6 @@
  * environment that behaves differently from the app is worse than none.
  */
 
-import { evaluate } from '@/lib/store/rules';
 import { EMPTY_FILTER } from '@/lib/store/types';
 import type {
   AlbumMeta,
@@ -43,9 +42,7 @@ import type {
   QueueState,
   Range,
   Review,
-  RuleSet,
   SavedAlbum,
-  SmartPlaylist,
   Station,
   Store,
   Summary,
@@ -103,7 +100,6 @@ type Doc = {
   entries: Record<string, PlaylistEntry[]>;
   versions: VersionRow[];
   playlistFolders: Record<string, PlaylistFolderRow>;
-  smart: Record<string, SmartPlaylist>;
   savedAlbums: Record<string, SavedAlbum>;
   follows: Record<string, FollowedArtist>;
   blocked: Blocked[];
@@ -133,7 +129,6 @@ function empty(): Doc {
     entries: {},
     versions: [],
     playlistFolders: {},
-    smart: {},
     savedAlbums: {},
     follows: {},
     blocked: [],
@@ -894,52 +889,6 @@ export const webStore: Store = {
     return Object.values(load().playlistFolders).sort(
       (a, b) => a.sortIndex - b.sortIndex || a.name.localeCompare(b.name),
     );
-  },
-
-  async smartUpsert(smart) {
-    const d = load();
-    d.smart[smart.id] = {
-      ...smart,
-      createdAt: smart.createdAt || now(),
-      updatedAt: now(),
-    };
-    save();
-  },
-  async smartDelete(id) {
-    const d = load();
-    delete d.smart[id];
-    save();
-  },
-  async smartList() {
-    const d = load();
-    const all = queryTracks(d, {});
-    return Object.values(d.smart)
-      .map((smart) => ({
-        ...smart,
-        trackCount: evaluate(all, smart.rules).length,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  },
-  async smartTracks(id) {
-    const d = load();
-    const smart = d.smart[id];
-    if (!smart) return [];
-    return this.smartPreview(
-      smart.rules,
-      smart.sortBy,
-      smart.sortDesc,
-      smart.cap,
-    );
-  },
-  async smartPreview(rules: RuleSet, sortBy, sortDesc, cap) {
-    const d = load();
-    const selected = evaluate(queryTracks(d, {}), rules);
-    return sortAndPage(selected, {
-      ...EMPTY_FILTER,
-      sort: (sortBy || 'added') as TrackFilter['sort'],
-      desc: sortDesc,
-      limit: cap,
-    });
   },
 
   async kvGet(key) {

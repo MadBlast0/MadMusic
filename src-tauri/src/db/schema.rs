@@ -9,7 +9,7 @@
 //!
 //! Liked songs, playlists and history lived in `localStorage` until now, and
 //! that worked precisely as long as the only questions were "what did I like"
-//! and "what did I play". Ratings, play counts, smart playlists, statistics
+//! and "what did I play". Ratings, play counts, statistics
 //! and search operators all ask questions that need a *query*, and answering
 //! them by loading every row into JavaScript and filtering is the kind of
 //! design that works on a demo library and falls over on a real one.
@@ -39,7 +39,7 @@ pub const V1: &str = r#"
 -- Every track the app has ever seen, from either source.
 --
 -- One table for catalogue and local files rather than two, because almost
--- every feature above this layer — ratings, play counts, playlists, smart
+-- every feature above this layer — ratings, play counts, playlists,
 -- rules, statistics — applies equally to both, and two tables would mean
 -- every one of those features carrying a union type and a UNION ALL.
 CREATE TABLE IF NOT EXISTS track (
@@ -252,21 +252,6 @@ CREATE TABLE IF NOT EXISTS playlist_version (
 );
 
 CREATE INDEX IF NOT EXISTS playlist_version_pl ON playlist_version(playlist_id, at DESC);
-
--- Rule-driven playlists. The rules live as JSON and are compiled to SQL by
--- `db::smart`, which is the only place allowed to build SQL from user input.
-CREATE TABLE IF NOT EXISTS smart_playlist (
-  id         TEXT PRIMARY KEY,
-  name       TEXT NOT NULL,
-  rules      TEXT NOT NULL,
-  sort_by    TEXT NOT NULL DEFAULT 'added',
-  sort_desc  INTEGER NOT NULL DEFAULT 1,
-  cap        INTEGER NOT NULL DEFAULT 0,
-  cover_a    TEXT NOT NULL DEFAULT '',
-  cover_b    TEXT NOT NULL DEFAULT '',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
 
 -- ── sources on disk ───────────────────────────────────────────────────────
 

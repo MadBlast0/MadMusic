@@ -29,8 +29,8 @@
 //! Typed commands only. There is deliberately no `db_execute(sql)` escape
 //! hatch: the webview runs our own code today, but an app that ships a general
 //! SQL endpoint to its renderer has decided that any script injection anywhere
-//! is also a database compromise. The one place SQL is built from user input is
-//! [`smart`], and that module maps a closed set of fields and operators.
+//! is also a database compromise. No module here builds SQL from user input:
+//! every statement is a literal with bound parameters.
 
 pub mod kv;
 pub mod library;
@@ -38,7 +38,6 @@ pub mod media;
 pub mod migrate;
 pub mod playlists;
 pub mod schema;
-pub mod smart;
 pub mod stats;
 pub mod sync;
 pub mod tracks;

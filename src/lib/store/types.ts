@@ -259,82 +259,6 @@ export type VersionRow = {
   snapshot: string;
 };
 
-/* ── smart playlists ─────────────────────────────────────────────────── */
-
-/** The fields a rule may name. Mirrors `field_sql` in `db::smart`. */
-export type RuleField =
-  | 'title'
-  | 'artist'
-  | 'album_artist'
-  | 'album'
-  | 'genre'
-  | 'composer'
-  | 'work'
-  | 'kind'
-  | 'path'
-  | 'year'
-  | 'duration'
-  | 'bpm'
-  | 'track_no'
-  | 'disc_no'
-  | 'explicit'
-  | 'compilation'
-  | 'added'
-  | 'stars'
-  | 'plays'
-  | 'last_played'
-  | 'liked'
-  | 'downloaded'
-  | 'tag';
-
-export type RuleOp =
-  | 'is'
-  | 'is_not'
-  | 'contains'
-  | 'not_contains'
-  | 'starts_with'
-  | 'ends_with'
-  | 'empty'
-  | 'not_empty'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'between'
-  | 'within_days'
-  | 'not_within_days'
-  | 'ever'
-  | 'never';
-
-export type Rule = {
-  field: RuleField;
-  op: RuleOp;
-  value: string | number | boolean;
-  /** Only used by `between`. */
-  value2: string | number | boolean;
-};
-
-export type RuleSet = {
-  /** `all` is AND, `any` is OR. */
-  matchMode: 'all' | 'any';
-  rules: Rule[];
-};
-
-export type SmartPlaylist = {
-  id: string;
-  name: string;
-  rules: RuleSet;
-  sortBy: string;
-  sortDesc: boolean;
-  /** Zero means no cap. */
-  cap: number;
-  coverA: string;
-  coverB: string;
-  createdAt: number;
-  updatedAt: number;
-  trackCount: number;
-};
-
 /* ── everything else ─────────────────────────────────────────────────── */
 
 export type SavedAlbum = {
@@ -631,17 +555,6 @@ export type Store = {
   playlistFolderUpsert(folder: PlaylistFolderRow): Promise<void>;
   playlistFolderDelete(id: string): Promise<void>;
   playlistFolders(): Promise<PlaylistFolderRow[]>;
-
-  smartUpsert(smart: SmartPlaylist): Promise<void>;
-  smartDelete(id: string): Promise<void>;
-  smartList(): Promise<SmartPlaylist[]>;
-  smartTracks(id: string): Promise<TrackRow[]>;
-  smartPreview(
-    rules: RuleSet,
-    sortBy: string,
-    sortDesc: boolean,
-    cap: number,
-  ): Promise<TrackRow[]>;
 
   kvGet(key: string): Promise<string | null>;
   kvSet(key: string, value: string): Promise<void>;

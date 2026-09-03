@@ -32,9 +32,7 @@ import type {
   QueueState,
   Range,
   Review,
-  RuleSet,
   SavedAlbum,
-  SmartPlaylist,
   Station,
   Store,
   Summary,
@@ -134,13 +132,6 @@ export const nativeStore: Store = {
     call('db_playlist_folder_upsert', { folder }),
   playlistFolderDelete: (id) => call('db_playlist_folder_delete', { id }),
   playlistFolders: () => call<PlaylistFolderRow[]>('db_playlist_folders'),
-
-  smartUpsert: (smart: SmartPlaylist) => call('db_smart_upsert', { smart }),
-  smartDelete: (id) => call('db_smart_delete', { id }),
-  smartList: () => call<SmartPlaylist[]>('db_smart_list'),
-  smartTracks: (id) => call<TrackRow[]>('db_smart_tracks', { id }),
-  smartPreview: (rules: RuleSet, sortBy, sortDesc, cap) =>
-    call<TrackRow[]>('db_smart_preview', { rules, sortBy, sortDesc, cap }),
 
   kvGet: (key) => call<string | null>('db_kv_get', { key }),
   kvSet: (key, value) => call('db_kv_set', { key, value }),

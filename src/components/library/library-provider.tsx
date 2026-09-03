@@ -65,8 +65,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
    * The scan and the database were two separate worlds. Scanning produced a
    * tree held in React state; the SQLite library was only ever written by the
    * importer and by adding a track to a playlist. Everything built on the
-   * database - browse, the health report, the home shelves, smart playlists,
-   * ratings, search operators - therefore had *nothing to read* for anybody
+   * database - browse, the health report, the home shelves, ratings, search
+   * operators - therefore had *nothing to read* for anybody
    * whose music came from a folder scan, which is the ordinary case.
    *
    * Indexing here rather than at each call site because there are four paths

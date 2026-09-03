@@ -107,7 +107,10 @@ and each says what it is blocked on:
 - [x] Followed artists, with a new-release feed **[S][A][SC]**
 - [x] Folders for playlists **[S]** - created and assigned from Settings;
       removing a folder leaves its playlists alone
-- [x] Smart playlists / rules engine **[A][F][P]**
+- [ ] Smart playlists / rules engine **[A][F][P]** - built, then removed on
+      2026-09-03. Two kinds of playlist meant two of everything, and the
+      ordinary playlist is what people reach for. Revisit only with a design
+      that does not split the sidebar in half.
 - [x] Star ratings, 1-5 **[A][F]**
 - [x] Play counts and last-played timestamps per track **[A][F]**
 - [x] Custom tags and labels on tracks **[A]**
