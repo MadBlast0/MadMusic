@@ -140,7 +140,6 @@ export function HomeView({
       out.push({
         id: 'saved:liked',
         title: 'Liked Songs',
-        subtitle: `${liked.length} ${liked.length === 1 ? 'song' : 'songs'}`,
         cover: liked[0]?.cover ?? ['#4c1d95', '#2563eb'],
         artworkUrl: liked[0]?.artworkUrl,
         playingFrom: liked.some((t) => t.id === current?.id),
@@ -174,7 +173,6 @@ export function HomeView({
       out.push({
         id: `playlist:${playlist.id}`,
         title: playlist.name,
-        subtitle: 'Playlist',
         cover: playlist.cover,
         artworkUrl: playlist.artworkUrl ?? playlist.tracks[0]?.artworkUrl,
         playingFrom: playlist.tracks.some((t) => t.id === current?.id),
@@ -192,7 +190,6 @@ export function HomeView({
       out.push({
         id: `local-album:${album.key}`,
         title: album.title,
-        subtitle: album.artist,
         cover: ['#3f3f46', '#18181b'],
         playingFrom: album.tracks.some((t) => t.id === current?.id),
         onOpen: () =>
@@ -204,12 +201,22 @@ export function HomeView({
       });
     }
 
-    for (const collection of feed?.featured ?? []) {
+    // Featured first, then whatever the shelves hold. Featured is four cards
+    // on most days, and four is not eight — running out of it was why the
+    // block came up short and broke its second row in half.
+    const fromCatalogue = [
+      ...(feed?.featured ?? []),
+      ...(feed?.shelves ?? []).flatMap((shelf) => shelf.collections ?? []),
+    ];
+
+    for (const collection of fromCatalogue) {
       if (out.length === 8) break;
+      // A shelf can repeat what is already featured, and two identical tiles
+      // in a block of eight is a wasted slot.
+      if (out.some((pick) => pick.id === `album:${collection.id}`)) continue;
       out.push({
         id: `album:${collection.id}`,
         title: collection.title,
-        subtitle: collection.subtitle,
         cover: collection.cover,
         artworkUrl: collection.artworkUrl,
         // The preview catalogue has cards with nothing behind them, so there

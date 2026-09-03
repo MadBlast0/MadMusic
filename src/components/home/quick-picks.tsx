@@ -10,8 +10,6 @@ import { cn } from '@/lib/utils';
 export type QuickPick = {
   id: string;
   title: string;
-  /** Where it came from — a playlist name, an artist, "Liked songs". */
-  subtitle?: string;
   cover: [string, string];
   artworkUrl?: string;
   /** Opens the thing's own page — what clicking the tile does. */
@@ -117,7 +115,7 @@ export function QuickPicks({
                   // a tile read as a raised surface on a coloured page: a solid
                   // card colour sits on top of the artwork wash and cancels it,
                   // where a wash of white takes the page's colour with it.
-                  'bg-foreground/[0.07] hover:bg-foreground/[0.14]',
+                  'bg-foreground/[0.08] hover:bg-foreground/[0.16]',
                   'transition-colors duration-fast',
                   'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 )}
@@ -131,20 +129,20 @@ export function QuickPicks({
                   className="size-14 shrink-0"
                 />
 
-                <span className="min-w-0 flex-1 py-1">
-                  <span
-                    className={cn(
-                      'block truncate text-sm font-bold',
-                      isCurrent && 'text-primary',
-                    )}
-                  >
-                    {pick.title}
-                  </span>
-                  {pick.subtitle && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {pick.subtitle}
-                    </span>
+                {/* The name alone, centred against the artwork.
+
+                    Spotify's shortcuts carry no second line, and the reason
+                    holds here: the block is aimed at rather than read, and the
+                    cover has already said which record it is. A subtitle made
+                    every tile two lines of small grey text competing with the
+                    one word that identifies it. */}
+                <span
+                  className={cn(
+                    'min-w-0 flex-1 truncate text-sm font-bold',
+                    isCurrent && 'text-primary',
                   )}
+                >
+                  {pick.title}
                 </span>
 
                 {/* Reserves the space the play button sits in, so the title
