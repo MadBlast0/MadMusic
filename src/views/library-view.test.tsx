@@ -94,6 +94,27 @@ describe('library view', () => {
     vi.spyOn(localSource, 'getLocalSource').mockReturnValue(fake);
   });
 
+  it('says where the music folder is, not just what it is called', async () => {
+    await openLibrary();
+
+    // The folder's *name* was all the page ever showed — "Music", or "D", or
+    // "New folder (2)". None of those answers "which directory is this", and
+    // that question matters here because the same folder is where downloads
+    // are written.
+    expect(screen.getByText('C:\\Music')).toBeInTheDocument();
+    expect(screen.getByText(/downloads are saved here/i)).toBeInTheDocument();
+  });
+
+  it('changes the folder from a labelled control rather than an icon', async () => {
+    const { user } = await openLibrary();
+
+    // The control used to be a bare refresh glyph, indistinguishable from a
+    // rescan. Finding it by its words is the point of the assertion.
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+
+    expect(screen.getByRole('heading', { name: 'Music' })).toBeInTheDocument();
+  });
+
   it('summarises the library from the tags, not the file names', async () => {
     await openLibrary();
     // Discovery plus the untagged file's folder-derived album.

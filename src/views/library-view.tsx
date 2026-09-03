@@ -5,6 +5,7 @@ import { AnimatePresence, m } from 'motion/react';
 
 import { useLibrary } from '@/components/library/library-context';
 import { AlbumGrid, ArtistGrid } from '@/components/library/album-grid';
+import { FolderBar } from '@/components/library/folder-bar';
 import { FolderTree } from '@/components/library/folder-tree';
 import { SavedCollections } from '@/components/library/saved-collections';
 import {
@@ -14,8 +15,7 @@ import {
 } from '@/components/library/library-chrome';
 import { AlbumDetail, ArtistDetail } from '@/components/library/local-detail';
 import { TrackList } from '@/components/library/track-list';
-import { FolderOpen, Refresh, Spinner, StaticMusic } from '@/components/icons';
-import { IconButton } from '@/components/icons/icon-button';
+import { FolderOpen, Spinner, StaticMusic } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -146,17 +146,23 @@ export function LibraryView({
       density="library"
       header={
         <div className="flex flex-col gap-4">
-          <div className="flex items-end justify-between gap-4">
-            <ViewTitle
-              title={root.name}
-              subtitle={`${albumCount} ${albumCount === 1 ? 'album' : 'albums'} · ${tracks.length} ${
-                tracks.length === 1 ? 'song' : 'songs'
-              } · ${formatTotal(totalTime)}`}
-            />
-            <IconButton label="Choose another folder" onClick={chooseFolder}>
-              {picking ? <Spinner /> : <Refresh />}
-            </IconButton>
-          </div>
+          <ViewTitle
+            title={root.name}
+            subtitle={`${albumCount} ${albumCount === 1 ? 'album' : 'albums'} · ${tracks.length} ${
+              tracks.length === 1 ? 'song' : 'songs'
+            } · ${formatTotal(totalTime)}`}
+          />
+
+          {/* Under the title rather than beside it. The path is a fact about
+              the page, not an action on it, and a full path does not fit on a
+              line that already has a title and a count. */}
+          <FolderBar
+            name={root.name}
+            path={root.path}
+            located={sourceKind === 'native'}
+            picking={picking}
+            onChoose={chooseFolder}
+          />
 
           {/* Hidden on a detail page: those controls browse the library, and a
               filter that does nothing to what is on screen is worse than no

@@ -139,6 +139,28 @@ export async function setTaskbarRecent(
 }
 
 /**
+ * Shows a folder in the desktop's own file manager.
+ *
+ * Explorer on Windows, Finder on macOS, whatever is configured on Linux. Only
+ * ever called with the library root — a path the app chose from the OS picker
+ * and already reads — never with a string from a page, a tag or a URL. The
+ * capability that permits it is `opener:allow-reveal-item-in-dir`, and this is
+ * the only caller.
+ *
+ * Silent in the browser build, where there is no desktop to show anything on.
+ */
+export async function revealFolder(path: string): Promise<void> {
+  if (!isDesktop() || path.trim() === '') return;
+
+  try {
+    const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+    await revealItemInDir(path);
+  } catch (cause) {
+    console.warn('could not show that folder', cause);
+  }
+}
+
+/**
  * Opens a link in the user's own browser.
  *
  * Not `window.open`, which in a Tauri webview either does nothing or opens a

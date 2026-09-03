@@ -248,7 +248,9 @@ export function AppSidebar({
         kind: 'playlist',
         // No count. It would have to be fetched and kept current for a number
         // nobody navigates by, and the page says it on arrival.
-        kindLabel: 'Downloads',
+        // Not "Downloads" again — the name already says that. What the
+        // subtitle is for is the thing the name does not say.
+        kindLabel: 'Available offline',
         owner: '',
         cover: null,
         icon: Download,
