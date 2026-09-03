@@ -22,8 +22,8 @@ Run **`pnpm verify`** before every commit and before opening any PR.
 pnpm verify   # format:check -> lint -> typecheck -> test -> build
 ```
 
-There is no GitHub Actions pipeline (see [docs/ci-plan.md](docs/ci-plan.md) for
-why and for what replaces this when the time comes). Nothing else will catch a
+GitHub Actions runs the same command on every push and pull request, and
+builds releases from tags (see [docs/ci-plan.md](docs/ci-plan.md)). Nothing else will catch a
 broken build for you, so this command is not optional.
 
 If `format:check` fails, run `pnpm format`. If `lint` fails, try
