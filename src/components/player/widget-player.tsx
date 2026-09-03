@@ -73,7 +73,11 @@ export function WidgetPlayer({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'group/widget flex select-none flex-col items-center',
+        'group/widget flex w-72 select-none flex-col items-center',
+        // The disc is 128px inside a 64px box, so half of it hangs above the
+        // layout. Without this padding the top of the record is flush against
+        // the window edge and looks clipped rather than floating.
+        'pt-9',
         className,
       )}
       data-open={scrubbing || undefined}
@@ -93,30 +97,30 @@ export function WidgetPlayer({ className }: { className?: string }) {
 
       <div
         className={cn(
-          'z-30 flex h-20 w-40 flex-col overflow-hidden rounded-2xl',
+          'z-30 flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
           'bg-card text-card-foreground shadow-lg ring-1 ring-border',
           'transition-all duration-300',
-          'group-hover/widget:h-40 group-hover/widget:w-72',
-          'group-data-[open]/widget:h-40 group-data-[open]/widget:w-72',
+          'group-hover/widget:h-[10.5rem] group-hover/widget:w-72',
+          'group-data-[open]/widget:h-[10.5rem] group-data-[open]/widget:w-72',
         )}
       >
         {/* Title row. Absent until open — closed, the pill is the transport
             and nothing else. */}
         <div
           className={cn(
-            'flex h-0 flex-row items-center overflow-hidden transition-all duration-300',
-            'group-hover/widget:h-20 group-data-[open]/widget:h-20',
+            'flex h-0 shrink-0 flex-row items-center overflow-hidden transition-all duration-300',
+            'group-hover/widget:h-[4.5rem] group-data-[open]/widget:h-[4.5rem]',
           )}
         >
           <div
             className={cn(
               'relative flex w-0 shrink-0 items-center justify-center opacity-0',
               'transition-all duration-300',
-              'group-hover/widget:w-24 group-hover/widget:opacity-100',
-              'group-data-[open]/widget:w-24 group-data-[open]/widget:opacity-100',
+              'group-hover/widget:w-[4.5rem] group-hover/widget:opacity-100',
+              'group-data-[open]/widget:w-[4.5rem] group-data-[open]/widget:opacity-100',
             )}
           >
-            <Disc track={track} spinning={player.playing} size={80} />
+            <Disc track={track} spinning={player.playing} size={64} />
           </div>
 
           <div className="flex min-w-0 flex-col justify-center px-3">
@@ -138,9 +142,12 @@ export function WidgetPlayer({ className }: { className?: string }) {
           onScrubbingChange={setScrubbing}
         />
 
-        <div className="mx-3 flex flex-grow flex-row items-center justify-center gap-1">
-          {/* Shuffle and repeat share the original's one slot, but as two real
-              controls rather than a single checkbox pretending to be both. */}
+        {/* Shuffle and repeat *flank* the transport rather than queueing up
+            beside it. They are modes - they change what the next press does -
+            and the three buttons that move through the queue read as one
+            control only when nothing is wedged between them. It is the
+            arrangement every player uses for the same reason. */}
+        <div className="flex flex-1 flex-row items-center justify-between px-4 pb-1">
           <WidgetButton
             label={player.shuffle ? 'Shuffle is on' : 'Shuffle'}
             onClick={player.toggleShuffle}
@@ -149,6 +156,27 @@ export function WidgetPlayer({ className }: { className?: string }) {
           >
             <Shuffle className="size-4" />
           </WidgetButton>
+
+          <div className="flex flex-row items-center gap-1">
+            <WidgetButton label="Previous" onClick={player.previous}>
+              <SkipBack className="size-5" />
+            </WidgetButton>
+
+            <WidgetButton
+              label={player.playing ? 'Pause' : 'Play'}
+              onClick={player.toggle}
+            >
+              {player.playing ? (
+                <Pause className="size-6" />
+              ) : (
+                <Play className="size-6" />
+              )}
+            </WidgetButton>
+
+            <WidgetButton label="Next" onClick={player.next}>
+              <SkipForward className="size-5" />
+            </WidgetButton>
+          </div>
 
           <WidgetButton
             label={
@@ -163,25 +191,6 @@ export function WidgetPlayer({ className }: { className?: string }) {
             secondary
           >
             <Repeat one={player.repeat === 'one'} className="size-4" />
-          </WidgetButton>
-
-          <WidgetButton label="Previous" onClick={player.previous}>
-            <SkipBack className="size-5" />
-          </WidgetButton>
-
-          <WidgetButton
-            label={player.playing ? 'Pause' : 'Play'}
-            onClick={player.toggle}
-          >
-            {player.playing ? (
-              <Pause className="size-6" />
-            ) : (
-              <Play className="size-6" />
-            )}
-          </WidgetButton>
-
-          <WidgetButton label="Next" onClick={player.next}>
-            <SkipForward className="size-5" />
           </WidgetButton>
         </div>
       </div>
@@ -217,11 +226,21 @@ function Scrubber({
 }) {
   const { progress } = usePlayerProgress();
 
+  // How far along, as a percentage, for the filled half of the track. Guarded
+  // against a zero duration, which is every track's first moment.
+  const played =
+    seekable && duration > 0
+      ? Math.min(100, Math.max(0, (progress / duration) * 100))
+      : 0;
+
   return (
     <div
       className={cn(
-        'mx-3 mt-3 flex flex-row items-center gap-2',
-        'group-hover/widget:mt-0 group-data-[open]/widget:mt-0',
+        // Closed, the row is the pill's only content and centres itself.
+        // Open, it sits between the title and the transport with equal air
+        // above and below rather than being pushed up against the title.
+        'flex flex-row items-center gap-2 px-4',
+        'mt-3 group-hover/widget:mt-0 group-data-[open]/widget:mt-0',
       )}
     >
       <Time value={progress} />
@@ -239,14 +258,30 @@ function Scrubber({
         onPointerUp={() => onScrubbingChange(false)}
         onPointerCancel={() => onScrubbingChange(false)}
         onChange={(event) => onSeek(Number(event.target.value))}
+        // The played half is painted with a gradient stop rather than a second
+        // element, because a range input has no pseudo-element for the filled
+        // track that both engines agree on. A flat grey bar told you there was
+        // a scrubber; this tells you where you are in the song without
+        // reading the numbers.
+        style={{
+          backgroundImage: `linear-gradient(to right, var(--color-primary) ${played}%, var(--color-muted) ${played}%)`,
+        }}
         className={cn(
-          'my-auto h-1 w-24 flex-grow appearance-none rounded-full bg-muted',
-          'group-hover/widget:w-full group-data-[open]/widget:w-full',
+          // `min-w-0 flex-1`, never `w-full`. With `flex-grow` *and* a 100%
+          // width the slider demanded the whole row, squeezed both timestamps
+          // to nothing, and the pill's `overflow-hidden` clipped them away —
+          // so the open widget showed a bar and no times at all.
+          'my-auto h-1.5 min-w-0 flex-1 appearance-none rounded-full',
           'disabled:opacity-50',
+          // The handle is hidden until the row is pointed at. A permanent dot
+          // on a widget that spends all day on the desktop is one more thing
+          // moving in the corner of the eye; it appears when it can be used.
           '[&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none',
           '[&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:rounded-full',
-          '[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-border',
-          '[&::-webkit-slider-thumb]:bg-background [&::-webkit-slider-thumb]:shadow',
+          '[&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow',
+          '[&::-webkit-slider-thumb]:opacity-0 [&::-webkit-slider-thumb]:transition-opacity',
+          'hover:[&::-webkit-slider-thumb]:opacity-100',
+          'focus-visible:[&::-webkit-slider-thumb]:opacity-100',
         )}
       />
 

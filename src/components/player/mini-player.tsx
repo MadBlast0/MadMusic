@@ -67,11 +67,31 @@ export function MiniPlayer({
   } | null>(null);
 
   /**
-   * Big enough for the pill *open*, since it opens on hover and a window that
-   * clipped it would be worse than one with a little room around it. 288×160
-   * is the open pill; the rest is the record above it and breathing space.
+   * The window, cut to the widget.
+   *
+   * # Why it is this exact size
+   *
+   * `WidgetPlayer` is `w-72` — 288 — and at its tallest 196: 36 of padding for
+   * the half of the record that hangs above the layout, then the pill at 168
+   * with the record's box collapsed behind it. The rest is room for the
+   * pill's shadow, which would otherwise be clipped at the window edge.
+   *
+   * Fitting it matters more here than on an ordinary window, because this one
+   * is transparent and floats. Tauri has no per-region hit testing: a window
+   * captures the pointer over its *whole* rectangle whether or not anything is
+   * painted there, and `setIgnoreCursorEvents` is all-or-nothing — it would
+   * make the widget itself unclickable too. So every pixel of window that is
+   * not widget is a pixel the user cannot click the application underneath
+   * through. The only real fix available is to not have those pixels.
+   *
+   * # Why logical rather than physical
+   *
+   * `LogicalSize` is in device-independent pixels: the OS scale factor is
+   * applied on top, so this is the same apparent size on a 4K display at 200%
+   * as on a 1080p one at 100%. Sizing in physical pixels is what produces a
+   * widget the size of a postage stamp on a dense screen.
    */
-  const SIZE = { width: 320, height: 248 };
+  const SIZE = { width: 304, height: 212 };
 
   /**
    * The main window's floor, mirrored from `tauri.conf.json`.
@@ -221,18 +241,25 @@ export function MiniPlayer({
       // opt back out, or every button press would start a drag.
       data-tauri-drag-region={isNative() ? '' : undefined}
     >
-      {/* `relative`, so the chrome below anchors to the player rather than to
-          the window. With a transparent window those are very different
-          places: the window is mostly empty space, and buttons floating in the
-          top corner of nothing looked detached from the thing they act on. */}
-      <div className="relative" data-tauri-drag-region={undefined}>
+      {/* `group/card` is the hover target, not the window.
+          
+          It used to be `group/window`, which is the full-bleed layer — so the
+          chrome lit up when the pointer entered anywhere in the window,
+          including the transparent space several centimetres from the widget.
+          The buttons appeared to react to nothing. */}
+      <div className="group/card relative" data-tauri-drag-region={undefined}>
         <WidgetPlayer />
 
-        {/* Chrome, on the player itself and only while pointed at. A widget
-            covered in buttons is a toolbar; a widget with none cannot be
-            closed. Hover is the compromise, and it matches the pill below,
-            which also only opens when you point at it. */}
-        <div className="absolute -top-1 right-0 z-40 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast focus-within:opacity-100 group-hover/window:opacity-100">
+        {/* Chrome, on the player itself and only once it has finished
+            opening. A widget covered in buttons is a toolbar; a widget with
+            none cannot be closed.
+
+            The delay matters: the pill takes 300ms to expand, and buttons
+            fading in over a card that is still moving read as arriving in the
+            wrong place. They wait for it, then appear. Leaving is immediate —
+            a control that lingers after the pointer has gone is a control
+            that looks stuck. */}
+        <div className="absolute top-1 right-1 z-40 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover/card:opacity-100 group-hover/card:delay-300 focus-within:opacity-100 focus-within:delay-0">
           {/* Desktop only: there is no window to pin in a browser tab, and no
               desktop to pin it to. */}
           {isNative() && (
