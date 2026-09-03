@@ -135,41 +135,6 @@ export function describeKey(accel: string): string {
     .join(' + ');
 }
 
-/**
- * Whether a key event should be ignored because the user is typing.
- *
- * The single most important function in this file. Without it, typing "space"
- * into a playlist name pauses the music, and typing "l" into a search box likes
- * whatever is playing — the classic bug in every app that adds single-key
- * shortcuts and forgets it also has text fields.
- */
-export function isTyping(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-
-  const tag = target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if (target.isContentEditable) return true;
-  // A dialog's own controls, and anything that has opted out explicitly.
-  return target.closest('[data-no-shortcuts]') !== null;
-}
-
-/**
- * Finds the action a key event means.
- *
- * Returns null when the user is typing, when nothing is bound, or when a
- * modifier the binding does not ask for is held — so `Ctrl+L` does not trigger
- * the `l` binding.
- */
-export function actionFor(event: KeyboardEvent, map: KeyMap): Action | null {
-  if (isTyping(event.target)) return null;
-
-  const pressed = accelerator(event);
-  for (const [action, binding] of Object.entries(map)) {
-    if (binding === pressed) return action as Action;
-  }
-  return null;
-}
-
 /** Reads the user's bindings, falling back to the defaults per action. */
 export async function loadKeyMap(): Promise<KeyMap> {
   const stored = await store.kvGet(keys.SHORTCUTS).catch(() => null);
@@ -234,15 +199,6 @@ export async function applyGlobalKeys(
 
 export async function clearGlobalKeys(): Promise<void> {
   await tryInvoke('hotkeys_clear', undefined, null);
-}
-
-export async function currentGlobalKeys(): Promise<GlobalBinding[]> {
-  return tryInvoke<GlobalBinding[]>('hotkeys_current', undefined, []);
-}
-
-/** Which actions a *global* shortcut may be bound to. Fewer than the in-app set. */
-export async function globalActions(): Promise<string[]> {
-  return tryInvoke<string[]>('hotkeys_actions', undefined, []);
 }
 
 /** The stored global bindings, which are separate from the in-app map. */

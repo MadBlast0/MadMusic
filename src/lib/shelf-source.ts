@@ -90,7 +90,7 @@ export type ShelfPage = {
  * window's width. Five hundred covers is more than anyone scrolls and cheap
  * enough to lay out.
  */
-export const PAGE_LIMIT = 500;
+const PAGE_LIMIT = 500;
 
 /** The keys Home's buttons use, so a typo is a type error rather than a blank page. */
 export const SHELF_KEYS = {

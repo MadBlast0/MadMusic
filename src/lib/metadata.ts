@@ -58,7 +58,7 @@ export type ArtistFacts = {
 };
 
 /** One outbound link from an artist page. */
-export type ArtistLink = {
+type ArtistLink = {
   label: string;
   url: string;
   /** `shop` for somewhere to buy, `official` for the artist's own pages. */

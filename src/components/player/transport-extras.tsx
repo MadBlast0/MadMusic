@@ -148,24 +148,6 @@ export function ShuffleModeControl() {
   );
 }
 
-/**
- * Takes back the last skip.
- *
- * Shown only while there is something to undo, which is why it does not need a
- * disabled state — and why it disappears once the next track has been playing
- * long enough to be a choice rather than a slip.
- */
-export function UndoSkipControl() {
-  const { canUndoSkip, undoSkip } = usePlayer();
-  if (!canUndoSkip) return null;
-
-  return (
-    <Button variant="ghost" size="sm" onClick={undoSkip}>
-      Undo skip
-    </Button>
-  );
-}
-
 /** The sleep timer. */
 export function SleepControl() {
   const { sleep, setSleepMode, cancelSleep } = usePlayer();

@@ -34,7 +34,7 @@ export type StoredEqualiser = {
   enabled: boolean;
 };
 
-export const FLAT_EQUALISER: StoredEqualiser = {
+const FLAT_EQUALISER: StoredEqualiser = {
   preset: 'flat',
   bands: [...FLAT.bands],
   preamp: 0,

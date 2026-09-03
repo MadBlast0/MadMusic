@@ -28,7 +28,3 @@ import { webStore } from '@/lib/store/web';
 export const store: Store = isNative() ? nativeStore : webStore;
 
 export * from '@/lib/store/types';
-export {
-  evaluate as evaluateRules,
-  matches as ruleMatches,
-} from '@/lib/store/rules';

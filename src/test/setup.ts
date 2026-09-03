@@ -69,9 +69,9 @@ if (typeof g.ResizeObserver !== 'function') {
   };
 }
 
-// jsdom implements no scrolling at all, so these are missing entirely. cmdk
-// calls scrollIntoView on the active item as soon as a Command list mounts,
-// which throws and takes the whole render down.
+// jsdom implements no scrolling at all, so these are missing entirely. The
+// lyrics and transcript panels call scrollIntoView on the active line as soon
+// as they mount, which throws and takes the whole render down.
 if (typeof Element.prototype.scrollIntoView !== 'function') {
   Element.prototype.scrollIntoView = vi.fn();
 }

@@ -31,7 +31,7 @@ import { keys } from '@/lib/store/keys';
 import type { Profile } from '@/lib/store/types';
 
 /** The profile everybody starts in. */
-export const DEFAULT_PROFILE: Profile = {
+const DEFAULT_PROFILE: Profile = {
   id: 'default',
   name: 'You',
   avatar: '',
@@ -139,41 +139,11 @@ export function setPrivate(on: boolean): void {
   for (const listener of listeners) listener();
 }
 
-/**
- * Whether a play should be recorded at all.
- *
- * Two switches, and they mean different things. `keepHistory` off means the
- * user never wants a history; a private session means not this one. Both have
- * to be respected, so a play is recorded only when neither says no.
- */
-export function shouldRecordPlay(keepHistory: boolean): boolean {
-  return keepHistory && !privateSession;
-}
-
 /* ── the explicit filter ─────────────────────────────────────────────────── */
 
 /** What the filter can and cannot do, in words the settings screen shows. */
 export const EXPLICIT_FILTER_NOTE =
   'This hides tracks marked explicit in your own files, in fetched metadata and in uploads. The streaming catalogue does not report the flag, so it cannot be filtered.';
-
-/** Whether a track should be hidden from this profile. */
-export function isBlockedFor(
-  track: { explicit: boolean; kind: string },
-  profile: Profile,
-): boolean {
-  return profile.noExplicit && track.explicit;
-}
-
-/**
- * The filter, as a fragment to spread into a store query.
- *
- * A fragment rather than a wrapper function, so it composes with whatever else
- * a screen is filtering on and cannot be forgotten in a way that silently
- * widens a query.
- */
-export function explicitFilter(profile: Profile): { noExplicit: boolean } {
-  return { noExplicit: profile.noExplicit };
-}
 
 /* ── first run ───────────────────────────────────────────────────────────── */
 
@@ -190,7 +160,7 @@ export type Onboarding = {
   skipped: boolean;
 };
 
-export const NOT_ONBOARDED: Onboarding = {
+const NOT_ONBOARDED: Onboarding = {
   genres: [],
   artists: [],
   addedFolder: false,
@@ -220,7 +190,7 @@ export const STARTER_GENRES = [
   'Soundtrack',
 ] as const;
 
-export async function loadOnboarding(): Promise<Onboarding> {
+async function loadOnboarding(): Promise<Onboarding> {
   const stored = await store.kvGet(keys.ONBOARDING).catch(() => null);
   if (!stored) return { ...NOT_ONBOARDED };
 

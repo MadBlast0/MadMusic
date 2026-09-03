@@ -87,12 +87,6 @@ export function deviceName(): string {
   return isNative() ? 'This computer' : 'Browser';
 }
 
-/** Renames this device. Takes effect on the next heartbeat. */
-export function setDeviceName(name: string): void {
-  const trimmed = name.trim().slice(0, 60);
-  if (trimmed) write(NAME_KEY, trimmed);
-}
-
 export type DeviceKind = 'desktop' | 'web' | 'mobile';
 
 /**
@@ -115,17 +109,10 @@ export function deviceKind(): DeviceKind {
 /**
  * Whether this device can be handed playback.
  *
- * The native shell always can. A browser tab cannot start audio until the user
- * has interacted with it — autoplay policy — so offering an untouched tab as a
- * transfer target would be offering something that fails silently. The flag
- * flips once anything is played here.
+ * Only the native shell can. A browser tab cannot start audio until the user
+ * has interacted with it — autoplay policy — so offering a tab as a transfer
+ * target would be offering something that fails silently.
  */
-let played = false;
-
-export function markPlayable(): void {
-  played = true;
-}
-
 export function canPlay(): boolean {
-  return isNative() || played;
+  return isNative();
 }

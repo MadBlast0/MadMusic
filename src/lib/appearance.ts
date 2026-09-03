@@ -35,7 +35,7 @@ export type Scheme = {
 };
 
 /** What ships. Two, because a list of twenty is a decision nobody wants. */
-export const BUILT_IN_SCHEMES: Scheme[] = [
+const BUILT_IN_SCHEMES: Scheme[] = [
   {
     id: 'midnight',
     name: 'Midnight',
@@ -59,7 +59,7 @@ export const BUILT_IN_SCHEMES: Scheme[] = [
 ];
 
 /** The contrast a scheme's body text must reach. WCAG AA for normal text. */
-export const MIN_CONTRAST = 4.5;
+const MIN_CONTRAST = 4.5;
 
 /** Why a scheme was rejected, or an empty string. */
 export function schemeProblem(scheme: Scheme): string {

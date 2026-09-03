@@ -44,7 +44,7 @@ export const backendAvailable = url.length > 0;
  * dashboard URL instead of the deployment URL, which produces a client that
  * connects to something that is not Convex and fails in a way nobody can read.
  */
-export const backendUrlLooksWrong =
+const backendUrlLooksWrong =
   backendAvailable && !/^https:\/\/[a-z0-9-]+\.convex\.(cloud|site)$/.test(url);
 
 let client: ConvexReactClient | null = null;

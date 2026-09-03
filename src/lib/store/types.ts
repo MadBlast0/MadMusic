@@ -105,7 +105,7 @@ export const EMPTY_TRACK: TrackRow = {
 };
 
 /** The sorts a list may ask for. Mirrors `sort_sql` in `db::tracks`. */
-export type TrackSort =
+type TrackSort =
   | 'added'
   | 'title'
   | 'artist'
@@ -438,7 +438,7 @@ export type Podcast = {
   unplayedCount: number;
 };
 
-export type Chapter = { start: number; title: string };
+type Chapter = { start: number; title: string };
 
 export type Episode = {
   id: string;
@@ -479,7 +479,7 @@ export type Station = {
   at: number;
 };
 
-export type DownloadState = 'queued' | 'running' | 'done' | 'failed';
+type DownloadState = 'queued' | 'running' | 'done' | 'failed';
 
 export type Download = {
   trackId: string;

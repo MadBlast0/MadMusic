@@ -62,11 +62,6 @@ export async function clearNowPlaying(): Promise<void> {
   await tryInvoke('now_playing_clear', undefined, null);
 }
 
-/** Whether this machine has OS media controls at all. */
-export async function hasOsControls(): Promise<boolean> {
-  return tryInvoke<boolean>('now_playing_available', undefined, false);
-}
-
 /* ── notifications ───────────────────────────────────────────────────────── */
 
 /**
@@ -76,7 +71,7 @@ export async function hasOsControls(): Promise<boolean> {
  * launch, before the user has done anything, is the fastest way to have it
  * refused permanently.
  */
-export async function notificationsAllowed(): Promise<boolean> {
+async function notificationsAllowed(): Promise<boolean> {
   if (!isNative()) return false;
 
   try {
@@ -209,11 +204,4 @@ export async function castTo(
   artist: string,
 ): Promise<void> {
   await invoke('cast_play', { receiver, url, title, artist });
-}
-
-export async function castTransport(
-  receiver: Receiver,
-  action: 'play' | 'pause' | 'stop',
-) {
-  await invoke('cast_transport', { receiver, action });
 }

@@ -64,7 +64,7 @@ export type Route =
   /** What the app does with your data, and what it is built from. */
   | { name: 'legal' };
 
-export const TABS: Tab[] = ['home', 'search', 'library', 'settings'];
+const TABS: Tab[] = ['home', 'search', 'library', 'settings'];
 
 /** A route as one string — history comparison and the animation key. */
 export function routeKey(route: Route): string {
@@ -172,11 +172,6 @@ export function sidebarKeyFor(route: Route): string | null {
 
 export function isTab(name: string): name is Tab {
   return (TABS as string[]).includes(name);
-}
-
-/** The route for a tab, for the nav. */
-export function tabRoute(tab: Tab): Route {
-  return { name: tab } as Route;
 }
 
 /**

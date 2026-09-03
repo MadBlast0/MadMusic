@@ -59,11 +59,6 @@ export async function saveTelemetry(
   await store.kvSet(keys.TELEMETRY, JSON.stringify(settings));
 }
 
-/** Unset counts as off. Silence is not consent. */
-export async function telemetryEnabled(): Promise<boolean> {
-  return (await loadTelemetry()).choice === 'on';
-}
-
 /** One thing that went wrong. */
 export type CrashReport = {
   /** The error's own message, with anything path-shaped removed. */
@@ -84,7 +79,7 @@ export type CrashReport = {
  * Aggressive on purpose: a stack trace with `/Users/joanna/Music/...` in it has
  * named somebody, and the file name alone is what makes the trace useful.
  */
-export function scrub(text: string): string {
+function scrub(text: string): string {
   return (
     text
       // Windows paths, including UNC.

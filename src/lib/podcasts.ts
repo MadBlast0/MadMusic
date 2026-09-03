@@ -17,7 +17,6 @@
 import { store } from '@/lib/store';
 import type { Episode, Podcast } from '@/lib/store/types';
 import { invoke, isNative, tryInvoke } from '@/lib/native';
-import { hasFinished } from '@/lib/podcast-track';
 import { markersFrom } from '@/lib/tracklist';
 
 /** A show found by searching. */
@@ -77,7 +76,7 @@ export async function searchShows(
  * Derived from the URL rather than generated, so subscribing to the same show
  * twice — by search once and by pasting the feed URL once — is one subscription.
  */
-export function feedId(feedUrl: string): string {
+function feedId(feedUrl: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < feedUrl.length; i += 1) {
     hash ^= feedUrl.charCodeAt(i);
@@ -162,7 +161,7 @@ function toEpisode(episode: FeedEpisode, podcastId: string): Episode {
  * and losing somebody's place in a nine-hour audiobook over a typo fix would be
  * unforgivable.
  */
-export async function refresh(podcast: Podcast): Promise<number> {
+async function refresh(podcast: Podcast): Promise<number> {
   const feed = await tryInvoke<Feed>(
     'podcast_feed',
     { url: podcast.feedUrl },
@@ -205,22 +204,6 @@ export async function refreshAll(): Promise<number> {
   return total;
 }
 
-/** How often a feed is worth re-fetching. */
-const REFRESH_INTERVAL = 60 * 60 * 1000;
-
-/** Refreshes only what has not been checked in the last hour. */
-export async function refreshStale(): Promise<number> {
-  const shows = await store.podcasts();
-  const due = shows.filter(
-    (show) =>
-      show.subscribed && Date.now() - show.refreshedAt > REFRESH_INTERVAL,
-  );
-
-  let total = 0;
-  for (const show of due) total += await refresh(show);
-  return total;
-}
-
 /**
  * What to play next: the oldest unfinished episode across every subscription.
  *
@@ -241,44 +224,6 @@ export async function inProgress(): Promise<Episode[]> {
   return episodes
     .filter((episode) => !episode.finished && episode.position > 30)
     .sort((a, b) => b.publishedAt - a.publishedAt);
-}
-
-/**
- * How close to the end counts as finished.
- *
- * Thirty seconds, not zero. Podcast episodes end with credits, sponsor reads
- * and a trailer for the next one, and requiring somebody to sit through those
- * to have an episode marked done is how a "played" list stops matching reality.
- *
- * The rule itself moved to `podcast-track.ts` when the player started writing
- * progress on its own timer: two copies of "how close to the end counts as
- * finished" is two answers, and the one the list shows would eventually differ
- * from the one the player applies.
- */
-/** Records where the listener got to. */
-export async function saveProgress(
-  episode: Episode,
-  position: number,
-): Promise<void> {
-  await store.episodeProgress(
-    episode.id,
-    position,
-    hasFinished(position, episode.duration),
-  );
-}
-
-/** Marks an episode played or unplayed by hand. */
-export async function setFinished(
-  episode: Episode,
-  finished: boolean,
-): Promise<void> {
-  // Finishing resets the position: an episode marked played and then replayed
-  // should start at the beginning, not at the credits.
-  await store.episodeProgress(
-    episode.id,
-    finished ? 0 : episode.position,
-    finished,
-  );
 }
 
 /**
@@ -322,9 +267,6 @@ export function remainingLabel(episode: Episode): string {
 export async function unsubscribe(id: string): Promise<void> {
   await store.podcastDelete(id);
 }
-
-/** The speeds a podcast player offers. Wider than music, and used far more. */
-export const PODCAST_SPEEDS = [0.8, 1, 1.2, 1.5, 1.75, 2, 2.5, 3] as const;
 
 /** How far the skip buttons jump. The two numbers every podcast app uses. */
 export const SKIP_BACK = 15;

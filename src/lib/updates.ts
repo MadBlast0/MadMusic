@@ -37,7 +37,7 @@ export type UpdateInfo = {
   error: string;
 };
 
-export const NO_UPDATE: UpdateInfo = {
+const NO_UPDATE: UpdateInfo = {
   available: false,
   version: '',
   notes: '',
@@ -143,48 +143,4 @@ export async function restartApp(): Promise<void> {
   if (!isNative()) return;
   const { relaunch } = await import('@tauri-apps/plugin-process');
   await relaunch();
-}
-
-/**
- * How often to check, unprompted.
- *
- * Once a day. Often enough that a security fix reaches people within a day,
- * rare enough that it is not a request every time somebody opens the app to
- * play one song.
- */
-export const CHECK_INTERVAL = 24 * 60 * 60 * 1000;
-
-/** When the last check happened, so the interval survives a restart. */
-export async function lastCheckedAt(): Promise<number> {
-  const stored = await store.kvGet('update_checked_at').catch(() => null);
-  const parsed = Number(stored);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-export async function markChecked(): Promise<void> {
-  await store.kvSet('update_checked_at', String(Date.now())).catch(() => {});
-}
-
-/** Whether a background check is due. */
-export async function checkIsDue(): Promise<boolean> {
-  if (!isNative()) return false;
-  return Date.now() - (await lastCheckedAt()) > CHECK_INTERVAL;
-}
-
-/**
- * The app's own version.
- *
- * From the running binary rather than from `package.json`, because those two
- * genuinely diverge — the bundle carries the version `tauri.conf.json` declared
- * at build time, and that is the one a bug report needs.
- */
-export async function appVersion(): Promise<string> {
-  if (!isNative()) return import.meta.env.DEV ? 'dev' : '';
-
-  try {
-    const { getVersion } = await import('@tauri-apps/api/app');
-    return await getVersion();
-  } catch {
-    return '';
-  }
 }

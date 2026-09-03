@@ -51,12 +51,6 @@ export const spring = {
   glide: { type: 'spring', stiffness: 420, damping: 34 } as const,
 };
 
-/** Enter/exit for a whole view. */
-export const viewTransition = {
-  duration: duration.base,
-  ease: ease.enter,
-} as const;
-
 /** Enter/exit for a card inside a staggered grid. */
 export const cardTransition = {
   duration: duration.slow,
@@ -71,7 +65,7 @@ export const cardTransition = {
  * `staggerFor` divides a fixed budget across however many children there are,
  * so a large library animates *faster* per item rather than for longer.
  */
-export const STAGGER_BUDGET = 0.35;
+const STAGGER_BUDGET = 0.35;
 
 export function staggerFor(count: number): number {
   if (count <= 1) return 0;

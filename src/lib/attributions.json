@@ -4811,13 +4811,6 @@
       "from": "npm"
     },
     {
-      "name": "@tauri-apps/plugin-fs",
-      "version": "2.5.1",
-      "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
-      "from": "npm"
-    },
-    {
       "name": "@tauri-apps/plugin-notification",
       "version": "2.3.3",
       "licence": "MIT OR Apache-2.0",
@@ -4899,13 +4892,6 @@
       "version": "2.1.1",
       "licence": "MIT",
       "url": "https://github.com/lukeed/clsx#readme",
-      "from": "npm"
-    },
-    {
-      "name": "cmdk",
-      "version": "1.1.1",
-      "licence": "MIT",
-      "url": "https://github.com/pacocoursey/cmdk#readme",
       "from": "npm"
     },
     {

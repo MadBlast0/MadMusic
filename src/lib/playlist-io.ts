@@ -20,7 +20,6 @@
  *   included.
  */
 
-import { store } from '@/lib/store';
 import type { PlaylistRow, TrackRow } from '@/lib/store/types';
 
 export type ExportFormat = 'm3u' | 'csv' | 'json';
@@ -152,7 +151,7 @@ function toCsv(playlist: PlaylistRow, tracks: TrackRow[]): ExportFile {
 }
 
 /** The JSON shape, versioned so a future reader knows what it has. */
-export type PlaylistDocument = {
+type PlaylistDocument = {
   format: 'madmusic-playlist';
   version: 1;
   exportedAt: number;
@@ -213,144 +212,6 @@ function toJson(playlist: PlaylistRow, tracks: TrackRow[]): ExportFile {
   };
 }
 
-/* ── importing ───────────────────────────────────────────────────────────── */
-
-/** What an import produced, before anything is written. */
-export type ImportPreview = {
-  name: string;
-  tracks: {
-    title: string;
-    artist: string;
-    duration: number;
-    path: string;
-    handle: string;
-    /** True when nothing in the library matches. */
-    unmatched: boolean;
-    /** The library track this resolved to, if any. */
-    matchId: string;
-  }[];
-  /** How many entries found nothing. */
-  unmatched: number;
-};
-
-/**
- * Reads a playlist file that was pasted or dropped in.
- *
- * A preview rather than a write, always. Importing a hundred-track playlist of
- * which sixty tracks are missing is something the user needs to see *before* it
- * lands in their sidebar.
- */
-export async function previewImport(
-  contents: string,
-  fallbackName: string,
-): Promise<ImportPreview> {
-  const trimmed = contents.trimStart();
-
-  const entries = trimmed.startsWith('{')
-    ? fromJson(trimmed)
-    : trimmed.startsWith('#EXTM3U') || trimmed.includes('#EXTINF')
-      ? fromM3u(trimmed)
-      : fromCsv(trimmed);
-
-  const resolved = await Promise.all(
-    entries.tracks.map(async (entry) => {
-      const match = await matchTrack(entry);
-      return {
-        ...entry,
-        matchId: match?.id ?? '',
-        unmatched: !match,
-      };
-    }),
-  );
-
-  return {
-    name: entries.name || fallbackName,
-    tracks: resolved,
-    unmatched: resolved.filter((track) => track.unmatched).length,
-  };
-}
-
-type RawEntry = {
-  title: string;
-  artist: string;
-  duration: number;
-  path: string;
-  handle: string;
-};
-
-function fromM3u(text: string): { name: string; tracks: RawEntry[] } {
-  const tracks: RawEntry[] = [];
-  let name = '';
-  let pending: { title: string; artist: string; duration: number } | null =
-    null;
-
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    if (line.startsWith('#PLAYLIST:')) {
-      name = line.slice('#PLAYLIST:'.length).trim();
-      continue;
-    }
-    if (line.startsWith('#EXTINF:')) {
-      const rest = line.slice('#EXTINF:'.length);
-      const comma = rest.indexOf(',');
-      const seconds = Number(rest.slice(0, comma < 0 ? rest.length : comma));
-      const label = comma < 0 ? '' : rest.slice(comma + 1);
-      // Only the first " - ", so a title containing a dash survives.
-      const split = label.indexOf(' - ');
-      pending = {
-        duration: Number.isFinite(seconds) ? seconds : 0,
-        artist: split < 0 ? '' : label.slice(0, split).trim(),
-        title: split < 0 ? label.trim() : label.slice(split + 3).trim(),
-      };
-      continue;
-    }
-    if (line.startsWith('#')) continue;
-
-    const meta = pending ?? { title: '', artist: '', duration: 0 };
-    pending = null;
-    tracks.push({ ...meta, path: line, handle: '' });
-  }
-
-  return { name, tracks };
-}
-
-function fromCsv(text: string): { name: string; tracks: RawEntry[] } {
-  const rows = parseCsv(text);
-  if (rows.length === 0) return { name: '', tracks: [] };
-
-  const header = rows[0].map((cellText) => cellText.trim().toLowerCase());
-  const column = (...names: string[]) => {
-    for (const wanted of names) {
-      const at = header.indexOf(wanted);
-      if (at >= 0) return at;
-    }
-    return -1;
-  };
-
-  const title = column('title', 'name', 'track name');
-  const artist = column('artist', 'artist name');
-  const duration = column('duration (s)', 'duration', 'time');
-  const path = column('path or handle', 'path', 'location');
-
-  // No recognisable header means the first row is data, not a header. Common in
-  // files exported by hand.
-  const start = title >= 0 || artist >= 0 ? 1 : 0;
-
-  return {
-    name: '',
-    tracks: rows.slice(start).map((row) => ({
-      title: title >= 0 ? (row[title] ?? '') : (row[0] ?? ''),
-      artist: artist >= 0 ? (row[artist] ?? '') : (row[1] ?? ''),
-      duration: duration >= 0 ? Number(row[duration]) || 0 : 0,
-      path: path >= 0 && row[path]?.includes('/') ? row[path] : '',
-      handle:
-        path >= 0 && row[path] && !row[path].includes('/') ? row[path] : '',
-    })),
-  };
-}
-
 /**
  * A CSV reader that handles quotes.
  *
@@ -408,71 +269,6 @@ export function parseCsv(text: string): string[][] {
   }
 
   return rows.filter((entry) => entry.some((cellText) => cellText.trim()));
-}
-
-function fromJson(text: string): { name: string; tracks: RawEntry[] } {
-  try {
-    const parsed = JSON.parse(text) as Partial<PlaylistDocument>;
-    if (
-      parsed.format !== 'madmusic-playlist' ||
-      !Array.isArray(parsed.tracks)
-    ) {
-      return { name: '', tracks: [] };
-    }
-
-    return {
-      name: parsed.playlist?.name ?? '',
-      tracks: parsed.tracks.map((track) => ({
-        title: track.title ?? '',
-        artist: track.artist ?? '',
-        duration: track.duration ?? 0,
-        path: track.path ?? '',
-        handle: track.handle ?? '',
-      })),
-    };
-  } catch {
-    return { name: '', tracks: [] };
-  }
-}
-
-/**
- * Finds the library track an imported entry refers to.
- *
- * Three attempts, narrowing: the exact path, the exact catalogue handle, then
- * title and artist. The last is a guess and is treated as one — it only counts
- * when both fields match, because matching on title alone turns every
- * "Intro" in a playlist into whichever "Intro" the database returned first.
- */
-async function matchTrack(entry: RawEntry): Promise<TrackRow | null> {
-  if (entry.path) {
-    const byPath = await store.tracks({ limit: 5000, kinds: ['local'] });
-    const normalised = entry.path.replace(/\\/g, '/').toLowerCase();
-    const found = byPath.find(
-      (track) => track.path.replace(/\\/g, '/').toLowerCase() === normalised,
-    );
-    if (found) return found;
-  }
-
-  if (entry.handle) {
-    const byHandle = await store.tracks({ limit: 200, text: entry.title });
-    const found = byHandle.find((track) => track.handle === entry.handle);
-    if (found) return found;
-  }
-
-  if (entry.title && entry.artist) {
-    const candidates = await store.tracks({
-      text: `${entry.artist} ${entry.title}`,
-      limit: 20,
-    });
-    const found = candidates.find(
-      (track) =>
-        track.title.toLowerCase() === entry.title.toLowerCase() &&
-        track.artist.toLowerCase() === entry.artist.toLowerCase(),
-    );
-    if (found) return found;
-  }
-
-  return null;
 }
 
 /**

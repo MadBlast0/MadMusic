@@ -40,7 +40,7 @@ export type Taste = {
   tracks: BlendTrack[];
 };
 
-export type BlendTrack = {
+type BlendTrack = {
   id: string;
   title: string;
   artist: string;

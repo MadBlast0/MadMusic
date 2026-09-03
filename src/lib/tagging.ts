@@ -16,7 +16,7 @@
 
 import { store } from '@/lib/store';
 import type { TrackRow } from '@/lib/store/types';
-import { invoke, isNative, tryInvoke } from '@/lib/native';
+import { invoke, tryInvoke } from '@/lib/native';
 
 /**
  * What a bulk edit may change.
@@ -103,27 +103,6 @@ export async function applyEdit(
 
   if (changed.length > 0) await store.tracksUpsert(changed);
   return { results, updated: changed.length };
-}
-
-/**
- * Copies artwork from one file to the rest of an album.
- *
- * The single most common bulk operation there is: one track in a rip has the
- * cover and eleven do not.
- */
-export async function spreadArtwork(
-  from: TrackRow,
-  to: TrackRow[],
-): Promise<WriteResult[]> {
-  const paths = to
-    .map((track) => track.path)
-    .filter((path) => path && path !== from.path);
-  if (!from.path || paths.length === 0) return [];
-
-  return invoke<WriteResult[]>('tags_spread_artwork', {
-    from: from.path,
-    to: paths,
-  });
 }
 
 /**
@@ -245,126 +224,4 @@ export async function identify(track: TrackRow): Promise<Identification[]> {
     { path: track.path },
     [],
   );
-}
-
-/**
- * Identifies music playing nearby, from the microphone.
- *
- * The recording is made here rather than in Rust so the browser's own
- * permission prompt is what the user sees — asking for a microphone from
- * outside the webview would bypass the thing they are entitled to be shown.
- *
- * **Unverified against a speaker in a room.** The path compiles and is wired.
- */
-export async function listen(seconds = 12): Promise<Identification[]> {
-  if (!isNative()) throw new Error('Recognition needs the desktop app.');
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-  try {
-    const wav = await recordWav(stream, seconds);
-    return await invoke<Identification[]>('acoustid_listen', {
-      wav: Array.from(wav),
-    });
-  } finally {
-    // Stopped on every path. A microphone left open is an indicator light that
-    // stays on, and nothing erodes trust faster.
-    for (const audioTrack of stream.getTracks()) audioTrack.stop();
-  }
-}
-
-/**
- * Records the microphone to a WAV.
- *
- * WAV rather than the browser's own `MediaRecorder` output, because the
- * fingerprinter takes a file it can decode and `MediaRecorder` produces WebM or
- * MP4 depending on the engine. Writing the header by hand is forty lines and
- * removes the guesswork entirely.
- */
-async function recordWav(
-  stream: MediaStream,
-  seconds: number,
-): Promise<Uint8Array> {
-  const context = new AudioContext();
-  const source = context.createMediaStreamSource(stream);
-
-  // 4096 frames is about 90 ms at 44.1 kHz — long enough that the callback is
-  // not a hot loop, short enough that stopping is responsive.
-  const processor = context.createScriptProcessor(4096, 1, 1);
-  const chunks: Float32Array[] = [];
-
-  source.connect(processor);
-  processor.connect(context.destination);
-
-  await new Promise<void>((resolve) => {
-    processor.onaudioprocess = (event) => {
-      chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-    };
-    setTimeout(resolve, seconds * 1000);
-  });
-
-  processor.disconnect();
-  source.disconnect();
-  const rate = context.sampleRate;
-  await context.close();
-
-  return encodeWav(chunks, rate);
-}
-
-/** A mono 16-bit WAV from float samples. */
-function encodeWav(chunks: Float32Array[], sampleRate: number): Uint8Array {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const buffer = new ArrayBuffer(44 + total * 2);
-  const view = new DataView(buffer);
-
-  const text = (offset: number, value: string) => {
-    for (let i = 0; i < value.length; i += 1)
-      view.setUint8(offset + i, value.charCodeAt(i));
-  };
-
-  text(0, 'RIFF');
-  view.setUint32(4, 36 + total * 2, true);
-  text(8, 'WAVE');
-  text(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  text(36, 'data');
-  view.setUint32(40, total * 2, true);
-
-  let offset = 44;
-  for (const chunk of chunks) {
-    for (const sample of chunk) {
-      // Clamped before scaling: a sample above 1 wraps to a large negative
-      // number otherwise, which is heard as a click.
-      const clamped = Math.max(-1, Math.min(1, sample));
-      view.setInt16(
-        offset,
-        clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff,
-        true,
-      );
-      offset += 2;
-    }
-  }
-
-  return new Uint8Array(buffer);
-}
-
-/**
- * Turns an identification into an edit.
- *
- * Separate from applying it, because the user picks which candidate is right —
- * AcoustID returns several for a recording that appears on many releases, and
- * choosing for them is how a rip ends up filed under a compilation nobody owns.
- */
-export function editFrom(match: Identification): TagEdit {
-  return {
-    title: match.title,
-    artist: match.artist,
-    album: match.album,
-  };
 }

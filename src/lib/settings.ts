@@ -24,9 +24,9 @@ export type Density = 'comfortable' | 'compact';
 export type Quality = 'low' | 'balanced' | 'high';
 export type StartupView = 'home' | 'library' | 'last';
 /** How loud a normalised library should sit. See `audio/replaygain.ts`. */
-export type LoudnessProfile = 'quiet' | 'normal' | 'loud';
+type LoudnessProfile = 'quiet' | 'normal' | 'loud';
 /** How large album artwork is in a grid. */
-export type GridSize = 'small' | 'medium' | 'large';
+type GridSize = 'small' | 'medium' | 'large';
 
 export type Settings = {
   /* ── appearance ─────────────────────────────────────────────── */

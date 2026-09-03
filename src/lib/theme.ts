@@ -13,8 +13,6 @@ export type Mode = 'light' | 'dark' | 'amoled' | 'system';
 export type Essence =
   'monochrome' | 'amber' | 'emerald' | 'cyan' | 'violet' | 'rose' | 'custom';
 
-export const MODES: Exclude<Mode, 'system'>[] = ['light', 'dark', 'amoled'];
-
 export const ESSENCES: { id: Essence; label: string; swatch: string }[] = [
   { id: 'monochrome', label: 'Monochrome', swatch: 'currentColor' },
   { id: 'amber', label: 'Amber', swatch: '#f0a742' },

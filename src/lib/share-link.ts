@@ -20,7 +20,7 @@ export type ShareTarget =
   | { kind: 'playlist'; id: string; title?: string }
   | { kind: 'profile'; id: string; title?: string };
 
-export const SCHEME = 'madmusic://';
+const SCHEME = 'madmusic://';
 
 /**
  * Builds a link for something.

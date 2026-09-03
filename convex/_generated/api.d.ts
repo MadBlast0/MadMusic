@@ -9,10 +9,7 @@ import type {
 import type * as desktopAuth from '../desktopAuth.js';
 import type * as devices from '../devices.js';
 import type * as lib from '../lib.js';
-import type * as playlists from '../playlists.js';
-import type * as profiles from '../profiles.js';
 import type * as sessions from '../sessions.js';
-import type * as social from '../social.js';
 import type * as sync from '../sync.js';
 import type * as uploads from '../uploads.js';
 
@@ -20,10 +17,7 @@ declare const fullApi: ApiFromModules<{
   desktopAuth: typeof desktopAuth;
   devices: typeof devices;
   lib: typeof lib;
-  playlists: typeof playlists;
-  profiles: typeof profiles;
   sessions: typeof sessions;
-  social: typeof social;
   sync: typeof sync;
   uploads: typeof uploads;
 }>;

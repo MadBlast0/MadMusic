@@ -25,7 +25,7 @@ import { store } from '@/lib/store';
 import { EMPTY_TRACK, type Migrated } from '@/lib/store/types';
 
 /** Where the "already done" flag lives, inside the store. */
-export const MIGRATED_KEY = 'migrated_localstorage';
+const MIGRATED_KEY = 'migrated_localstorage';
 
 const NOTHING: Migrated = {
   tracks: 0,

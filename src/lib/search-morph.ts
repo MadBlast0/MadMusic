@@ -37,7 +37,7 @@
  * the curve reads as one continuous edge; much further and the shape starts to
  * look pinched, like a waist rather than a shoulder.
  */
-export const SHOULDER_ANGLE = (40 * Math.PI) / 180;
+const SHOULDER_ANGLE = (40 * Math.PI) / 180;
 
 /**
  * How much narrower the panel is than the field, and how far the shoulder
@@ -47,8 +47,8 @@ export const SHOULDER_ANGLE = (40 * Math.PI) / 180;
  * numbers are the proportions of a 58px field with a 16px inset and a 34px
  * drop, which is where they were drawn.
  */
-export const INSET_RATIO = 16 / 58;
-export const DROP_RATIO = 34 / 58;
+const INSET_RATIO = 16 / 58;
+const DROP_RATIO = 34 / 58;
 
 export type Silhouette = {
   /** The full width of the shape. */

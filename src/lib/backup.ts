@@ -27,7 +27,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
  */
 export const BACKUP_VERSION = 1;
 
-export type Backup = {
+type Backup = {
   app: 'madmusic';
   version: number;
   /** ISO 8601, for the human reading the file rather than for the parser. */

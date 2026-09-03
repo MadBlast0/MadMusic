@@ -26,7 +26,7 @@
 
 import { audioGraph } from '@/lib/audio/graph';
 
-export { isOwnStream, prepare } from '@/lib/audio/cors';
+export { isOwnStream } from '@/lib/audio/cors';
 
 /**
  * Bar heights for whatever is playing.

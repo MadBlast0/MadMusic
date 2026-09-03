@@ -389,22 +389,6 @@ export function ArrowRight({ className, ...props }: IconProps) {
   );
 }
 
-export function ChevronRight({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="m9 18 6-6-6-6" />
-    </Frame>
-  );
-}
-
-export function ChevronDown({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="m6 9 6 6 6-6" />
-    </Frame>
-  );
-}
-
 /**
  * A single continuous outline rather than a roof drawn over a box.
  *
@@ -617,27 +601,6 @@ export function Download({ className, ...props }: IconProps) {
   );
 }
 
-/** The same shape, without a Motion instance. For list rows. */
-export function StaticDownload({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M12 15V3" />
-    </Frame>
-  );
-}
-
-/** A finished download: the same tray, with a tick where the arrow was. */
-export function StaticDownloaded({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="M8 11l3 3 5-6" />
-    </Frame>
-  );
-}
-
 export function Folder({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
@@ -681,14 +644,6 @@ export function Check({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>
       <path d="M20 6 9 17l-5-5" />
-    </Frame>
-  );
-}
-
-export function Command({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="M15 6a3 3 0 1 1 3 3h-3zM9 6a3 3 0 1 0-3 3h3zM9 18a3 3 0 1 1-3-3h3zM15 18a3 3 0 1 0 3-3h-3zM9 9h6v6H9z" />
     </Frame>
   );
 }
@@ -885,15 +840,6 @@ export function Fullscreen({ className, ...props }: IconProps) {
       <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9" />
       <path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15" />
       <path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
-    </Frame>
-  );
-}
-
-/** The visualiser toggle: three bars of different heights. */
-export function Waves({ className, ...props }: IconProps) {
-  return (
-    <Frame className={className} {...props}>
-      <path d="M2 12c2-4 3.5-4 5.5 0s3.5 4 5.5 0 3.5-4 5.5 0 2 4 3.5 0" />
     </Frame>
   );
 }

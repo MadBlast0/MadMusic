@@ -146,7 +146,7 @@ export function setLocale(tag: string): Locale {
  * Matches on the language subtag rather than the full tag, so `pt-BR` finds
  * `pt` rather than falling all the way back to English.
  */
-export function systemLocale(): Locale {
+function systemLocale(): Locale {
   const preferred = typeof navigator !== 'undefined' ? navigator.languages : [];
 
   for (const tag of preferred ?? []) {
@@ -169,7 +169,7 @@ export function systemLocale(): Locale {
  * which is far better than the alternative — and it means a translation can be
  * merged before it is finished.
  */
-export function translate(
+function translate(
   key: StringKey,
   values?: Record<string, string | number>,
 ): string {
@@ -276,17 +276,6 @@ export function formatDuration(seconds: number): string {
 /** A count, in the locale's own digits and grouping. */
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat(active.tag).format(value);
-}
-
-/** A date, at whatever length suits the context. */
-export function formatDate(
-  at: number,
-  length: 'short' | 'long' = 'short',
-): string {
-  if (!at) return '';
-  return new Intl.DateTimeFormat(active.tag, {
-    dateStyle: length === 'long' ? 'long' : 'medium',
-  }).format(at);
 }
 
 /**

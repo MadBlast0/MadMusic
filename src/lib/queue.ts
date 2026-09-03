@@ -26,7 +26,7 @@
  */
 
 /** Where a queued item came from, which is what the sections are drawn from. */
-export type QueueSource =
+type QueueSource =
   /** The user asked for this one specifically. */
   | { kind: 'manual' }
   /** The rest of a context — an album, a playlist, a search, the library. */
@@ -99,7 +99,7 @@ let counter = 0;
  * track and the queue never leaves the machine, so uniqueness within the
  * process is the whole requirement.
  */
-export function queueKey(trackId: string): string {
+function queueKey(trackId: string): string {
   counter += 1;
   return `${trackId}#${counter}`;
 }
@@ -199,26 +199,6 @@ export function enqueue(queue: Queue, trackIds: string[]): Queue {
     key: queueKey(trackId),
     trackId,
     source: { kind: 'manual' },
-  }));
-
-  const items = [...queue.items, ...additions];
-  const order = [
-    ...queue.order,
-    ...additions.map((_, offset) => queue.items.length + offset),
-  ];
-  return { ...queue, items, order };
-}
-
-/** Appends radio-generated tracks, marked so the UI can label them. */
-export function extendWithRadio(
-  queue: Queue,
-  trackIds: string[],
-  label: string,
-): Queue {
-  const additions: QueueItem[] = trackIds.map((trackId) => ({
-    key: queueKey(trackId),
-    trackId,
-    source: { kind: 'radio', label },
   }));
 
   const items = [...queue.items, ...additions];

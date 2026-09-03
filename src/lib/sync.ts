@@ -63,26 +63,17 @@ export type SyncStatus = {
   error: string;
 };
 
-export const NOT_SYNCING: SyncStatus = {
-  pending: 0,
-  parked: 0,
-  cursor: 0,
-  lastSyncedAt: 0,
-  running: false,
-  error: '',
-};
-
 /** The payloads each entity carries. Narrow on purpose: an event is a fact. */
-export type LikePayload = { at: number; liked: boolean };
-export type RatingPayload = { stars: number; at: number };
-export type PlaylistPayload = {
+type LikePayload = { at: number; liked: boolean };
+type RatingPayload = { stars: number; at: number };
+type PlaylistPayload = {
   name: string;
   description: string;
   coverA: string;
   coverB: string;
   updatedAt: number;
 };
-export type PlaylistItemPayload = {
+type PlaylistItemPayload = {
   playlistId: string;
   trackId: string;
   addedAt: number;
@@ -114,27 +105,6 @@ export async function thisDevice(): Promise<string> {
 }
 
 /**
- * Records a change for the other devices.
- *
- * Called by the same code that made the change locally. Failing to enqueue is
- * swallowed: the local change has already happened and is what the user asked
- * for, and an error about sync on top of a successful like would be reporting
- * the wrong thing.
- */
-export async function enqueue(
-  entity: string,
-  entityId: string,
-  op: 'put' | 'delete',
-  payload: unknown,
-): Promise<void> {
-  try {
-    await store.syncEnqueue(entity, entityId, op, payload);
-  } catch (cause) {
-    console.warn('could not queue a change for sync', cause);
-  }
-}
-
-/**
  * Applies one incoming event to the local library.
  *
  * Returns whether anything changed, so a caller can decide whether to tell the
@@ -142,7 +112,7 @@ export async function enqueue(
  * a newer version of the app will write kinds this one has never heard of, and
  * refusing the whole batch over one would stop sync entirely.
  */
-export async function applyEvent(event: SyncEvent): Promise<boolean> {
+async function applyEvent(event: SyncEvent): Promise<boolean> {
   let payload: unknown;
   try {
     payload = JSON.parse(event.payload);

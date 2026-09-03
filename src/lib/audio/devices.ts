@@ -32,7 +32,7 @@ export type OutputDevice = {
 };
 
 /** The entry that is always available, whatever the environment reports. */
-export const SYSTEM_DEFAULT: OutputDevice = {
+const SYSTEM_DEFAULT: OutputDevice = {
   id: 'default',
   label: 'System default',
   isDefault: true,

@@ -54,5 +54,3 @@ export const keys = {
   /** The update channel: stable or beta. */
   UPDATE_CHANNEL: 'update_channel',
 } as const;
-
-export type StoreKey = (typeof keys)[keyof typeof keys];

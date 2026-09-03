@@ -356,7 +356,7 @@ export function familiarity(plays: number | undefined): number {
 }
 
 /** Whether two scores are close enough for play count to decide. */
-export function nearTie(a: number, b: number): boolean {
+function nearTie(a: number, b: number): boolean {
   return Math.abs(a - b) <= TIE;
 }
 
@@ -398,101 +398,4 @@ export function describeQuery(parsed: ParsedQuery): string {
   if (parsed.exclude.length) parts.push(`without ${parsed.exclude.join(', ')}`);
 
   return parts.length ? parts.join(', ') : '';
-}
-
-/** The operators, for the help popover. */
-export const OPERATOR_HELP: { syntax: string; means: string }[] = [
-  { syntax: 'artist:name', means: 'Only that artist' },
-  { syntax: 'album:name', means: 'Only that album' },
-  { syntax: 'genre:name', means: 'Only that genre' },
-  { syntax: 'composer:name', means: 'Only that composer' },
-  { syntax: 'tag:name', means: 'Only tracks you tagged that way' },
-  { syntax: 'year:1997', means: 'Released that year' },
-  { syntax: 'year:1990-1999', means: 'Released in that range' },
-  { syntax: 'year:>2000', means: 'Released after that' },
-  { syntax: 'stars:4-5', means: 'Rated in that range' },
-  { syntax: 'plays:>10', means: 'Played more than that' },
-  { syntax: 'added:30d', means: 'Added in the last thirty days' },
-  { syntax: 'kind:local', means: 'Only your own files' },
-  { syntax: 'is:liked', means: 'Only liked songs' },
-  { syntax: 'is:downloaded', means: 'Only what is available offline' },
-  { syntax: '-word', means: 'Leave out anything containing it' },
-  { syntax: '"two words"', means: 'Keep the phrase together' },
-];
-
-/**
- * Whether a library row satisfies a parsed query's filters.
- *
- * The client-side twin of the `WHERE` clause `db::tracks` builds. Both exist
- * because both are needed: the database answers for the indexed library, and
- * this answers for a folder tree held in memory that has not been indexed yet.
- * They are kept deliberately small and field-for-field identical so the two
- * cannot drift into disagreeing about what `year:>1990` means.
- *
- * Free text is *not* checked here. Text is a matter of ranking rather than of
- * inclusion — `rank` scores it, and excluding a weak match outright would lose
- * the typo tolerance that makes searching a badly tagged library bearable.
- */
-export function matchesParsed(
-  row: {
-    artist: string;
-    albumArtist: string;
-    album: string;
-    genre: string;
-    composer: string;
-    year: number;
-    stars: number;
-    plays: number;
-    liked: boolean;
-    tags: string[];
-    kind: string;
-    addedAt: number;
-  },
-  parsed: ParsedQuery,
-  now = Date.now(),
-): boolean {
-  const { filter } = parsed;
-  const has = (field: string, wanted: string) =>
-    field.toLowerCase().includes(wanted.toLowerCase());
-
-  if (
-    filter.artist &&
-    !has(row.artist, filter.artist) &&
-    !has(row.albumArtist, filter.artist)
-  )
-    return false;
-  // No `album:` operator: the filter has `albumKey` and `albumArtist`, and
-  // inventing a loose album match here would mean the two implementations
-  // disagreed about a query the database cannot express.
-  if (filter.albumArtist && !has(row.albumArtist, filter.albumArtist))
-    return false;
-  if (filter.genre && !has(row.genre, filter.genre)) return false;
-  if (filter.composer && !has(row.composer, filter.composer)) return false;
-
-  if (filter.yearFrom && row.year < filter.yearFrom) return false;
-  if (filter.yearTo && row.year > filter.yearTo) return false;
-
-  if (filter.minStars && row.stars < filter.minStars) return false;
-  if (filter.minPlays && row.plays < filter.minPlays) return false;
-  if (filter.likedOnly && !row.liked) return false;
-
-  if (filter.kinds?.length && !filter.kinds.includes(row.kind as never))
-    return false;
-
-  if (filter.tags?.length) {
-    const held = new Set(row.tags.map((tag) => tag.toLowerCase()));
-    for (const tag of filter.tags) {
-      if (!held.has(tag.toLowerCase())) return false;
-    }
-  }
-
-  if (filter.withinDays) {
-    // Zero means the library never recorded when this arrived, which is not
-    // the same as "arrived long ago" — excluding it would silently hide every
-    // track added before the database existed.
-    if (row.addedAt <= 0) return false;
-    if (now - row.addedAt > filter.withinDays * 86_400_000) return false;
-  }
-
-  return true;
 }

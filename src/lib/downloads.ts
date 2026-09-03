@@ -346,9 +346,3 @@ export function formatBytes(bytes: number): string {
 export async function downloadAll(tracks: TrackRow[]): Promise<number> {
   return downloader.add(tracks);
 }
-
-/** Whether a track is on the disk and pinned. */
-export async function isDownloaded(trackId: string): Promise<boolean> {
-  const rows = await store.downloads();
-  return rows.some((row) => row.trackId === trackId && row.state === 'done');
-}

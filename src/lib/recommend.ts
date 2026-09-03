@@ -59,7 +59,7 @@ function seeded(seed: number): () => number {
 }
 
 /** Today, as a number. Changes at local midnight, which is what people expect. */
-export function daySeed(at = new Date()): number {
+function daySeed(at = new Date()): number {
   return at.getFullYear() * 10_000 + (at.getMonth() + 1) * 100 + at.getDate();
 }
 

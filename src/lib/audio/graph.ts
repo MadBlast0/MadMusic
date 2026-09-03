@@ -71,7 +71,7 @@ export const FLAT: GraphSettings = {
 };
 
 /** dB to a linear gain multiplier. */
-export function fromDb(db: number): number {
+function fromDb(db: number): number {
   return 10 ** (db / 20);
 }
 
@@ -83,7 +83,7 @@ export function fromDb(db: number): number {
  * full volume, because at full volume there is nothing to compensate for — and
  * because boosting a signal that is already at unity is how you get clipping.
  */
-export function loudnessBoostDb(volume: number): number {
+function loudnessBoostDb(volume: number): number {
   const quiet = 1 - Math.min(1, Math.max(0, volume));
   return quiet * quiet * 9;
 }
@@ -102,7 +102,7 @@ type Chain = {
   preamp: GainNode;
 };
 
-export class AudioGraph {
+class AudioGraph {
   private context: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private readonly chains = new Map<HTMLAudioElement, Chain>();

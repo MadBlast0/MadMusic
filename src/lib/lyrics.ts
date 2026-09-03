@@ -21,7 +21,7 @@ import type { Lyrics } from '@/lib/store/types';
 import { isNative, tryInvoke } from '@/lib/native';
 
 /** One word of a line, with when it is sung. */
-export type Word = { at: number; text: string };
+type Word = { at: number; text: string };
 
 /** One line, with when it starts. */
 export type Line = {
@@ -322,29 +322,6 @@ export async function lyricsFor(track: {
   const value = fromStored(row);
   parsed.set(track.id, value);
   return value;
-}
-
-/**
- * Forgets a track's lyrics so they are fetched again.
- *
- * The "these are wrong" button. LRCLIB matches on duration, and a mismatched
- * rip occasionally gets somebody else's words scrolling in perfect time — which
- * is more unsettling than no lyrics at all.
- */
-export async function forgetLyrics(trackId: string): Promise<void> {
-  parsed.delete(trackId);
-  await store.lyricsPut({
-    trackId,
-    synced: '',
-    plain: '',
-    translation: '',
-    romanised: '',
-    source: '',
-    found: false,
-    // Zero rather than now, so the negative cache does not apply and the next
-    // request goes back to the network.
-    fetchedAt: 0,
-  });
 }
 
 /**

@@ -146,7 +146,7 @@ const SEEDS: Seed[] = [
   ],
 ];
 
-export const PREVIEW_TRACKS: CatalogueTrack[] = SEEDS.map(
+const PREVIEW_TRACKS: CatalogueTrack[] = SEEDS.map(
   ([id, title, artist, album, duration, cover]) => ({
     id,
     title,

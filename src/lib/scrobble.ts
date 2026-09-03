@@ -115,19 +115,3 @@ export async function loved(): Promise<{ artist: string; title: string }[]> {
     (await invoke<{ artist: string; title: string }[]>('scrobble_loved')) ?? []
   );
 }
-
-/**
- * Loves or un-loves one track on Last.fm.
- *
- * Separate from liking it here. The two are deliberately not the same action —
- * liking is a fact about this library and loving is a fact about an account
- * somebody else hosts — and pushing every like outward without being asked
- * would be publishing on their behalf.
- */
-export async function love(
-  artist: string,
-  track: string,
-  isLoved: boolean,
-): Promise<void> {
-  await invoke('scrobble_love', { artist, track, loved: isLoved });
-}

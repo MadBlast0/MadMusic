@@ -5,7 +5,7 @@
       "name": "dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--port", "5173", "--strictPort"],
-      "port": 5100
+      "port": 5173
     }
   ]
 }

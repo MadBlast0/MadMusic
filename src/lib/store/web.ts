@@ -198,12 +198,6 @@ function save(): void {
   }
 }
 
-/** Discards everything. Tests only — the app has no reason to call it. */
-export function resetWebStore(): void {
-  doc = empty();
-  save();
-}
-
 const now = () => Date.now();
 
 /* ── reading tracks ────────────────────────────────────────────────────── */

@@ -109,8 +109,3 @@ export function identifyPreset(bands: number[]): string {
   );
   return match?.id ?? 'custom';
 }
-
-/** A readable label for whatever curve is loaded. */
-export function presetName(id: string): string {
-  return PRESETS.find((preset) => preset.id === id)?.name ?? 'Custom';
-}
