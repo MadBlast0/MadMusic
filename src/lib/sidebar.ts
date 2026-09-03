@@ -31,7 +31,6 @@ export type SidebarItemId =
   | 'podcasts'
   | 'radio'
   | 'statistics'
-  | 'smart'
   | 'browse'
   | 'uploads'
   | 'settings';
@@ -126,13 +125,6 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     needsDesktop: false,
   },
   {
-    id: 'smart',
-    label: 'Smart playlists',
-    required: false,
-    needsBackend: false,
-    needsDesktop: false,
-  },
-  {
     id: 'uploads',
     label: 'Your uploads',
     required: false,
@@ -173,7 +165,6 @@ export const DEFAULT_LAYOUT: SidebarLayout = {
     'history',
     'downloads',
     'browse',
-    'smart',
     'podcasts',
     'radio',
     'statistics',
@@ -192,8 +183,12 @@ export const DEFAULT_LAYOUT: SidebarLayout = {
  * - `browse` is that same field's empty state, opened by the button inside it.
  * - `settings` is a row in the account menu on the right, beside the other
  *   thing that is about the app rather than about your music.
- * - `liked` and `history` are in the library panel, among the playlists, which
- *   is what they are.
+ * - `liked`, `history` and `downloads` are in the library panel, among the
+ *   playlists, which is what all three are. None of them is a place you go;
+ *   they are lists you own, so they belong beside the others.
+ * - `library` is the "Local" row pinned to the bottom of that same panel. The
+ *   panel is the library; a second control for it in the bar was the
+ *   duplication this list exists to prevent.
  * - `home` is its own button, parked against the left edge of the search field
  *   rather than out among the destinations — it is where you start, so it sits
  *   beside the other thing you reach for without looking.
@@ -209,18 +204,9 @@ export const BAR_EXCLUDES = new Set<SidebarItemId>([
   'liked',
   'history',
   'home',
+  'library',
+  'downloads',
 ]);
-
-/**
- * Destinations that keep their place in the bar but never take an icon.
- *
- * `library` is the one. Its icon was a second control for a panel already on
- * screen down the left-hand side, so it is gone — but the panel is a list of
- * playlists, not the library view, and dropping the destination outright left
- * that page with no way in at all. It lives in the overflow menu, where it is
- * named rather than drawn.
- */
-export const BAR_MENU_ONLY = new Set<SidebarItemId>(['library']);
 
 /** What the sidebar should actually render, given the environment. */
 export function visibleItems(
@@ -370,10 +356,6 @@ export function routeFor(id: SidebarItemId): Route {
       return { name: 'saved', kind: 'liked' };
     case 'history':
       return { name: 'saved', kind: 'history' };
-    // The smart-playlists screen is a list; opening it with no id shows the
-    // list rather than one playlist.
-    case 'smart':
-      return { name: 'smart', id: '' };
     default:
       return { name: id };
   }

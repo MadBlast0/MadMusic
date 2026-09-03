@@ -46,9 +46,10 @@ import { keys } from '@/lib/store/keys';
  * live among the playlists, and the search field for itself.
  *
  * `open` returning without clicking anything is allowed. Downloads, podcasts
- * and radio need the desktop build and uploads needs a backend, so in this
- * environment their controls are legitimately absent — the case then proves
- * the app survives being asked, which is all it ever proved for them.
+ * and radio need the desktop build, uploads needs a backend, and the library's
+ * "Local" row needs a folder, so in this environment their controls are
+ * legitimately absent — the case then proves the app survives being asked,
+ * which is all it ever proved for them.
  */
 type Destination = { name: string; open: (user: User) => Promise<void> };
 
@@ -88,7 +89,16 @@ const DESTINATIONS: Destination[] = [
     open: (user) =>
       user.click(screen.getByRole('searchbox', { name: 'Search music' })),
   },
-  { name: 'library', open: (user) => openFromNav(user, 'Library') },
+  {
+    // The panel down the left is the library, and its "Local" row opens the
+    // library view. Absent until a folder has been added, which is the case
+    // in this environment.
+    name: 'library',
+    open: async (user) => {
+      const row = screen.queryByText('Local');
+      if (row) await user.click(row);
+    },
+  },
   { name: 'settings', open: (user) => openFromAccount(user, 'Settings') },
   {
     name: 'liked songs',
@@ -107,7 +117,15 @@ const DESTINATIONS: Destination[] = [
     name: 'statistics listening',
     open: (user) => openFromNav(user, 'Statistics'),
   },
-  { name: 'downloads', open: (user) => openFromNav(user, 'Downloads') },
+  {
+    // A row in the library panel now rather than a destination in the bar,
+    // and desktop-only, so it is legitimately absent here.
+    name: 'downloads',
+    open: async (user) => {
+      const row = screen.queryByText('Downloads');
+      if (row) await user.click(row);
+    },
+  },
   {
     name: 'browse',
     open: (user) =>
@@ -116,10 +134,6 @@ const DESTINATIONS: Destination[] = [
           name: /browse/i,
         }),
       ),
-  },
-  {
-    name: 'smart playlists',
-    open: (user) => openFromNav(user, 'Smart playlists'),
   },
   { name: 'radio', open: (user) => openFromNav(user, 'Radio') },
   { name: 'podcasts', open: (user) => openFromNav(user, 'Podcasts') },

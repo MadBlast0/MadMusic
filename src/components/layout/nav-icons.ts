@@ -9,7 +9,6 @@ import {
   Radio,
   Search,
   Settings,
-  Sparkle,
   StaticClock,
   Upload,
 } from '@/components/icons';
@@ -33,7 +32,6 @@ export const NAV_ICONS: Record<SidebarItemId, typeof Home> = {
   podcasts: Mic,
   radio: Radio,
   statistics: Chart,
-  smart: Sparkle,
   browse: Disc,
   uploads: Upload,
   settings: Settings,

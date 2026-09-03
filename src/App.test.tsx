@@ -19,17 +19,21 @@ const searchField = () =>
  * them are about how it is opened.
  */
 /**
- * Library is reached from the bar's overflow menu, not from an icon.
+ * Library is reached from the library panel, not from the top bar at all.
  *
- * Its icon was removed — it duplicated the panel already down the left-hand
- * side — but the destination stays, so every test that used to click the icon
- * comes through here instead.
+ * Its bar entry was removed — the panel down the left-hand side *is* the
+ * library, so a second control for it was a duplicate. The panel's bottom row
+ * is the way in, and it says one of two things depending on whether a folder
+ * has been added: "Local" once there is one, and an invitation to add one when
+ * there is not. Both open the same view, and this environment has no folder.
  */
 async function openLibrary(user: ReturnType<typeof userEvent.setup>) {
+  const panel = screen.getByRole('complementary', { name: 'Your Library' });
   await user.click(
-    within(titleBar()).getByRole('button', { name: 'More destinations' }),
+    within(panel).getByRole('button', {
+      name: /add a folder from this machine/i,
+    }),
   );
-  await user.click(await screen.findByRole('menuitem', { name: 'Library' }));
 }
 
 async function openSettings(user: ReturnType<typeof userEvent.setup>) {
@@ -198,9 +202,9 @@ describe('App shell', () => {
       // Home has its own button against the search field rather than a slot
       // among the destinations — it is where you start.
       'Home',
-      // Library is deliberately absent: its icon was a second control for the
-      // panel already on screen, so it lives in the overflow menu now. See
-      // `BAR_MENU_ONLY`.
+      // Library is deliberately absent, and not in the overflow menu either:
+      // the panel down the left *is* the library, and its "Local" row opens
+      // the library view. See `BAR_EXCLUDES`.
       // Settings is not here either: it is a row in the account menu, whose
       // trigger is the one app-level control the bar keeps.
       'Account',

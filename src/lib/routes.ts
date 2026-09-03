@@ -47,8 +47,6 @@ export type Route =
   | { name: 'radio' }
   /** Your own uploads. */
   | { name: 'uploads' }
-  /** A rule-driven playlist. */
-  | { name: 'smart'; id: string }
   /** The library cut by genre, decade and tempo. */
   | { name: 'browse' }
   /**
@@ -82,8 +80,6 @@ export function routeKey(route: Route): string {
       return `playlist:${route.id}`;
     case 'podcast':
       return `podcast:${route.id}`;
-    case 'smart':
-      return `smart:${route.id}`;
     case 'shelf':
       return `shelf:${route.key}`;
     default:
@@ -152,10 +148,6 @@ export function sidebarKeyFor(route: Route): string | null {
     case 'radio':
     case 'browse':
       return route.name;
-    // Smart playlists are reached from one screen and open onto a single
-    // playlist, so both answer to the same row.
-    case 'smart':
-      return 'smart';
     case 'library':
     case 'local-album':
     case 'local-artist':
@@ -199,8 +191,6 @@ export function routeLabel(route: Route): string {
       return route.kind === 'liked' ? 'Liked songs' : 'Recently played';
     case 'playlist':
       return 'Playlist';
-    case 'smart':
-      return 'Smart playlists';
     case 'shelf':
       return route.title || 'More';
     case 'uploads':

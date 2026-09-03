@@ -17,12 +17,7 @@ import { NAV_ICONS } from '@/components/layout/nav-icons';
 import { useSidebarLayout } from '@/components/common/sidebar-context';
 import { backendAvailable } from '@/lib/convex-client';
 import { isNative } from '@/lib/native';
-import {
-  BAR_EXCLUDES,
-  BAR_MENU_ONLY,
-  routeFor,
-  visibleItems,
-} from '@/lib/sidebar';
+import { BAR_EXCLUDES, routeFor, visibleItems } from '@/lib/sidebar';
 import { sidebarKeyFor, type Route } from '@/lib/routes';
 
 /**
@@ -118,11 +113,8 @@ export const TopNav = memo(function TopNav({
   }).filter((item) => !BAR_EXCLUDES.has(item.id));
   const active = sidebarKeyFor(route);
 
-  // Menu-only destinations are held back before the split, so one of them can
-  // never occupy an icon slot however few destinations are on show.
-  const iconable = items.filter((item) => !BAR_MENU_ONLY.has(item.id));
-  const inline = iconable.slice(0, inlineCount);
-  const rest = items.filter((item) => !inline.includes(item));
+  const inline = items.slice(0, inlineCount);
+  const rest = items.slice(inlineCount);
 
   return (
     <nav aria-label="Destinations" className="flex items-center gap-1">

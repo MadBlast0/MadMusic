@@ -100,11 +100,6 @@ const DownloadsView = lazy(() =>
 const ShelfView = lazy(() =>
   import('@/views/shelf-view').then((m) => ({ default: m.ShelfView })),
 );
-const SmartPlaylistsView = lazy(() =>
-  import('@/views/smart-playlists-view').then((m) => ({
-    default: m.SmartPlaylistsView,
-  })),
-);
 const PodcastsView = lazy(() =>
   import('@/views/podcasts-view').then((m) => ({ default: m.PodcastsView })),
 );
@@ -779,7 +774,6 @@ function App() {
                       {route.name === 'uploads' && <UploadsView />}
                       {route.name === 'diagnostics' && <DiagnosticsView />}
                       {route.name === 'legal' && <LegalView />}
-                      {route.name === 'smart' && <SmartPlaylistsView />}
                       {route.name === 'shelf' && (
                         <ShelfView
                           shelfKey={route.key}

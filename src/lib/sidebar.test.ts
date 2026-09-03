@@ -111,8 +111,4 @@ describe('where a row goes', () => {
     expect(routeFor('liked')).toEqual({ name: 'saved', kind: 'liked' });
     expect(routeFor('history')).toEqual({ name: 'saved', kind: 'history' });
   });
-
-  it('opens smart playlists on the list rather than one playlist', () => {
-    expect(routeFor('smart')).toEqual({ name: 'smart', id: '' });
-  });
 });

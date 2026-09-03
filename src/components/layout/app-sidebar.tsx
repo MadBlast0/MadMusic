@@ -9,6 +9,7 @@ import {
 
 import {
   Check,
+  Download,
   Folder,
   Heart,
   Library,
@@ -50,6 +51,7 @@ import {
 } from '@/components/ui/tooltip';
 import type { Route, Tab } from '@/lib/routes';
 import type { Playlist } from '@/lib/saved';
+import { isNative } from '@/lib/native';
 import { cn } from '@/lib/utils';
 
 /**
@@ -80,6 +82,13 @@ type Entry = {
   kind: Kind;
   /** Shown after the kind: "Playlist · You". Empty to say nothing at all. */
   owner: string;
+  /**
+   * What to call this row instead of "Playlist".
+   *
+   * Downloads is the one that needs it: "Playlist · Offline" would file it as
+   * something the user made, which it is not.
+   */
+  kindLabel?: string;
   cover: [string, string] | null;
   artworkUrl?: string;
   icon: typeof Folder | null;
@@ -227,6 +236,28 @@ export function AppSidebar({
       onOpen: () => onOpen({ name: 'saved', kind: 'liked' }),
       playingFrom: current ? liked.some((t) => t.id === current.id) : false,
     });
+
+    // Desktop only, because that is the only place a download can exist. In a
+    // browser the row would open a page explaining that the feature needs the
+    // app, which is a destination that exists to apologise for itself.
+    if (isNative()) {
+      list.push({
+        fixed: 2,
+        id: 'downloads',
+        name: 'Downloads',
+        kind: 'playlist',
+        // No count. It would have to be fetched and kept current for a number
+        // nobody navigates by, and the page says it on arrival.
+        kindLabel: 'Downloads',
+        owner: '',
+        cover: null,
+        icon: Download,
+        count: 0,
+        updatedAt: 0,
+        createdAt: 0,
+        onOpen: () => onOpen({ name: 'downloads' }),
+      });
+    }
 
     for (const playlist of playlists) {
       list.push({
@@ -692,7 +723,8 @@ const ListRow = memo(function ListRow({
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {[
-                entry.kind === 'folder' ? 'Folder' : 'Playlist',
+                entry.kindLabel ??
+                  (entry.kind === 'folder' ? 'Folder' : 'Playlist'),
                 entry.owner,
                 entry.count > 0 ? String(entry.count) : '',
               ]
