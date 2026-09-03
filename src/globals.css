@@ -466,6 +466,53 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /*
+    The page, coloured by what is playing.
+
+    `--artwork-tint-soft` is set by `applyTint` from the dominant colour of the
+    current artwork and removed when there is none, so this fades to nothing on
+    its own rather than needing a second class to turn it off.
+
+    A wash at the top rather than a flat fill: the colour has to sit *under*
+    the content and let go before the content ends, or every surface below it
+    reads as tinted too and the type loses its contrast. `::before` so it costs
+    no element, and `pointer-events: none` so it never eats a click.
+  */
+  .artwork-wash::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 22rem;
+    z-index: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+      to bottom,
+      var(--artwork-tint-soft, transparent),
+      transparent 85%
+    );
+  }
+
+  /*
+    The compact player, which is the window rather than a panel inside it.
+
+    The window is transparent (`tauri.conf.json`), so the only thing standing
+    between the widget and the desktop behind it is this background. Dropping
+    it is what makes the disc appear to sit on the desktop instead of on a
+    dark rectangle - which was the whole point of a floating widget and the
+    thing that made ours look like a shrunken app window instead.
+
+    On the ancestors rather than on the player: a child cannot make what is
+    behind it transparent. `html` as well as `body`, because `color-scheme:
+    dark` gives the document canvas a black background of its own — clearing
+    only `body` left that canvas painting the window a solid dark rectangle,
+    which is the widget-shaped hole this rule exists to open.
+  */
+  html:has([data-window='widget']),
+  body:has([data-window='widget']) {
+    @apply bg-transparent;
     /* Montserrat and Inter are drawn for this; without it macOS renders them
        noticeably heavier than the type designer intended. */
     -webkit-font-smoothing: antialiased;

@@ -710,7 +710,11 @@ function App() {
                 its scroll position — pressing the mic twice puts you back
                 exactly where you were reading, which swapping the two
                 would not. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            {/* `artwork-wash` paints the top of the page in the colour of
+                whatever is playing — see `globals.css`. It goes here rather
+                than on each view so every screen gets it without asking, and
+                it fades out well before the content does. */}
+            <div className="artwork-wash relative flex min-h-0 flex-1 flex-col">
               <AnimatePresence mode="wait" initial={false}>
                 <m.div
                   key={viewKey(route)}
@@ -864,26 +868,44 @@ function App() {
           />
         </div>
 
-        <NowPlayingBar
-          queueOpen={queueOpen}
-          onToggleQueue={() => setQueueOpen((open) => !open)}
-          lyricsOpen={lyricsOpen}
-          onToggleLyrics={() =>
-            setLyricsAnchor((anchor) =>
-              anchor === canvasKey ? null : canvasKey,
-            )
-          }
-          compact={
-            presentation === 'compact' ||
-            presentation === 'widget' ||
-            presentation === 'pip'
-              ? presentation
-              : 'normal'
-          }
-          onPresent={show}
-          immersive={immersive}
-          onToggleImmersive={() => show('immersive')}
-        />
+        {/* The bar arrives with the first track and stays for good.
+            `AnimatePresence` rather than a plain conditional: without it the
+            strip would appear between two frames, which reads as the layout
+            breaking rather than as the player opening. There is no exit for
+            the same reason there is no dismiss button — a queue survives a
+            restart, so this is a one-way door in practice. */}
+        <AnimatePresence initial={false}>
+          {player.current && (
+            <m.div
+              key="now-playing"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              transition={{ duration: duration.base, ease: ease.enter }}
+              className="shrink-0 overflow-hidden"
+            >
+              <NowPlayingBar
+                queueOpen={queueOpen}
+                onToggleQueue={() => setQueueOpen((open) => !open)}
+                lyricsOpen={lyricsOpen}
+                onToggleLyrics={() =>
+                  setLyricsAnchor((anchor) =>
+                    anchor === canvasKey ? null : canvasKey,
+                  )
+                }
+                compact={
+                  presentation === 'compact' ||
+                  presentation === 'widget' ||
+                  presentation === 'pip'
+                    ? presentation
+                    : 'normal'
+                }
+                onPresent={show}
+                immersive={immersive}
+                onToggleImmersive={() => show('immersive')}
+              />
+            </m.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Overlays rather than routes: both are *modes* of looking at what is

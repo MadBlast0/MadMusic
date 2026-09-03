@@ -63,7 +63,9 @@ describe('the transport bar', () => {
     await screen.findByText('Golden Brown');
 
     for (const label of [
-      'Stop',
+      // 'Stop' is deliberately absent: the ✕ that ended the session sat where
+      // every other surface puts the heart, so "save this" and "throw the
+      // queue away" were a pixel apart.
       'Save this track',
       'Lyrics',
       'Show queue',

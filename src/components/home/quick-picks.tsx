@@ -92,8 +92,14 @@ export function QuickPicks({
                 show: { opacity: 1, y: 0, transition: cardTransition },
               }}
               className={cn(
-                'group/pick flex items-center gap-3 overflow-hidden rounded-md bg-card text-left',
-                'transition-colors duration-fast hover:bg-accent/60',
+                'group/pick flex items-center gap-3 overflow-hidden rounded-md text-left',
+                // A translucent white rather than the card token, and it
+                // *lifts* on hover instead of changing hue. That is what makes
+                // a tile read as a raised surface on a coloured page: a solid
+                // card colour sits on top of the artwork wash and cancels it,
+                // where a wash of white takes the page's colour with it.
+                'bg-foreground/[0.07] hover:bg-foreground/[0.14]',
+                'transition-colors duration-fast',
                 'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               )}
             >
@@ -103,13 +109,13 @@ export function QuickPicks({
                 alt=""
                 // Square and flush to the left edge: the tile has no padding on
                 // that side, so the art *is* the corner.
-                className="size-12 shrink-0"
+                className="size-14 shrink-0"
               />
 
               <span className="min-w-0 flex-1 py-1">
                 <span
                   className={cn(
-                    'block truncate text-sm font-semibold',
+                    'block truncate text-sm font-bold',
                     isCurrent && 'text-primary',
                   )}
                 >
@@ -131,13 +137,16 @@ export function QuickPicks({
                   // targets, and the tile itself is already the target.
                   <span
                     className={cn(
-                      'flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow',
-                      'translate-x-1 opacity-0 transition-all duration-base',
-                      'group-hover/pick:translate-x-0 group-hover/pick:opacity-100',
-                      'group-focus-visible/pick:translate-x-0 group-focus-visible/pick:opacity-100',
+                      'flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg',
+                      // Rises rather than slides. A play button that grows out
+                      // of the tile reads as belonging to it; one that slides
+                      // in from the edge reads as a separate control arriving.
+                      'translate-y-1 scale-90 opacity-0 transition-all duration-base',
+                      'group-hover/pick:translate-y-0 group-hover/pick:scale-100 group-hover/pick:opacity-100',
+                      'group-focus-visible/pick:translate-y-0 group-focus-visible/pick:scale-100 group-focus-visible/pick:opacity-100',
                     )}
                   >
-                    <StaticPlay className="size-3.5" />
+                    <StaticPlay className="size-4" />
                   </span>
                 )}
               </span>

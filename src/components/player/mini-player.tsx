@@ -108,6 +108,10 @@ export function MiniPlayer({
 
         await window.setMinSize(null);
         await window.setSize(new LogicalSize(SIZE.width, SIZE.height));
+        // The window is transparent here, so the OS drop shadow is a faint
+        // rectangle traced around empty space - the one thing still giving
+        // away that the widget is a window.
+        await window.setShadow(false);
       } catch (cause) {
         console.warn('could not shrink the window', cause);
       }
@@ -182,6 +186,7 @@ export function MiniPlayer({
           // After the resize, not before: the minimum would clamp the very
           // call that puts the window back.
           await window.setMinSize(new LogicalSize(MIN.width, MIN.height));
+          await window.setShadow(true);
         } catch {
           // A window that will not resize back is a window-manager decision.
           // The app is still usable; it is just the wrong size.
@@ -193,12 +198,22 @@ export function MiniPlayer({
 
   return (
     <div
+      // Marks the window as the widget's, which is what `globals.css` keys the
+      // transparent body off. Without it the desktop never shows through and
+      // the widget is a small dark rectangle again.
+      data-window={isNative() ? 'widget' : undefined}
       className={cn(
         'group/window z-50 flex items-center justify-center',
-        // Full-bleed in the native shell, where the window *is* the compact
-        // player; a floating card in the browser, where it is an overlay.
+        // No background in the native shell. The window is transparent and
+        // undecorated, so what is left on screen is the disc and the pill —
+        // the widget appears to sit *on* the desktop rather than inside a
+        // shrunken app window, which is the whole difference between a widget
+        // and a small window.
+        //
+        // In a browser there is no window to be, so it stays a floating card
+        // over the app and keeps a surface of its own.
         isNative()
-          ? 'fixed inset-0 bg-background/95 backdrop-blur'
+          ? 'fixed inset-0'
           : 'fixed bottom-24 right-4 rounded-xl border bg-background/95 p-4 shadow-xl backdrop-blur',
       )}
       // The surface drags the window, which is what a chromeless compact
@@ -206,50 +221,59 @@ export function MiniPlayer({
       // opt back out, or every button press would start a drag.
       data-tauri-drag-region={isNative() ? '' : undefined}
     >
-      <div data-tauri-drag-region={undefined}>
+      {/* `relative`, so the chrome below anchors to the player rather than to
+          the window. With a transparent window those are very different
+          places: the window is mostly empty space, and buttons floating in the
+          top corner of nothing looked detached from the thing they act on. */}
+      <div className="relative" data-tauri-drag-region={undefined}>
         <WidgetPlayer />
-      </div>
 
-      {/* Chrome, kept to the corner so it never competes with the pill. Shown
-          on hover of the window rather than always: this is a widget, and a
-          widget covered in buttons is a toolbar. */}
-      <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast focus-within:opacity-100 group-hover/window:opacity-100">
-        {/* Desktop only: there is no window to pin in a browser tab, and no
-            desktop to pin it to. */}
-        {isNative() && (
-          <>
-            <IconButton
-              label={
-                widget
-                  ? 'Pinning is unavailable on the desktop'
-                  : settings.compactAlwaysOnTop
-                    ? 'Stop floating above other windows'
-                    : 'Float above other windows'
-              }
-              size="sm"
-              active={!widget && settings.compactAlwaysOnTop}
-              disabled={widget}
-              onClick={() =>
-                set('compactAlwaysOnTop', !settings.compactAlwaysOnTop)
-              }
-            >
-              <Pin />
-            </IconButton>
+        {/* Chrome, on the player itself and only while pointed at. A widget
+            covered in buttons is a toolbar; a widget with none cannot be
+            closed. Hover is the compromise, and it matches the pill below,
+            which also only opens when you point at it. */}
+        <div className="absolute -top-1 right-0 z-40 flex items-center gap-0.5 opacity-0 transition-opacity duration-fast focus-within:opacity-100 group-hover/window:opacity-100">
+          {/* Desktop only: there is no window to pin in a browser tab, and no
+              desktop to pin it to. */}
+          {isNative() && (
+            <>
+              <IconButton
+                label={
+                  widget
+                    ? 'Pinning is unavailable on the desktop'
+                    : settings.compactAlwaysOnTop
+                      ? 'Stop floating above other windows'
+                      : 'Float above other windows'
+                }
+                size="sm"
+                active={!widget && settings.compactAlwaysOnTop}
+                disabled={widget}
+                onClick={() =>
+                  set('compactAlwaysOnTop', !settings.compactAlwaysOnTop)
+                }
+              >
+                <Pin />
+              </IconButton>
 
-            <IconButton
-              label={widget ? 'Leave the desktop' : 'Pin to the desktop'}
-              size="sm"
-              active={widget}
-              onClick={() => onWidgetChange(!widget)}
-            >
-              <Desktop />
-            </IconButton>
-          </>
-        )}
+              <IconButton
+                label={widget ? 'Leave the desktop' : 'Pin to the desktop'}
+                size="sm"
+                active={widget}
+                onClick={() => onWidgetChange(!widget)}
+              >
+                <Desktop />
+              </IconButton>
+            </>
+          )}
 
-        <IconButton label="Leave the compact player" size="sm" onClick={leave}>
-          <X className="size-3.5" />
-        </IconButton>
+          <IconButton
+            label="Leave the compact player"
+            size="sm"
+            onClick={leave}
+          >
+            <X className="size-3.5" />
+          </IconButton>
+        </div>
       </div>
     </div>
   );

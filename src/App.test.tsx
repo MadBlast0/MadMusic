@@ -482,12 +482,19 @@ describe('title bar', () => {
 });
 
 describe('now playing bar', () => {
-  it('prompts for a folder while nothing is queued', () => {
+  it('stays out of the way until there is something to play', () => {
     renderWithProviders(<App />);
 
-    expect(screen.getByText(/nothing playing/i)).toBeInTheDocument();
+    // The bar used to hold its place with a line of grey text, which put a
+    // permanent empty strip along the bottom of every screen. It is absent
+    // now and animates in with the first track — so there is no transport to
+    // find, not merely a disabled one.
+    expect(screen.queryByText(/nothing playing/i)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('slider', { name: 'Seek' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Show queue' }),
     ).not.toBeInTheDocument();
   });
 });

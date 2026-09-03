@@ -16,7 +16,6 @@ import {
   SkipForward,
   Sliders,
   Volume,
-  X,
 } from '@/components/icons';
 import { IconButton } from '@/components/icons/icon-button';
 import { EpisodeControls } from '@/components/player/episode-controls';
@@ -104,7 +103,6 @@ export function NowPlayingBar({
     markLoopPoint,
     canUndoSkip,
     undoSkip,
-    stop,
   } = usePlayer();
   const { progress } = usePlayerProgress();
   const remote = useRemote();
@@ -196,17 +194,20 @@ export function NowPlayingBar({
     [transport, setScrubbing],
   );
 
-  // Nothing queued yet: keep the bar in place so the layout does not jump when
-  // the first track starts, but do not pretend there is something to scrub.
-  if (!current) {
-    return (
-      <footer className="flex h-20 shrink-0 items-center justify-between gap-4 px-4">
-        <p className="text-sm text-muted-foreground">
-          Nothing playing — add a folder from Your Library to get started.
-        </p>
-      </footer>
-    );
-  }
+  /**
+   * Nothing queued: no bar at all.
+   *
+   * It used to hold its place with a line of grey text, on the reasoning that
+   * a fixed height stops the layout jumping when the first track starts. That
+   * traded a jump for a permanent empty strip along the bottom of every
+   * screen — dead space in the one place the eye returns to. `App.tsx`
+   * animates the bar in instead, so the arrival is a movement rather than a
+   * jump and the space belongs to the music the rest of the time.
+   *
+   * There is no way back to this state by accident: a queue survives a
+   * restart, so once anything has played the bar is simply always there.
+   */
+  if (!current) return null;
 
   const livePosition = remote.elsewhere
     ? (remote.positionMs +
@@ -285,20 +286,17 @@ export function NowPlayingBar({
             : `Paused: ${current.title} by ${current.artist}`}
         </p>
 
-        {/* Dismiss, then save — the pair the bar has instead of a lone heart.
-            ✕ ends the session rather than pausing it: nothing playing, nothing
-            queued.
-
-            Saving is the same control as the one on every search result — see
+        {/* Saving is the same control as the one on every search result — see
             `library/save-button.tsx`. It used to be a menu of its own here,
             which could only ever *add*: there was no way to take a song out of
             a playlist from the bar, and the same glyph meant "add to Liked" in
             one place and "open a menu" in another. One control, one meaning,
-            both places. */}
-        <IconButton label="Stop" size="sm" onClick={stop}>
-          <X className="size-3.5" />
-        </IconButton>
+            both places.
 
+            There was a ✕ beside it that ended the session outright. It is
+            gone: no other player has one, the bar is not a thing you dismiss,
+            and it sat where the heart does everywhere else — so the muscle
+            memory for "save this" was one pixel from "throw the queue away". */}
         <SaveButton track={current} size="sm" />
       </div>
 

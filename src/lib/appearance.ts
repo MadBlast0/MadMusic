@@ -253,7 +253,12 @@ type StoredAppearance = {
 const DEFAULT_APPEARANCE: StoredAppearance = {
   active: '',
   custom: [],
-  tintFromArtwork: false,
+  // On by default. The page taking its colour from the record on it is most of
+  // what makes a music app feel like one rather than like a file browser, and
+  // a default of `false` meant nobody saw it without going looking in
+  // settings. Still a setting, for anyone who wants the interface to hold
+  // still.
+  tintFromArtwork: true,
 };
 
 export async function loadAppearance(): Promise<StoredAppearance> {
@@ -267,7 +272,7 @@ export async function loadAppearance(): Promise<StoredAppearance> {
       custom: Array.isArray(parsed.custom)
         ? parsed.custom.filter(isScheme)
         : [],
-      tintFromArtwork: parsed.tintFromArtwork ?? false,
+      tintFromArtwork: parsed.tintFromArtwork ?? true,
     };
   } catch {
     return { ...DEFAULT_APPEARANCE };
