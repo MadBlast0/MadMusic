@@ -9,7 +9,6 @@ import {
 
 import {
   Check,
-  Download,
   Folder,
   Heart,
   Library,
@@ -51,7 +50,6 @@ import {
 } from '@/components/ui/tooltip';
 import type { Route, Tab } from '@/lib/routes';
 import type { Playlist } from '@/lib/saved';
-import { isNative } from '@/lib/native';
 import { cn } from '@/lib/utils';
 
 /**
@@ -82,13 +80,6 @@ type Entry = {
   kind: Kind;
   /** Shown after the kind: "Playlist · You". Empty to say nothing at all. */
   owner: string;
-  /**
-   * What to call this row instead of "Playlist".
-   *
-   * Downloads is the one that needs it: "Playlist · Offline" would file it as
-   * something the user made, which it is not.
-   */
-  kindLabel?: string;
   cover: [string, string] | null;
   artworkUrl?: string;
   icon: typeof Folder | null;
@@ -236,30 +227,6 @@ export function AppSidebar({
       onOpen: () => onOpen({ name: 'saved', kind: 'liked' }),
       playingFrom: current ? liked.some((t) => t.id === current.id) : false,
     });
-
-    // Desktop only, because that is the only place a download can exist. In a
-    // browser the row would open a page explaining that the feature needs the
-    // app, which is a destination that exists to apologise for itself.
-    if (isNative()) {
-      list.push({
-        fixed: 2,
-        id: 'downloads',
-        name: 'Downloads',
-        kind: 'playlist',
-        // No count. It would have to be fetched and kept current for a number
-        // nobody navigates by, and the page says it on arrival.
-        // Not "Downloads" again — the name already says that. What the
-        // subtitle is for is the thing the name does not say.
-        kindLabel: 'Available offline',
-        owner: '',
-        cover: null,
-        icon: Download,
-        count: 0,
-        updatedAt: 0,
-        createdAt: 0,
-        onOpen: () => onOpen({ name: 'downloads' }),
-      });
-    }
 
     for (const playlist of playlists) {
       list.push({
@@ -510,15 +477,24 @@ export function AppSidebar({
               <Folder className="size-4" />
             </span>
             <span className="min-w-0 flex-1">
-              {/* "Local", not the folder's own name. It used to read whatever
-                  the folder happened to be called - "Music", "D", "New
-                  folder (2)" - which named the path rather than the thing.
-                  This row is the one place on this machine that music lives
-                  and downloads land, and it is called that on every install.
-                  The path is still one click away inside. */}
-              <span className="block truncate text-sm font-medium">Local</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {root.name}
+              {/* "Music folder", not the folder's own name. It used to read
+                  whatever the folder happened to be called - "Music", "D",
+                  "New folder (2)" - which named the path rather than the
+                  thing. There is exactly one of these on a machine: it is what
+                  gets scanned into the library *and* where downloads are
+                  written, so it is one row rather than two. */}
+              <span className="block truncate text-sm font-medium">
+                Music folder
+              </span>
+              {/* The path rather than the folder's name, ellipsised at the
+                  start so the tail - the part that identifies it - survives.
+                  Somebody who cannot see this cannot answer "where did my
+                  download go". */}
+              <span
+                dir="rtl"
+                className="block truncate text-left text-xs text-muted-foreground"
+              >
+                <bdi>{root.path || root.name}</bdi>
               </span>
             </span>
             <StaticChevron className="size-3.5 shrink-0 text-muted-foreground" />
@@ -725,8 +701,7 @@ const ListRow = memo(function ListRow({
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {[
-                entry.kindLabel ??
-                  (entry.kind === 'folder' ? 'Folder' : 'Playlist'),
+                entry.kind === 'folder' ? 'Folder' : 'Playlist',
                 entry.owner,
                 entry.count > 0 ? String(entry.count) : '',
               ]

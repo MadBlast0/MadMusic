@@ -38,6 +38,7 @@ export function FolderBar({
   located,
   picking,
   onChoose,
+  onOpenDownloads,
 }: {
   name: string;
   /** The absolute path, when there is one. */
@@ -53,18 +54,41 @@ export function FolderBar({
   located: boolean;
   picking: boolean;
   onChoose: () => void;
+  /**
+   * Opens the download activity, when there is any to open.
+   *
+   * Given only on the desktop. Downloads are written *into* this folder rather
+   * than into a second one of their own, so the link belongs on the row that
+   * names the folder — that is what makes the two one thing rather than two
+   * places that happen to agree.
+   */
+  onOpenDownloads?: () => void;
 }) {
   const hasPath = located && path !== '' && path !== name;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded bg-accent/40 text-muted-foreground">
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded bg-accent/40 text-muted-foreground">
         <Folder className="size-4" />
       </span>
 
       <span className="min-w-0 flex-1">
         <span className="block text-xs text-muted-foreground">
-          Music folder · downloads are saved here
+          Music folder
+          {onOpenDownloads ? (
+            <>
+              {' · '}
+              <button
+                type="button"
+                onClick={onOpenDownloads}
+                className="underline underline-offset-2 transition-colors duration-fast hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                downloads are saved here
+              </button>
+            </>
+          ) : (
+            ' · downloads are saved here'
+          )}
         </span>
 
         {hasPath ? (
@@ -72,10 +96,15 @@ export function FolderBar({
             <TooltipTrigger asChild>
               <span
                 // `direction: rtl` puts the browser's own ellipsis at the
-                // start; the isolate keeps the text itself reading left to
-                // right so a Windows path is not shown backwards.
+                // start, so a long path keeps its tail — the part that
+                // identifies it. The isolate keeps the text itself reading
+                // left to right so a Windows path is not shown backwards.
+                //
+                // `text-left` is not redundant: `rtl` also moves the line box
+                // to the right edge, which parked the path against the buttons
+                // with the label stranded on the other side of the row.
                 dir="rtl"
-                className="block truncate text-sm font-medium"
+                className="block truncate text-left font-mono text-sm font-medium"
                 // No `title`. The tooltip below already says this, and leaving
                 // the native one on shows both, a second apart, saying the
                 // same path.
