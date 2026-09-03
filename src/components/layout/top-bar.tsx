@@ -129,8 +129,6 @@ export function TopBar({
           <ArrowRight className="size-[1.125rem]" />
         </IconButton>
 
-        <span className="mx-1.5 h-5 w-px bg-border" aria-hidden />
-
         {/* Every destination, not the two that used to be hard-coded here.
             They were duplicated in the sidebar, which meant two lists that had
             to agree about which was current — see `top-nav.tsx`. */}
