@@ -299,7 +299,8 @@ function Scrubber({
         'mt-3 group-hover/widget:mt-0 group-data-[open]/widget:mt-0',
       )}
     >
-      <Time value={progress} />
+      {/* Right-aligned, so it sits against the bar's start. */}
+      <Time value={progress} align="right" />
 
       <input
         type="range"
@@ -341,17 +342,30 @@ function Scrubber({
         )}
       />
 
-      <Time value={seekable ? duration : null} />
+      <Time value={seekable ? duration : null} align="left" />
     </div>
   );
 }
 
 /** One timestamp, hidden until the pill has room for it. */
-function Time({ value }: { value: number | null }) {
+function Time({
+  value,
+  align,
+}: {
+  value: number | null;
+  /** Which end of its box the text hugs, so both sit against the bar. */
+  align: 'left' | 'right';
+}) {
   return (
     <span
       className={cn(
-        'hidden shrink-0 text-xs tabular-nums text-muted-foreground',
+        // A fixed width, not an intrinsic one. The two labels are rarely the
+        // same length — "--:--" is five characters against "4:14"'s four, and
+        // a track passing ten minutes gains another — so an intrinsic width
+        // left the bar off centre and, worse, made it jump sideways mid-song.
+        // `tabular-nums` fixes the digits; this fixes the box around them.
+        'hidden w-9 shrink-0 text-xs tabular-nums text-muted-foreground',
+        align === 'right' ? 'text-right' : 'text-left',
         'group-hover/widget:inline-block group-data-[open]/widget:inline-block',
       )}
     >
