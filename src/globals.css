@@ -512,7 +512,14 @@
   */
   html:has([data-window='widget']),
   body:has([data-window='widget']) {
-    @apply bg-transparent;
+    /*
+      `overflow: hidden` as well as the transparency. The window is cut to the
+      widget, so anything that overflows by a pixel gets a scrollbar - and a
+      scrollbar in a transparent, undecorated window is an opaque grey bar
+      down the side of a floating card. `100vw` was producing exactly that:
+      it counts the scrollbar's own width, so the first bar caused a second.
+    */
+    @apply overflow-hidden bg-transparent;
     /* Montserrat and Inter are drawn for this; without it macOS renders them
        noticeably heavier than the type designer intended. */
     -webkit-font-smoothing: antialiased;

@@ -132,7 +132,7 @@ export function WidgetPlayer({
           {...drag}
           className={cn(
             'relative flex h-[4.75rem] w-40 flex-col overflow-hidden rounded-2xl',
-            'bg-card text-card-foreground shadow-lg ring-1 ring-border',
+            'bg-card text-card-foreground ring-1 ring-border',
             'transition-all duration-300',
             'group-hover/widget:h-[10.5rem] group-hover/widget:w-72',
             'group-data-[open]/widget:h-[10.5rem] group-data-[open]/widget:w-72',
@@ -335,7 +335,7 @@ function Scrubber({
           // moving in the corner of the eye; it appears when it can be used.
           '[&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none',
           '[&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:rounded-full',
-          '[&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow',
+          '[&::-webkit-slider-thumb]:bg-foreground',
           '[&::-webkit-slider-thumb]:opacity-0 [&::-webkit-slider-thumb]:transition-opacity',
           'hover:[&::-webkit-slider-thumb]:opacity-100',
           'focus-visible:[&::-webkit-slider-thumb]:opacity-100',
@@ -442,7 +442,7 @@ const Disc = memo(function Disc({
     >
       <div
         className={cn(
-          'size-full overflow-hidden rounded-full border-4 border-border shadow-md',
+          'size-full overflow-hidden rounded-full border-4 border-border',
           'motion-safe:animate-[spin_3s_linear_infinite]',
         )}
         style={{ animationPlayState: spinning ? 'running' : 'paused' }}
@@ -462,7 +462,7 @@ const Disc = memo(function Disc({
       {/* The spindle. Outside the spinning element so it does not turn with
           it — a still centre is what makes the rest read as rotation. */}
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-border bg-background shadow-sm"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-border bg-background"
         style={{ width: size / 4, height: size / 4 }}
       />
     </div>

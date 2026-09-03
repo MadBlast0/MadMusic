@@ -45,7 +45,7 @@ export function WidgetShell() {
       // nowhere else to be grabbed, and the controls inside opt out so a press
       // is not read as the start of a drag.
       data-tauri-drag-region
-      className="relative flex h-screen w-screen items-center justify-center bg-transparent"
+      className="fixed inset-0 flex items-center justify-center overflow-hidden bg-transparent"
     >
       <div>
         <WidgetPlayer
