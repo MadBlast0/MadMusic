@@ -44,6 +44,7 @@
 //! it did.
 
 mod applemusic;
+mod conform;
 mod kugou;
 mod lrc;
 mod lrclib;
@@ -176,12 +177,70 @@ async fn best(query: &Query) -> Found {
     choose(query, hits)
 }
 
+/// The trust below which a sheet's *words* are worth replacing.
+///
+/// Apple Music's transcriptions are editorial and sit well above this, so a
+/// sheet from there is never reworded — it is already the best text anyone
+/// here has. NetEase and Kugou are below it: their word timings are excellent
+/// and their transcriptions are a lottery, which is exactly the trade
+/// [`conform`] exists to make.
+const REWORD_BELOW: u32 = 100;
+
+/// Puts the best text and the best timings on the same sheet.
+///
+/// The two are often not the same provider — LRCLIB has a careful
+/// transcription and no word timings, Kugou has word timings and a transcript
+/// nobody proofread. Ranking cannot fix that, because ranking picks one sheet
+/// and either choice throws away something the reader wanted. So before the
+/// ranking runs, the low-trust word-timed sheets are re-seated onto the best
+/// line-synced transcription, and the ranking then sees a candidate that is
+/// good at both.
+///
+/// Every part of this is allowed to decline. With no line-synced guide, or an
+/// alignment that does not convince, nothing changes and the ranking chooses
+/// among what actually arrived.
+fn reword(hits: &mut [Hit]) {
+    let Some((guide, credit)) = hits
+        .iter()
+        .filter(|hit| hit.sheet.synced() && !hit.sheet.worded())
+        .max_by_key(|hit| hit.trust)
+        .map(|hit| (hit.sheet.clone(), service(&hit.source)))
+    else {
+        return;
+    };
+
+    for hit in hits
+        .iter_mut()
+        .filter(|hit| hit.sheet.worded() && hit.trust < REWORD_BELOW)
+    {
+        let Some(conformed) = conform::conform(&hit.sheet, &guide) else {
+            continue;
+        };
+        // Named for both, because it is both: one provider's words and
+        // another's clock. Printing only one of them on screen would credit
+        // the wrong service for whichever half turned out to be wrong.
+        hit.source = format!("{credit} + {}", service(&hit.source));
+        hit.sheet = conformed;
+    }
+}
+
+/// A source string without the row id LRCLIB carries for the log.
+fn service(source: &str) -> String {
+    let service = source.split(':').next().unwrap_or(source).trim();
+    match service.eq_ignore_ascii_case("lrclib") {
+        true => "LRCLIB".to_string(),
+        false => service.to_string(),
+    }
+}
+
 /// Picks the answer out of what the providers said.
 ///
 /// Split from [`best`] so it can be tested without the network — the deciding
 /// is the part with rules in it, and the fetching is the part that cannot be
 /// reproduced twice the same way.
-fn choose(query: &Query, hits: Vec<Hit>) -> Found {
+fn choose(query: &Query, mut hits: Vec<Hit>) -> Found {
+    reword(&mut hits);
+
     let instrumental = rank::instrumental(query, &hits);
     let mut ranked = rank::rank(query, hits.clone());
 
@@ -444,6 +503,130 @@ mod tests {
             ],
         );
         assert_eq!(best[0].source, "worded");
+    }
+
+    /* ── putting the best words and the best clock together ────────── */
+
+    /// A verse, and a sloppier transcription of the same verse.
+    const GOOD: [&str; 3] = [
+        "Fall in love with me again",
+        "Every summer night we sang",
+        "And the morning never came",
+    ];
+    const SLOPPY: [&str; 3] = [
+        "Fall in love with me again",
+        "Every sumer night we sang",
+        "And the mornin never came",
+    ];
+
+    /// A line-synced sheet with no word timings — a good transcription.
+    fn guide(texts: &[&str]) -> Sheet {
+        Sheet::Synced(
+            texts
+                .iter()
+                .enumerate()
+                .map(|(index, text)| SheetLine::plain(index as f64 * 5.0, *text))
+                .collect(),
+        )
+    }
+
+    /// A word-timed sheet, one word every half second.
+    fn timed(texts: &[&str]) -> Sheet {
+        let mut at = 1.0;
+        Sheet::Synced(
+            texts
+                .iter()
+                .map(|text| {
+                    let words: Vec<Word> = text
+                        .split_whitespace()
+                        .map(|word| {
+                            let span = Word {
+                                at,
+                                end: at + 0.5,
+                                text: word.to_string(),
+                            };
+                            at += 0.5;
+                            span
+                        })
+                        .collect();
+                    let start = words.first().map(|word| word.at).unwrap_or(0.0);
+                    let end = words.iter().fold(start, |most, w| most.max(w.end));
+                    SheetLine {
+                        at: start,
+                        end: Some(end),
+                        text: (*text).to_string(),
+                        words,
+                        ..SheetLine::plain(start, *text)
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn a_sloppy_timed_sheet_is_reworded_by_a_careful_one() {
+        let mut hits = vec![
+            hit("lrclib:5", guide(&GOOD), 20),
+            hit("Kugou", timed(&SLOPPY), 30),
+        ];
+        reword(&mut hits);
+
+        // The timings stayed, the spelling did not.
+        assert!(hits[1].sheet.worded());
+        assert!(
+            hits[1].sheet.text().contains("summer"),
+            "{}",
+            hits[1].sheet.text()
+        );
+        assert!(!hits[1].sheet.text().contains("sumer"));
+    }
+
+    #[test]
+    fn a_reworded_sheet_credits_both_providers() {
+        // One provider's words and another's clock. Naming only one would
+        // credit the wrong service for whichever half turned out wrong.
+        let mut hits = vec![
+            hit("lrclib:5", guide(&GOOD), 20),
+            hit("Kugou", timed(&SLOPPY), 30),
+        ];
+        reword(&mut hits);
+        assert_eq!(hits[1].source, "LRCLIB + Kugou");
+    }
+
+    #[test]
+    fn an_editorial_sheet_is_never_reworded() {
+        // Apple Music's transcription is the best text here; replacing it with
+        // a community one would be a downgrade wearing an upgrade's clothes.
+        let mut hits = vec![
+            hit("lrclib:5", guide(&SLOPPY), 20),
+            hit("Apple Music", timed(&GOOD), 150),
+        ];
+        reword(&mut hits);
+
+        assert_eq!(hits[1].source, "Apple Music", "left alone");
+        assert!(hits[1].sheet.text().contains("summer"));
+    }
+
+    #[test]
+    fn with_no_line_synced_guide_nothing_is_reworded() {
+        let mut hits = vec![hit("Kugou", timed(&SLOPPY), 30)];
+        reword(&mut hits);
+        assert_eq!(hits[0].source, "Kugou");
+        assert!(hits[0].sheet.text().contains("sumer"), "untouched");
+    }
+
+    #[test]
+    fn the_reworded_sheet_is_the_one_that_wins() {
+        // The whole point: the reader gets the careful words *and* the sweep.
+        let hits = vec![
+            hit("lrclib:5", guide(&GOOD), 20),
+            hit("Kugou", timed(&SLOPPY), 30),
+        ];
+        let found = choose(&query(), hits);
+
+        assert_eq!(found.source, "LRCLIB + Kugou");
+        assert!(found.synced.contains('<'), "word timings survived");
+        assert!(found.plain.contains("summer"), "careful words survived");
     }
 
     #[test]

@@ -378,6 +378,35 @@ Authored word timings exist, but no single service has them for everything, so
 Re-measured on the same six tracks: five come back word-timed, and the sixth is
 correctly identified as an instrumental.
 
+### The best words and the best clock are rarely the same sheet — 2026-09-04
+
+LRCLIB's transcriptions are careful and have no word timings. Kugou's and
+NetEase's have word timings and a transcript nobody proofread. Ranking cannot
+resolve that, because ranking picks _one_ sheet, and either choice throws away
+something the reader wanted.
+
+So `meta/lyrics/conform.rs` re-seats one sheet's timings onto another's words.
+Both are reduced to a flat sequence of normalised word keys and aligned by
+longest common subsequence — the right tool, because the edits between two
+transcriptions of one song are exactly insertions and deletions: a chorus
+written out once instead of three times, an ad-lib only one of them heard.
+
+It runs only on the _low-trust_ word-timed sheets. Apple Music's transcription
+is editorial and is the best text anyone here has; rewording it from a
+community source would be a downgrade wearing an upgrade's clothes.
+
+The gates are deliberately strict, and the reason is the failure mode. A badly
+conformed sheet does not look broken — it looks like a lyric whose highlight is
+a word and a half out all the way through, which reads as _the app_ being wrong
+rather than the data. So four separate conditions have to hold (enough matched
+words, enough of the guide covered, enough of the timed sheet used, and almost
+every line carrying at least one real anchor), and any one of them failing means
+nothing changes and the line-synced sheet is shown as it would have been anyway.
+
+The result is credited to both providers — "LRCLIB + Kugou" — because it is
+both, and naming one would blame the wrong service for whichever half turned
+out to be wrong.
+
 ### What is being accepted here
 
 Three of the four are unofficial endpoints. They need no key and no account and
