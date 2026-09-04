@@ -10,7 +10,9 @@
  *
  * The *network* cache matters just as much and for a different reason: roughly
  * half of any real library has no lyrics anywhere. Those tracks are asked about
- * once, the absence is stored, and they are never asked about again.
+ * once, the absence is stored, and they are never asked about again. That
+ * mattered when a miss cost one request; `meta/lyrics/` now asks up to four
+ * providers, so it matters rather more.
  */
 
 import { mayFetchMetadata } from '@/lib/data-saver';
@@ -67,9 +69,10 @@ export const NO_LYRICS: TrackLyrics = {
 /**
  * How long a negative answer is trusted.
  *
- * Thirty days. LRCLIB is community-contributed, so lyrics genuinely do appear
- * for a track that had none — but not often enough to justify asking every week,
- * and never often enough to justify asking every play.
+ * Thirty days. Two of the providers are community-contributed, so lyrics
+ * genuinely do appear for a track that had none — but not often enough to
+ * justify asking every week, and never often enough to justify asking every
+ * play.
  */
 const NEGATIVE_TTL = 30 * 24 * 60 * 60 * 1000;
 
@@ -264,8 +267,9 @@ export async function lyricsFor(track: {
   // saver withholds new traffic; it does not blank a screen that was working.
   if (!mayFetchMetadata(currentSettings())) return NO_LYRICS;
 
-  // The browser build has no way to reach LRCLIB — the content security policy
-  // does not admit it, deliberately — so it answers from the store or not at all.
+  // The browser build has no way to reach the providers — the content security
+  // policy does not admit them, deliberately — so it answers from the store or
+  // not at all.
   if (!isNative()) return NO_LYRICS;
 
   type Found = {
@@ -274,6 +278,16 @@ export async function lyricsFor(track: {
     source: string;
     found: boolean;
     instrumental: boolean;
+    /**
+     * A translation and a romanisation, where the provider shipped them.
+     *
+     * Only some do — see `meta/lyrics/netease.rs` and the TTML lanes in
+     * `meta/lyrics/ttml.rs`. Both are the publisher's own text rather than
+     * anything this app generated, which is what makes taking them consistent
+     * with `romanise.ts` refusing to guess at Japanese and Chinese.
+     */
+    translation: string;
+    romanised: string;
   };
   const empty: Found = {
     synced: '',
@@ -281,6 +295,8 @@ export async function lyricsFor(track: {
     source: '',
     found: false,
     instrumental: false,
+    translation: '',
+    romanised: '',
   };
 
   let found = await tryInvoke<Found>(
@@ -308,8 +324,8 @@ export async function lyricsFor(track: {
     trackId: track.id,
     synced: found.synced,
     plain: found.plain,
-    translation: '',
-    romanised: '',
+    translation: found.translation ?? '',
+    romanised: found.romanised ?? '',
     source: found.source,
     found: found.found,
     fetchedAt: Date.now(),

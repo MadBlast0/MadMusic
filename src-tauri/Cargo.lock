@@ -1168,6 +1168,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deunicode"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abd57806937c9cc163efc8ea3910e00a62e2aeb0b8119f1793a978088f8f6b04"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2889,6 +2895,8 @@ dependencies = [
  "anyhow",
  "base64 0.23.1",
  "cpal",
+ "deunicode",
+ "flate2",
  "http",
  "image",
  "lofty",
@@ -2897,6 +2905,7 @@ dependencies = [
  "notify",
  "reqwest 0.12.28",
  "rodio",
+ "roxmltree",
  "rusqlite",
  "rustypipe",
  "serde",
@@ -4214,6 +4223,12 @@ dependencies = [
  "symphonia",
  "thiserror 1.0.69",
 ]
+
+[[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "rquickjs"

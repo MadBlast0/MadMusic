@@ -354,6 +354,50 @@ comes from:
 
 These are safe to build on whatever else is decided.
 
+## Lyrics are a third question again — 2026-09-04
+
+Lyrics were LRCLIB and nothing else, for the reasons that file recorded: no key,
+no account, openly licensed, and every commercial provider (Musixmatch, Genius,
+LyricFind) requires a paid licence to display lyrics in an application.
+
+That reasoning still holds. What it did not deliver is **word timings**. LRC can
+carry them, LRCLIB's schema allows them, and almost nothing in the database has
+them — so the karaoke sweep was nearly always animating over whole lines. On a
+sample of six well-known tracks, LRCLIB returned word timings for none.
+
+Authored word timings exist, but no single service has them for everything, so
+`src-tauri/src/meta/lyrics/` now asks four and ranks the answers:
+
+| Provider                                   | Format | Word timings   | Standing                              |
+| ------------------------------------------ | ------ | -------------- | ------------------------------------- |
+| LRCLIB                                     | LRC    | Rare           | Official API, no key, openly licensed |
+| Apple Music (via `lyrics-api.binimum.org`) | TTML   | Yes, editorial | **Unofficial** community index        |
+| NetEase                                    | `yrc`  | Yes            | **Unofficial**, undocumented          |
+| Kugou                                      | `krc`  | Yes            | **Unofficial**, undocumented          |
+
+Re-measured on the same six tracks: five come back word-timed, and the sixth is
+correctly identified as an instrumental.
+
+### What is being accepted here
+
+Three of the four are unofficial endpoints. They need no key and no account and
+they serve anyone who asks, but they are not covered by any agreement we hold
+and they can change shape or disappear without notice. That is the trade:
+`docs/roadmap.md` ruled out anything that costs money, and this is what free
+word timings actually cost.
+
+It is mitigated rather than ignored. Every provider fails silently and
+independently, the fan-out is tiered so the two unofficial East Asian services
+are only asked when the first pair found nothing word-timed, and the ignored
+`meta::lyrics::live` tests exist to say _which_ provider moved when lyrics stop
+working.
+
+**No code was taken from any other project.** The formats (TTML is a W3C
+specification) and the endpoints are not anyone's to license; the parsers,
+ranking and merging here are our own. This matters more than usual because the
+project that prompted the survey, [Sonora](https://github.com/nolight132/sonora),
+is GPL-3.0 and MadMusic is not.
+
 ## Sources
 
 - [monochrome-music/monochrome](https://github.com/monochrome-music/monochrome)

@@ -37,8 +37,9 @@ sign in to.
 - **A real player.** Gapless playback, crossfade, a ten-band equaliser with
   presets, loudness normalisation, output device selection, and a native audio
   path that hands samples to the device at the file's own rate.
-- **Lyrics that follow the song.** Synced lyrics, word by word where the source
-  provides them, with romanisation for scripts you cannot read.
+- **Lyrics that follow the song.** Four lyric providers asked at once and
+  ranked against each other, so the highlight follows the singer word by word
+  rather than line by line, with romanisation for scripts you cannot read.
 - **A library you can shape.** Playlists you drag into order, sort and filter,
   with liked songs, ratings, tags, listening history, and statistics.
 - **Sign in once.** Clerk authentication, and playback state that follows an
