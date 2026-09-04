@@ -68,6 +68,7 @@ export function NowPlayingBar({
   onPresent,
   immersive,
   onToggleImmersive,
+  onOpenTrack,
 }: {
   queueOpen: boolean;
   onToggleQueue: () => void;
@@ -77,6 +78,14 @@ export function NowPlayingBar({
   /** Which compact arrangement is showing, if any. */
   compact: 'normal' | 'compact' | 'widget' | 'pip';
   onPresent: (mode: 'compact' | 'widget' | 'pip') => void;
+  /**
+   * Opens the song's own page.
+   *
+   * Optional, because the bar is rendered in the widget and the compact
+   * player too, and neither of those has anywhere to navigate to. Without it
+   * the title is text, which is what it has always been.
+   */
+  onOpenTrack?: (id: string, title: string) => void;
   /** Whether the full-screen player is up. */
   immersive: boolean;
   onToggleImmersive: () => void;
@@ -252,7 +261,19 @@ export function NowPlayingBar({
         </AnimatePresence>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{current.title}</p>
+          {/* The title is the natural place to ask "what *is* this", and it
+              was the one piece of the bar that answered nothing. */}
+          {onOpenTrack ? (
+            <button
+              type="button"
+              className="block max-w-full truncate text-left text-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={() => onOpenTrack(current.id, current.title)}
+            >
+              {current.title}
+            </button>
+          ) : (
+            <p className="truncate text-sm font-medium">{current.title}</p>
+          )}
           <p className="truncate text-xs text-muted-foreground">
             {/* Replaces the artist rather than sitting beside it. When the
                 sound is on another machine, *where* is the more urgent fact —

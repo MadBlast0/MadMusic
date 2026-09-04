@@ -20,6 +20,16 @@ export type Route =
   | { name: 'settings' }
   /** `title` is carried so the header can paint before the fetch returns. */
   | { name: 'album'; id: string; title: string }
+  /**
+   * One song.
+   *
+   * The page every other page could already link to and had nowhere to send
+   * you: an album lists its tracks, a playlist lists its tracks, search returns
+   * tracks, and none of them could answer "what *is* this". It is also where a
+   * shared `track` link belongs — those used to open the album, which is a
+   * different thing that happens to contain the right song.
+   */
+  | { name: 'track'; id: string; title: string }
   | { name: 'artist'; id: string; artistName: string }
   /** Liked songs and recently played — lists the app built from what you did. */
   | { name: 'saved'; kind: 'liked' | 'history' }
@@ -69,6 +79,7 @@ export function routeKey(route: Route): string {
   switch (route.name) {
     case 'album':
     case 'artist':
+    case 'track':
       return `${route.name}:${route.id}`;
     case 'local-album':
       return `local-album:${route.key}`;
@@ -179,6 +190,8 @@ export function routeLabel(route: Route): string {
   switch (route.name) {
     case 'album':
       return route.title || 'Album';
+    case 'track':
+      return route.title || 'Song';
     case 'artist':
       return route.artistName || 'Artist';
     case 'local-album':

@@ -207,6 +207,7 @@ export function TrackList({
   showAlbum = true,
   emptyMessage,
   indexBy,
+  onOpenTrack,
 }: {
   tracks: LocalTrack[];
   numbered?: boolean;
@@ -214,6 +215,13 @@ export function TrackList({
   showHeader?: boolean;
   showAlbum?: boolean;
   emptyMessage?: string;
+  /**
+   * Opens one song's own page.
+   *
+   * Optional. A list rendered somewhere that cannot navigate — inside a
+   * dialog, or the folder tree — simply does not offer the menu item.
+   */
+  onOpenTrack?: (id: string, title: string) => void;
   /**
    * Which field the A–Z rail should index, or nothing for no rail.
    *
@@ -528,6 +536,9 @@ export function TrackList({
                     }
                     onEditTags={setEditing}
                     onStartRadio={() => void startRadio(queue[index])}
+                    onOpenTrack={
+                      onOpenTrack && ((row) => onOpenTrack(row.id, row.title))
+                    }
                   />
                 </ContextMenuContent>
               </ContextMenu>

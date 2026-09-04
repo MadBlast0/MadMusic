@@ -286,6 +286,9 @@ export function LibraryView({
                 {tab === 'tracks' && (
                   <TrackList
                     tracks={sorted}
+                    onOpenTrack={(id, title) =>
+                      onOpen({ name: 'track', id, title })
+                    }
                     // Only where the list is actually alphabetical. An A–Z rail
                     // over a list sorted by date added would jump to the wrong
                     // place every time, which is worse than having no rail.

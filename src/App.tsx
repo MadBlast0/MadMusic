@@ -46,6 +46,7 @@ import {
 import { ViewTabs } from '@/components/layout/view-tabs';
 import { cn } from '@/lib/utils';
 import { AlbumView } from '@/views/album-view';
+import { TrackView } from '@/views/track-view';
 import { ArtistView } from '@/views/artist-view';
 import { HomeView } from '@/views/home-view';
 import { PlaylistView } from '@/views/playlist-view';
@@ -419,7 +420,11 @@ function App() {
         if (!target) continue;
 
         switch (target.kind) {
+          // Now that songs have a page, a link to one opens it rather than
+          // the album that happens to contain it.
           case 'track':
+            go({ name: 'track', id: target.id, title: target.title ?? '' });
+            return;
           case 'album':
             go({ name: 'album', id: target.id, title: target.title ?? '' });
             return;
@@ -757,6 +762,14 @@ function App() {
                           onBack={back}
                         />
                       )}
+                      {route.name === 'track' && (
+                        <TrackView
+                          id={route.id}
+                          title={route.title}
+                          onOpen={go}
+                          onBack={back}
+                        />
+                      )}
                       {route.name === 'saved' && (
                         <SavedView kind={route.kind} />
                       )}
@@ -884,6 +897,7 @@ function App() {
                     : 'normal'
                 }
                 onPresent={show}
+                onOpenTrack={(id, title) => go({ name: 'track', id, title })}
                 immersive={immersive}
                 onToggleImmersive={() => show('immersive')}
               />

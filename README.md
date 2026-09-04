@@ -42,6 +42,9 @@ sign in to.
   rather than line by line, with romanisation for scripts you cannot read.
 - **A library you can shape.** Playlists you drag into order, sort and filter,
   with liked songs, ratings, tags, listening history, and statistics.
+- **A page for every song.** Credits, tempo, tags, play counts and the lyrics
+  the app already found — reached from the player, the library, or a shared
+  link.
 - **Sign in once.** Clerk authentication, and playback state that follows an
   account across its devices, so the desktop at home can hand the queue to the
   laptop on the train.

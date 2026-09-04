@@ -31,6 +31,7 @@ export function TrackLibraryMenu({
   tracks,
   onEditTags,
   onStartRadio,
+  onOpenTrack,
 }: {
   /** One track, or a whole selection. Never empty. */
   tracks: TrackRow[];
@@ -38,6 +39,14 @@ export function TrackLibraryMenu({
   onEditTags?: (tracks: TrackRow[]) => void;
   /** Given, the menu offers to build a station from a single track. */
   onStartRadio?: (track: TrackRow) => void | Promise<void>;
+  /**
+   * Given, the menu offers to open the song's own page.
+   *
+   * Optional because not every list that uses this menu sits under something
+   * that can navigate. A menu item that does nothing would be worse than one
+   * that is not there.
+   */
+  onOpenTrack?: (track: TrackRow) => void;
 }) {
   const actions = useTrackActions();
   const [busy, setBusy] = useState(false);
@@ -57,6 +66,14 @@ export function TrackLibraryMenu({
   return (
     <>
       <ContextMenuSeparator />
+
+      {/* Only for a single track. "Go to song" on a selection of forty has no
+          answer to which song it meant. */}
+      {onOpenTrack && !many && (
+        <ContextMenuItem onSelect={() => onOpenTrack(first)}>
+          Go to song
+        </ContextMenuItem>
+      )}
 
       <ContextMenuCheckboxItem
         checked={!many && state.liked}

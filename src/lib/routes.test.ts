@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isTab, routeKey, tabFor, type Route } from '@/lib/routes';
+import { isTab, routeKey, routeLabel, tabFor, type Route } from '@/lib/routes';
 
 /**
  * The route model, which the whole history stack is built on.
@@ -69,5 +69,51 @@ describe('isTab', () => {
     expect(isTab('album')).toBe(false);
     expect(isTab('artist')).toBe(false);
     expect(isTab('')).toBe(false);
+  });
+});
+
+/**
+ * A song's own page.
+ *
+ * It is identified the same way an album is — by id, with the title carried
+ * only so the header can paint before the fetch lands — so it has to behave
+ * the same way under history comparison.
+ */
+describe('the track route', () => {
+  it('is told apart from an album with the same id', () => {
+    // They genuinely can share one: a single is an album and a track.
+    expect(routeKey({ name: 'track', id: 'x', title: 'Song' })).not.toBe(
+      routeKey({ name: 'album', id: 'x', title: 'Song' }),
+    );
+  });
+
+  it('is the same route whatever title it was opened with', () => {
+    // The title is a painting hint, not identity. Two entries that differ only
+    // by it would put a duplicate in history.
+    expect(routeKey({ name: 'track', id: 'x', title: 'From a card' })).toBe(
+      routeKey({ name: 'track', id: 'x', title: 'From the player' }),
+    );
+  });
+
+  it('is a different route for a different song', () => {
+    expect(routeKey({ name: 'track', id: 'a', title: 'Song' })).not.toBe(
+      routeKey({ name: 'track', id: 'b', title: 'Song' }),
+    );
+  });
+
+  it('highlights no sidebar item', () => {
+    // Reached by clicking, like an album page. Lighting a tab would claim you
+    // are somewhere you are not.
+    expect(tabFor({ name: 'track', id: 'x', title: 'Song' })).toBeNull();
+  });
+
+  it('labels itself with the title it was given', () => {
+    expect(routeLabel({ name: 'track', id: 'x', title: 'Yesterday' })).toBe(
+      'Yesterday',
+    );
+    // And never with the id, which is no label at all.
+    expect(routeLabel({ name: 'track', id: 'MPREb_x9v', title: '' })).toBe(
+      'Song',
+    );
   });
 });
