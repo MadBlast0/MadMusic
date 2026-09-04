@@ -208,6 +208,10 @@ fn apply_migrations(connection: &Connection) -> Result<(), rusqlite::Error> {
         connection.execute_batch(schema::V2)?;
     }
 
+    if version < 3 {
+        connection.execute_batch(schema::V3)?;
+    }
+
     // Future migrations go here, each guarded by `if version < N`, each adding
     // only. The version is written once at the end so a crash part way through
     // re-runs the whole step rather than skipping the rest.
@@ -277,6 +281,42 @@ mod tests {
             })
             .expect("version readable");
         assert_eq!(version, schema::SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn an_older_database_gains_the_new_columns_and_keeps_its_rows() {
+        // The case the fresh-open test cannot reach. `ALTER TABLE ... ADD
+        // COLUMN` has no `IF NOT EXISTS` in SQLite, so a migration that runs
+        // twice is an error rather than a no-op — and a music library is
+        // exactly the kind of data people carry across years of upgrades.
+        let connection = Connection::open_in_memory().expect("a database");
+        connection.execute_batch(schema::V1).expect("v1 applied");
+        connection.execute_batch(schema::V2).expect("v2 applied");
+        connection
+            .execute(
+                "INSERT INTO lyrics (track_id, synced, source, found, fetched_at)
+                 VALUES ('t1', '[00:01.00]Words', 'lrclib', 1, 0)",
+                [],
+            )
+            .expect("a row from the older build");
+        connection
+            .pragma_update(None, "user_version", 2)
+            .expect("marked as v2");
+
+        apply_migrations(&connection).expect("migrated");
+
+        let (synced, background): (String, String) = connection
+            .query_row(
+                "SELECT synced, background FROM lyrics WHERE track_id = 't1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the row survived");
+        assert_eq!(synced, "[00:01.00]Words");
+        assert_eq!(background, "", "the new column defaults rather than nulls");
+
+        // And running it again is a no-op rather than a duplicate-column error.
+        apply_migrations(&connection).expect("migrating an up-to-date file");
     }
 
     #[test]

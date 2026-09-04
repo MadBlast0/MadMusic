@@ -27,7 +27,7 @@
 //!   an orphaned playlist row is a bug that should fail loudly at write time.
 
 /// The current schema version. Bump when adding a migration below.
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// Version 1 — everything, because there was nothing before it.
 ///
@@ -487,4 +487,19 @@ CREATE INDEX IF NOT EXISTS track_genre_nocase
 CREATE INDEX IF NOT EXISTS track_year     ON track(year);
 CREATE INDEX IF NOT EXISTS track_duration ON track(duration);
 CREATE INDEX IF NOT EXISTS track_bpm      ON track(bpm);
+"#;
+
+/// Version 3 — the lyric lanes that LRC cannot carry.
+///
+/// A sheet from Apple Music knows which of two singers has each line and what
+/// the backing vocals answer with, and LRC has no way to write either down. So
+/// they travel beside the LRC as lanes: one line of text per line of lyric,
+/// matched by position. See `meta/lyrics/model.rs`.
+///
+/// Both default to empty, so every row written by an older build is already
+/// correct — a song with one singer and no echo has nothing to say here, which
+/// is the overwhelming majority of them.
+pub const V3: &str = r#"
+ALTER TABLE lyrics ADD COLUMN background TEXT NOT NULL DEFAULT '';
+ALTER TABLE lyrics ADD COLUMN voices     TEXT NOT NULL DEFAULT '';
 "#;

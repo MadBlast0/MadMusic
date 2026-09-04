@@ -66,6 +66,7 @@ pub fn parse(text: &str) -> Sheet {
                 text: text.clone(),
                 words: words.clone(),
                 voice: Default::default(),
+                background: String::new(),
                 translation: String::new(),
                 romanised: String::new(),
             });

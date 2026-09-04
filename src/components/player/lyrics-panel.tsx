@@ -214,12 +214,30 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
           ? lyrics.translation
           : '';
 
-    if (!lane) return withInterludes(lyrics.lines);
+    // Three lanes, all matched to their line the same way: one row of text per
+    // line of lyric, by position. `voices` and `background` come from the sheet
+    // rather than from a choice the reader made, so they are attached whether
+    // or not a translation is showing.
+    const rows = lane ? lane.split('\n') : [];
+    const echoes = lyrics.background ? lyrics.background.split('\n') : [];
+    const singers = lyrics.voices ? lyrics.voices.split('\n') : [];
 
-    const rows = lane.split('\n');
+    if (!rows.length && !echoes.length && !singers.length) {
+      return withInterludes(lyrics.lines);
+    }
+
     const paired = lyrics.lines.map((line, index) => {
       const secondary = rows[index]?.trim();
-      return secondary ? { ...line, secondary } : line;
+      const background = echoes[index]?.trim();
+      const voice = singers[index]?.trim();
+      return {
+        ...line,
+        ...(secondary ? { secondary } : {}),
+        ...(background ? { background } : {}),
+        // Only the two that mean something. Every other line is the lead, and
+        // saying so on each one would put an attribute on the whole song.
+        ...(voice === 'counter' || voice === 'bg' ? { voice } : {}),
+      };
     });
 
     return withInterludes(paired);
@@ -996,6 +1014,11 @@ const LyricLine = memo(function LyricLine({
         event.preventDefault();
         onShare(line.source);
       }}
+      // Set apart only where the sheet actually distinguished the singers,
+      // which is a duet and almost nothing else. Absent on every other line,
+      // so the ordinary song is styled by one rule rather than by a rule per
+      // line saying "the usual".
+      data-voice={line.voice}
       className="lyric-line"
     >
       {words.length > 0 ? (
@@ -1028,6 +1051,12 @@ const LyricLine = memo(function LyricLine({
       ) : (
         <>{line.text || '♪'}</>
       )}
+
+      {/* The backing vocal answering this line. Above the translation, because
+          it is part of what is being sung rather than a gloss on it — and kept
+          out of the words themselves, where it would interleave with the line
+          it answers. */}
+      {line.background && <span className="lyric-echo">{line.background}</span>}
 
       {/* The lane, under the words it belongs to. Smaller and dimmer than the
           lyric even when the lyric is the sung one: it is there to be glanced

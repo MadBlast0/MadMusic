@@ -96,6 +96,15 @@ pub struct Found {
     /// Not generated here. See the module note.
     #[serde(default)]
     pub romanised: String,
+    /// The background vocals, line by line, where the sheet marked them.
+    #[serde(default)]
+    pub background: String,
+    /// Who sings each line — `lead`, `counter` or `bg`, one per line.
+    ///
+    /// Empty for the overwhelming majority of songs, which have one singer.
+    /// It fills in for a duet, which is when the panel has something to say.
+    #[serde(default)]
+    pub voices: String,
 }
 
 /// Looks lyrics up by exactly what the tags say.
@@ -214,6 +223,8 @@ fn choose(query: &Query, hits: Vec<Hit>) -> Found {
         plain: hit.sheet.text(),
         translation: hit.sheet.translation(),
         romanised: hit.sheet.romanised(),
+        background: hit.sheet.background(),
+        voices: hit.sheet.voices(),
         found: true,
         instrumental: hit.instrumental,
         source: hit.source,

@@ -17,10 +17,11 @@
 //! maintain both.
 //!
 //! It does cost something: LRC has no way to say "these two words are sung by
-//! the other voice", so the voice and background-vocal information TTML
-//! carries is parsed and then dropped on the way out. That is a deliberate
-//! limit of this stage — the parser keeps it so a later change can render it
-//! without re-doing the fetch.
+//! the other voice". So the things it cannot express travel *beside* it, as
+//! lanes — one line of text per line of lyric, matched by position. The
+//! translation, the romanisation, the background vocals and the voice of each
+//! line all reach the panel that way, which is a plain format that needs no
+//! parser and stays aligned as long as nothing inserts a line.
 
 use std::fmt::Write as _;
 
@@ -35,9 +36,9 @@ pub struct Word {
 
 /// Who is singing a line.
 ///
-/// Parsed from TTML's `ttm:agent` and kept, though nothing renders it yet —
-/// see the module note. A duet whose voices are not told apart still displays
-/// correctly; it just displays as one voice.
+/// Parsed from TTML's `ttm:agent`. A song with one singer says nothing at all
+/// — see [`Sheet::voices`] — so this only reaches the panel for a duet, where
+/// the second voice is set apart on screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Voice {
     #[default]
@@ -59,6 +60,13 @@ pub struct Line {
     pub voice: Voice,
     /// A translation lane, where the provider carries one.
     pub translation: String,
+    /// The background vocal answering this line, where there is one.
+    ///
+    /// Kept apart from `words` rather than merged into them. It is a second
+    /// voice singing over the first — usually a parenthesised echo — so
+    /// threading it into the same sequence would interleave the echo with the
+    /// words it is answering and read as neither.
+    pub background: String,
     /// A romanisation lane, where the provider carries one.
     ///
     /// This is the publisher's own, not ours. `lib/romanise.ts` refuses to
@@ -83,6 +91,7 @@ impl Line {
             text: text.into(),
             words: Vec::new(),
             voice: Voice::Lead,
+            background: String::new(),
             translation: String::new(),
             romanised: String::new(),
         }
@@ -141,6 +150,36 @@ impl Sheet {
     /// The romanisation lane, joined, or empty when the provider had none.
     pub fn romanised(&self) -> String {
         self.lane(|line| &line.romanised)
+    }
+
+    /// The background vocals, line by line.
+    pub fn background(&self) -> String {
+        self.lane(|line| &line.background)
+    }
+
+    /// Who sings each line, as one token per line.
+    ///
+    /// Empty for the overwhelming majority of songs, which have one singer and
+    /// no echo — and empty is what the reader should get there, because a lane
+    /// of the word "lead" repeated ninety times is storage spent to say
+    /// nothing. It fills in only for a duet or a song with backing vocals,
+    /// which is exactly when the panel has something to show.
+    pub fn voices(&self) -> String {
+        let Sheet::Synced(lines) = self else {
+            return String::new();
+        };
+        if lines.iter().all(|line| line.voice == Voice::Lead) {
+            return String::new();
+        }
+        lines
+            .iter()
+            .map(|line| match line.voice {
+                Voice::Lead => "lead",
+                Voice::Counter => "counter",
+                Voice::Background => "bg",
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     fn lane(&self, pick: impl Fn(&Line) -> &String) -> String {
@@ -284,6 +323,7 @@ mod tests {
                 },
             ],
             voice: Voice::Lead,
+            background: String::new(),
             translation: String::new(),
             romanised: String::new(),
         }])
@@ -334,6 +374,22 @@ mod tests {
         assert!(worded().worded());
         assert!(!Sheet::Synced(vec![Line::plain(0.0, "Words")]).worded());
         assert!(!Sheet::Plain("Words".into()).worded());
+    }
+
+    #[test]
+    fn a_song_with_one_singer_names_no_voices() {
+        // A lane of "lead" repeated ninety times is storage spent to say
+        // nothing, and the panel has nothing to do with it.
+        assert_eq!(worded().voices(), "");
+    }
+
+    #[test]
+    fn a_duet_names_a_voice_for_every_line() {
+        let mut lines = vec![Line::plain(0.0, "One"), Line::plain(1.0, "Two")];
+        lines[1].voice = Voice::Counter;
+        // Every line, not just the ones that changed: the panel reads this by
+        // position, so a lane with holes in it would shift.
+        assert_eq!(Sheet::Synced(lines).voices(), "lead\ncounter");
     }
 
     #[test]

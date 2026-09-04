@@ -24,6 +24,11 @@ pub struct Lyrics {
     pub plain: String,
     pub translation: String,
     pub romanised: String,
+    /// The background vocals, one line per line of lyric. Usually empty.
+    pub background: String,
+    /// Who sings each line — `lead`, `counter` or `bg`. Empty for a song with
+    /// one singer, which is nearly all of them.
+    pub voices: String,
     pub source: String,
     /// False means "we looked and there are none", which is cached too.
     pub found: bool,
@@ -34,7 +39,8 @@ pub struct Lyrics {
 pub fn db_lyrics_get(db: State<'_, Db>, track_id: String) -> DbResult<Option<Lyrics>> {
     db.with(|c| {
         c.query_row(
-            "SELECT track_id, synced, plain, translation, romanised, source, found, fetched_at
+            "SELECT track_id, synced, plain, translation, romanised, background,
+                    voices, source, found, fetched_at
              FROM lyrics WHERE track_id = ?1",
             params![track_id],
             |row| {
@@ -44,9 +50,11 @@ pub fn db_lyrics_get(db: State<'_, Db>, track_id: String) -> DbResult<Option<Lyr
                     plain: row.get(2)?,
                     translation: row.get(3)?,
                     romanised: row.get(4)?,
-                    source: row.get(5)?,
-                    found: row.get::<_, i64>(6)? != 0,
-                    fetched_at: row.get(7)?,
+                    background: row.get(5)?,
+                    voices: row.get(6)?,
+                    source: row.get(7)?,
+                    found: row.get::<_, i64>(8)? != 0,
+                    fetched_at: row.get(9)?,
                 })
             },
         )
@@ -60,11 +68,12 @@ pub fn db_lyrics_put(db: State<'_, Db>, lyrics: Lyrics) -> DbResult<()> {
     db.with(|c| {
         c.execute(
             "INSERT INTO lyrics (track_id, synced, plain, translation, romanised,
-                                 source, found, fetched_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                                 background, voices, source, found, fetched_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(track_id) DO UPDATE SET
                synced = excluded.synced, plain = excluded.plain,
                translation = excluded.translation, romanised = excluded.romanised,
+               background = excluded.background, voices = excluded.voices,
                source = excluded.source, found = excluded.found,
                fetched_at = excluded.fetched_at",
             params![
@@ -73,6 +82,8 @@ pub fn db_lyrics_put(db: State<'_, Db>, lyrics: Lyrics) -> DbResult<()> {
                 lyrics.plain,
                 lyrics.translation,
                 lyrics.romanised,
+                lyrics.background,
+                lyrics.voices,
                 lyrics.source,
                 i64::from(lyrics.found),
                 now_ms()

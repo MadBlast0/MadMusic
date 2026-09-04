@@ -100,6 +100,7 @@ fn line(
     asides: &[(String, Aside)],
 ) -> Option<Line> {
     let mut words: Vec<Word> = Vec::new();
+    let mut background = String::new();
     let mut translation = String::new();
     let mut romanised = String::new();
 
@@ -116,7 +117,17 @@ fn line(
             // Kept out of the word list deliberately. Interleaving the echo
             // with the line it answers is worse than dropping it, and LRC has
             // nowhere else to put it.
-            _ if role == BACKGROUND || within_background(span) => {}
+            // Kept, but on its own field rather than among the words. It is
+            // a second voice singing over the first, so threading it into the
+            // same sequence would interleave the echo with the line it
+            // answers and read as neither.
+            _ if role == BACKGROUND || within_background(span) => {
+                // Only the innermost span carries the text; the wrapper that
+                // marks the role would repeat it.
+                if !span.children().any(|child| child.has_tag_name("span")) {
+                    push(&mut background, &text);
+                }
+            }
             _ => {
                 // Only the innermost spans are words. A span wrapping other
                 // spans is a grouping, and taking its text as well would put
@@ -192,6 +203,7 @@ fn line(
         text,
         words,
         voice: voice(paragraph, lead, people),
+        background,
         translation,
         romanised,
     })
@@ -442,6 +454,14 @@ mod tests {
             lines[0].text
         );
         assert_eq!(lines[0].words.len(), 3);
+    }
+
+    #[test]
+    fn background_vocals_are_kept_on_their_own_field() {
+        // Out of the words, but not thrown away — the panel draws them.
+        let lines = lines(&parse(DUET));
+        assert_eq!(lines[0].background, "(in love)");
+        assert_eq!(lines[1].background, "", "no echo on this line");
     }
 
     #[test]

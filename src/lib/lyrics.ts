@@ -49,6 +49,10 @@ export type TrackLyrics = {
   plain: string;
   translation: string;
   romanised: string;
+  /** Background vocals, one line per line of lyric. Usually empty. */
+  background: string;
+  /** Who sings each line, one per line. Empty unless the song is a duet. */
+  voices: string;
   /** True when there are none and we know it. */
   none: boolean;
   /** True when the database says the track has no words at all. */
@@ -61,6 +65,8 @@ export const NO_LYRICS: TrackLyrics = {
   plain: '',
   translation: '',
   romanised: '',
+  background: '',
+  voices: '',
   none: true,
   instrumental: false,
   source: '',
@@ -231,6 +237,8 @@ function fromStored(row: Lyrics): TrackLyrics {
     plain: row.plain,
     translation: row.translation,
     romanised: row.romanised,
+    background: row.background ?? '',
+    voices: row.voices ?? '',
     none: !row.found,
     instrumental: row.found && !row.synced && !row.plain,
     source: row.source,
@@ -278,6 +286,9 @@ export async function lyricsFor(track: {
     source: string;
     found: boolean;
     instrumental: boolean;
+    /** Background vocals and the singer of each line, where the sheet said. */
+    background: string;
+    voices: string;
     /**
      * A translation and a romanisation, where the provider shipped them.
      *
@@ -297,6 +308,8 @@ export async function lyricsFor(track: {
     instrumental: false,
     translation: '',
     romanised: '',
+    background: '',
+    voices: '',
   };
 
   let found = await tryInvoke<Found>(
@@ -326,6 +339,8 @@ export async function lyricsFor(track: {
     plain: found.plain,
     translation: found.translation ?? '',
     romanised: found.romanised ?? '',
+    background: found.background ?? '',
+    voices: found.voices ?? '',
     source: found.source,
     found: found.found,
     fetchedAt: Date.now(),
@@ -410,6 +425,11 @@ export async function romaniseLyrics(
       plain: stored?.plain ?? lyrics.plain,
       translation: stored?.translation ?? '',
       romanised,
+      // Carried through rather than rebuilt. These came from the provider and
+      // nothing here has an opinion about them; dropping them would quietly
+      // lose a duet's voices the first time somebody romanised it.
+      background: stored?.background ?? '',
+      voices: stored?.voices ?? '',
       source: stored?.source ?? lyrics.source,
       found: true,
       fetchedAt: stored?.fetchedAt ?? Date.now(),
@@ -443,6 +463,8 @@ export async function setTranslation(
       plain: stored?.plain ?? '',
       translation: translation.trim(),
       romanised: stored?.romanised ?? '',
+      background: stored?.background ?? '',
+      voices: stored?.voices ?? '',
       source: stored?.source ?? '',
       found: true,
       fetchedAt: stored?.fetchedAt ?? Date.now(),
@@ -467,6 +489,15 @@ export async function setTranslation(
 export type RenderedLine = Line & {
   kind?: 'interlude';
   source: number;
+  /**
+   * Who sings this line, where the sheet distinguished them.
+   *
+   * Only ever set for a duet — a song with one singer says nothing, so this is
+   * `undefined` for nearly every line of nearly every song.
+   */
+  voice?: 'lead' | 'counter' | 'bg';
+  /** The background vocal answering this line, where there is one. */
+  background?: string;
   /**
    * A romanisation or translation of this line, drawn beneath it.
    *

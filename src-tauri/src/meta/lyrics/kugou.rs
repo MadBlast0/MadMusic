@@ -295,6 +295,7 @@ fn read_krc(line: &str) -> Option<Line> {
         text,
         words,
         voice: Default::default(),
+        background: String::new(),
         translation: String::new(),
         romanised: String::new(),
     })

@@ -314,6 +314,15 @@ export type Lyrics = {
   plain: string;
   translation: string;
   romanised: string;
+  /** Background vocals, one line per line of lyric. Usually empty. */
+  background: string;
+  /**
+   * Who sings each line — `lead`, `counter` or `bg`, one per line.
+   *
+   * Empty for a song with one singer, which is nearly all of them. It fills in
+   * for a duet, where the second voice is set apart on screen.
+   */
+  voices: string;
   source: string;
   /** False means we looked and there are none — cached so we stop asking. */
   found: boolean;

@@ -38,6 +38,10 @@ const PLAIN = parseLrc(
 
 const PARSED = parseLrc(LRC);
 
+/* One line each, matched to the lyric by position. */
+const LEAD_THEN_COUNTER = 'lead\ncounter';
+const ECHO_FIRST_LINE = '(in love)';
+
 /** Which fixture the mocked store hands back. */
 let lines = PARSED;
 
@@ -48,6 +52,8 @@ let playing = true;
 let visuals = false;
 let translation = '';
 let romanised = '';
+let background = '';
+let voices = '';
 
 /* anime.js drives the line entrance straight into the DOM. Mocked so the tests
    can assert *whether* it was asked to run — jsdom has no layout, so what it
@@ -84,6 +90,8 @@ vi.mock('@/hooks/use-async-value', () => ({
       plain: '',
       translation,
       romanised,
+      background,
+      voices,
       none: false,
       instrumental: false,
       source: 'test',
@@ -130,6 +138,8 @@ beforeEach(() => {
   visuals = false;
   translation = '';
   romanised = '';
+  background = '';
+  voices = '';
   lines = PARSED;
   SEEK.mockClear();
   ANIMATE.mockClear();
@@ -626,6 +636,67 @@ describe('the lane under a line', () => {
     await frames();
 
     // "Original" is the default, so the translation exists but is not shown.
+    expect(view.container.querySelector('.lyric-secondary')).toBeNull();
+    view.unmount();
+  });
+});
+
+/**
+ * A duet, and what the backing vocals answer with.
+ *
+ * Both come from the sheet rather than from anything the reader chose, so they
+ * are drawn whether or not a translation is showing. Both are absent from
+ * nearly every song, which is the case the first test pins.
+ */
+describe('voices and echoes', () => {
+  it('sets the answering voice apart', async () => {
+    voices = LEAD_THEN_COUNTER;
+    const view = render(<LyricsPanel />);
+    await frames();
+
+    const rows = Array.from(
+      view.container.querySelectorAll('.lyric-line'),
+    ) as HTMLElement[];
+    expect(rows[0].dataset.voice).toBeUndefined();
+    expect(rows[1].dataset.voice).toBe('counter');
+    view.unmount();
+  });
+
+  it('leaves an ordinary song with no voice at all', async () => {
+    // One rule styles every line of nearly every song, rather than a rule per
+    // line saying "the usual".
+    const view = render(<LyricsPanel />);
+    await frames();
+
+    const rows = Array.from(
+      view.container.querySelectorAll('.lyric-line'),
+    ) as HTMLElement[];
+    expect(rows.every((row) => row.dataset.voice === undefined)).toBe(true);
+    view.unmount();
+  });
+
+  it('draws the backing vocal without putting it among the words', async () => {
+    background = ECHO_FIRST_LINE;
+    const view = render(<LyricsPanel />);
+    await frames();
+
+    const [first] = Array.from(
+      view.container.querySelectorAll('.lyric-line'),
+    ) as HTMLElement[];
+    expect(first.querySelector('.lyric-echo')?.textContent).toBe('(in love)');
+    // The sung words are still the line's own.
+    expect(first.querySelector('.lyric-echo')?.parentElement).toBe(first);
+    view.unmount();
+  });
+
+  it('shows the echo without a translation being chosen', async () => {
+    // It is part of what is being sung, not a gloss the reader opted into.
+    background = ECHO_FIRST_LINE;
+    translation = '';
+    const view = render(<LyricsPanel />);
+    await frames();
+
+    expect(view.container.querySelector('.lyric-echo')).not.toBeNull();
     expect(view.container.querySelector('.lyric-secondary')).toBeNull();
     view.unmount();
   });
