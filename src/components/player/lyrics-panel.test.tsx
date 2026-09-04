@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import {
   afterAll,
   beforeAll,
@@ -46,6 +46,8 @@ let reduceMotion = false;
 let interpolate = true;
 let playing = true;
 let visuals = false;
+let translation = '';
+let romanised = '';
 
 /* anime.js drives the line entrance straight into the DOM. Mocked so the tests
    can assert *whether* it was asked to run — jsdom has no layout, so what it
@@ -80,8 +82,8 @@ vi.mock('@/hooks/use-async-value', () => ({
     value: {
       lines,
       plain: '',
-      translation: '',
-      romanised: '',
+      translation,
+      romanised,
       none: false,
       instrumental: false,
       source: 'test',
@@ -126,6 +128,8 @@ beforeEach(() => {
   interpolate = true;
   playing = true;
   visuals = false;
+  translation = '';
+  romanised = '';
   lines = PARSED;
   SEEK.mockClear();
   ANIMATE.mockClear();
@@ -543,5 +547,86 @@ describe('clicking a line', () => {
 
     // 12.00 is where the first line's closing marker put its end.
     expect(SEEK).toHaveBeenCalledWith(12);
+  });
+});
+
+/**
+ * A romanisation or a translation is drawn *under* the line, not in place of
+ * it.
+ *
+ * It used to replace the text, and replacing cost the panel its whole point:
+ * the word timings belong to the original words, so turning on a translation
+ * silently turned off the karaoke sweep. These cases hold that shut.
+ */
+describe('the lane under a line', () => {
+  /** Picks the lane, the way a reader does: the button in the footer. */
+  async function choose(view: ReturnType<typeof render>, label: string) {
+    const button = Array.from(view.container.querySelectorAll('button')).find(
+      (candidate) => candidate.textContent?.trim() === label,
+    );
+    if (!button) throw new Error(`no ${label} button`);
+    await act(async () => {
+      fireEvent.click(button);
+    });
+  }
+
+  it('keeps the original words and adds the translation beneath', async () => {
+    translation = 'Enamorado\nOtra vez';
+    const view = render(<LyricsPanel />);
+    await frames();
+    await choose(view, 'Translation');
+
+    const [first] = Array.from(
+      view.container.querySelectorAll('.lyric-line'),
+    ) as HTMLElement[];
+    expect(first.textContent).toContain('Fall in love');
+    expect(first.querySelector('.lyric-secondary')?.textContent).toBe(
+      'Enamorado',
+    );
+    view.unmount();
+  });
+
+  it('leaves the word timings intact, so the sweep still runs', async () => {
+    // The regression this whole change exists to prevent.
+    translation = 'Enamorado\nOtra vez';
+    position = 10.6;
+    const view = render(<LyricsPanel />);
+    await frames();
+    await choose(view, 'Translation');
+
+    const active = view.container.querySelector(
+      '.lyric-line[data-active="true"]',
+    );
+    expect(active?.querySelectorAll('.lyric-word').length).toBeGreaterThan(0);
+    view.unmount();
+    position = 0;
+  });
+
+  it('shows nothing under a line the lane does not reach', async () => {
+    // A short lane runs out rather than falling back to the original, which
+    // would print the lyric twice.
+    translation = 'Enamorado';
+    const view = render(<LyricsPanel />);
+    await frames();
+    await choose(view, 'Translation');
+
+    const rows = Array.from(
+      view.container.querySelectorAll('.lyric-line'),
+    ) as HTMLElement[];
+    const last = rows[rows.length - 1];
+    expect(last.querySelector('.lyric-secondary')).toBeNull();
+    expect(last.textContent).toContain('Again');
+    view.unmount();
+  });
+
+  it('draws no lane at all when none was chosen', async () => {
+    translation = 'Enamorado\nOtra vez';
+    romanised = '';
+    const view = render(<LyricsPanel />);
+    await frames();
+
+    // "Original" is the default, so the translation exists but is not shown.
+    expect(view.container.querySelector('.lyric-secondary')).toBeNull();
+    view.unmount();
   });
 });

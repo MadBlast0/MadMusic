@@ -752,6 +752,29 @@
   margin-bottom: calc(var(--lyric-spacing) * 1.7);
 }
 
+/* # The lane under a line
+
+   A romanisation or a translation, shown with the line rather than in place of
+   it. `block` so it takes its own row, and deliberately quieter than the lyric
+   at every distance — including on the sung line, where the temptation is to
+   light it too. It is not what is being sung, and lighting it would give the
+   eye two things moving at once. */
+.lyric-secondary {
+  display: block;
+  font-size: 0.62em;
+  font-weight: 500;
+  line-height: 1.35;
+  /* Its own line, but not its own paragraph: tied to the lyric above it by
+     being nearer to it than the next line is. */
+  margin-top: 0.22em;
+  opacity: 0.62;
+  /* Never inherits the sweep. The gradient the sung line paints across its
+     words is keyed to timings this text does not have. */
+  color: inherit;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
 /* Distance is depth, and depth is motion parallax. Somebody who asked for
    stillness keeps the fade, which is information, and loses the rest. */
 .lyric-lines[data-still='true'] .lyric-line {

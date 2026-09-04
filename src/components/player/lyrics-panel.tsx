@@ -182,41 +182,47 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
   /**
    * The lines actually rendered.
    *
-   * Romanisation and translation replace the *text* while keeping the timings,
-   * so the karaoke highlight still follows the song. Falling back to the
-   * original when an alternative is shorter than the original is deliberate: a
-   * blank line half-way through a verse reads as a bug, and a line of the
-   * original reads as a line that was not translated.
+   * # Beneath, not instead of
    *
-   * Interludes are inserted *after* that mapping, never before. Translations
-   * are matched to their line by position, and an inserted row shifts every
+   * A romanisation or a translation is attached to its line as `secondary` and
+   * drawn under it, rather than replacing the text. That used to be a
+   * substitution, and substituting cost the thing this panel is for: the word
+   * timings belong to the *original* words — "fall in love" is not three words
+   * in every language — so choosing "Translation" silently turned the karaoke
+   * sweep off and left a line-level highlight behind. Now the original keeps
+   * its words and its sweep, and the reader gets both.
+   *
+   * It is also what somebody wanting a romanisation actually wants. Reading
+   * along with a Japanese lyric means seeing the kana *and* the romaji; being
+   * shown the romaji alone is a different feature.
+   *
+   * A lane shorter than the lyric simply runs out. There is no falling back to
+   * the original any more, because there is nothing to fall back to — a line
+   * nobody translated shows as a line with nothing under it, which is the
+   * truth and reads as one.
+   *
+   * Interludes are inserted *after* this mapping, never before. Lanes are
+   * matched to their line by position, and an inserted row shifts every
    * position after it — which would silently slide a whole song's translation
    * up by one line per instrumental break.
    */
   const rendered = useMemo<RenderedLine[]>(() => {
-    const source =
+    const lane =
       showing === 'romanised'
         ? lyrics.romanised
         : showing === 'translation'
           ? lyrics.translation
           : '';
 
-    if (!source) return withInterludes(lyrics.lines);
+    if (!lane) return withInterludes(lyrics.lines);
 
-    const replacements = source.split('\n');
-    const swapped = lyrics.lines.map((line, index) => {
-      const text = replacements[index];
-      if (text === undefined) return line;
-
-      // The word timings belong to the original words and cannot survive a
-      // translation — "fall in love" is not three words in every language, and
-      // highlighting the fourth word of a line that no longer has four is
-      // worse than not highlighting at all. The line's own timing is kept, so
-      // the scroll still follows the song.
-      return { at: line.at, text, until: line.until };
+    const rows = lane.split('\n');
+    const paired = lyrics.lines.map((line, index) => {
+      const secondary = rows[index]?.trim();
+      return secondary ? { ...line, secondary } : line;
     });
 
-    return withInterludes(swapped);
+    return withInterludes(paired);
   }, [showing, lyrics]);
 
   /* ── The clock ───────────────────────────────────────────────────
@@ -1021,6 +1027,14 @@ const LyricLine = memo(function LyricLine({
         </>
       ) : (
         <>{line.text || '♪'}</>
+      )}
+
+      {/* The lane, under the words it belongs to. Smaller and dimmer than the
+          lyric even when the lyric is the sung one: it is there to be glanced
+          at, and a translation as loud as the line would compete with the
+          thing the reader is actually following. */}
+      {line.secondary && (
+        <span className="lyric-secondary">{line.secondary}</span>
       )}
     </p>
   );

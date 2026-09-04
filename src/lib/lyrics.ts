@@ -467,6 +467,15 @@ export async function setTranslation(
 export type RenderedLine = Line & {
   kind?: 'interlude';
   source: number;
+  /**
+   * A romanisation or translation of this line, drawn beneath it.
+   *
+   * Beneath rather than instead of, so the original keeps the word timings the
+   * sweep is driven by — see the note on `rendered` in `lyrics-panel.tsx`.
+   * Absent for a line no lane covers, which is an ordinary thing for a lane to
+   * be missing rather than an error.
+   */
+  secondary?: string;
 };
 
 /**
