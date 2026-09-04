@@ -341,6 +341,33 @@ export async function lyricsFor(track: {
 }
 
 /**
+ * The provider behind a lyric, named for the reader.
+ *
+ * # Why this is shown at all
+ *
+ * Because there are four of them now and they are not equivalent. LRCLIB is an
+ * official, openly licensed API; the other three are unofficial endpoints that
+ * can change shape or disappear. When a lyric is wrong or badly timed, the
+ * provider is the single most useful thing the reader can tell us — and when
+ * it is right, LRCLIB's contributors are volunteers who are owed the credit.
+ *
+ * Returns an empty string where there is nothing to credit: a track with no
+ * lyrics, and an instrumental, which is a verdict rather than a sheet.
+ */
+export function sourceName(source: string): string {
+  // LRCLIB carries the row id so a specific sheet can be named in a bug
+  // report. That is for the log, not for the screen.
+  const service = source.split(':')[0].trim();
+
+  // Nothing to credit: no lyric at all, or an instrumental — which is several
+  // providers agreeing rather than one provider's sheet, so there is no single
+  // name to print.
+  if (service === '' || service.toLowerCase() === 'providers') return '';
+
+  return service.toLowerCase() === 'lrclib' ? 'LRCLIB' : service;
+}
+
+/**
  * Formats a lyric for sharing as an image.
  *
  * Three lines around the current one, which is the shape every app that does

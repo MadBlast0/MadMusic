@@ -14,7 +14,12 @@ import { useAsyncValue } from '@/hooks/use-async-value';
 import { fallbackCover } from '@/lib/library-model';
 import { dominantColour, gradientFrom, NEUTRAL } from '@/lib/colour';
 import { drawLyricImage } from '@/lib/lyric-image';
-import { romaniseLyrics, setTranslation, shareableExcerpt } from '@/lib/lyrics';
+import {
+  romaniseLyrics,
+  setTranslation,
+  shareableExcerpt,
+  sourceName,
+} from '@/lib/lyrics';
 import type { RenderedLine } from '@/lib/lyrics';
 import {
   hasWordTimings,
@@ -760,14 +765,26 @@ export function LyricsPanel({ compact = false }: { compact?: boolean }) {
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="xs"
-            className="ml-auto text-muted-foreground"
-            onClick={() => setTranslating(true)}
-          >
-            {lyrics.translation ? 'Edit translation' : 'Add a translation'}
-          </Button>
+          <span className="ml-auto flex items-center gap-2">
+            {/* Which of the four providers answered. Worth the space: they are
+                not equivalent — one is an official API and three are
+                unofficial — so when a lyric is wrong or badly timed this is
+                the most useful thing the reader can tell us. */}
+            {sourceName(lyrics.source) && (
+              <span className="text-xs text-muted-foreground">
+                via {sourceName(lyrics.source)}
+              </span>
+            )}
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className="text-muted-foreground"
+              onClick={() => setTranslating(true)}
+            >
+              {lyrics.translation ? 'Edit translation' : 'Add a translation'}
+            </Button>
+          </span>
         </div>
       )}
 

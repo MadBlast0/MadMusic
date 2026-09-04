@@ -140,7 +140,11 @@ pub async fn lyrics_search(title: String, artist: String, duration: f64) -> Resu
         return Ok(Found::default());
     }
 
+    // Deliberately dropped rather than passed on: dropping it is the whole
+    // point of this pass. The parameter stays in the signature because the
+    // frontend sends it and a Tauri command is matched by name.
     let _ = duration;
+
     Ok(best(&Query {
         title: title.trim().to_string(),
         artist: artist.trim().to_string(),
@@ -160,8 +164,38 @@ async fn best(query: &Query) -> Found {
         hits.extend(tier(query, Tier::Second).await);
     }
 
+    choose(query, hits)
+}
+
+/// Picks the answer out of what the providers said.
+///
+/// Split from [`best`] so it can be tested without the network — the deciding
+/// is the part with rules in it, and the fetching is the part that cannot be
+/// reproduced twice the same way.
+fn choose(query: &Query, hits: Vec<Hit>) -> Found {
     let instrumental = rank::instrumental(query, &hits);
-    let ranked = rank::rank(query, hits);
+    let mut ranked = rank::rank(query, hits.clone());
+
+    // Nothing survived, but somebody answered. That is the signature of a
+    // tagging problem rather than a coverage one: a rip whose duration is a
+    // few seconds out, or an album name that does not match, and the gates in
+    // `rank` are hard rejects. So the same hits are ranked again with those
+    // two fields dropped.
+    //
+    // Re-ranked, not re-fetched. The providers have already been asked and
+    // their answers are in hand, so this second chance costs nothing — where
+    // going back out to the network for it would double the cost of every
+    // miss, which is the expensive case already.
+    if ranked.is_empty() && !hits.is_empty() && !instrumental {
+        ranked = rank::rank(
+            &Query {
+                album: String::new(),
+                duration: 0.0,
+                ..query.clone()
+            },
+            hits,
+        );
+    }
 
     let Some(hit) = ranked.into_iter().next() else {
         return Found {
@@ -399,6 +433,43 @@ mod tests {
             ],
         );
         assert_eq!(best[0].source, "worded");
+    }
+
+    #[test]
+    fn a_hit_rejected_only_on_duration_is_recovered_without_asking_again() {
+        // The tagging case: the sheet is right, the file's length is not. The
+        // strict pass rejects it, and the relaxed pass ranks the hits already
+        // in hand rather than going back out to the network.
+        let mut mistagged = hit("apple", Sheet::Synced(lines(10, 190.0)), 150);
+        mistagged.duration = Some(260.0);
+
+        let found = choose(&query(), vec![mistagged]);
+        assert!(found.found, "the second chance did not run");
+        assert_eq!(found.source, "apple");
+    }
+
+    #[test]
+    fn the_relaxed_pass_does_not_accept_a_different_song() {
+        // It drops the album and the duration. It does not drop the title, so
+        // somebody else's track is still rejected and the answer is honestly
+        // empty.
+        let mut wrong = hit("apple", Sheet::Synced(lines(10, 190.0)), 150);
+        wrong.title = "An Entirely Different Song".into();
+
+        let found = choose(&query(), vec![wrong]);
+        assert!(!found.found);
+        assert!(found.synced.is_empty());
+    }
+
+    #[test]
+    fn an_instrumental_is_reported_rather_than_relaxed_into_a_lyric() {
+        let mut quiet = hit("provider", Sheet::None, 20);
+        quiet.instrumental = true;
+
+        let found = choose(&query(), vec![quiet]);
+        assert!(found.found, "so it is cached and not asked again");
+        assert!(found.instrumental);
+        assert!(found.synced.is_empty());
     }
 
     #[test]
