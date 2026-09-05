@@ -8,6 +8,28 @@
       name="description"
       content="MadMusic — one music library, every device."
     />
+
+    <!-- SVG first: one file for every size, and it stays crisp on a retina
+         tab strip where a 32px bitmap does not. The PNG is for the platforms
+         that still refuse an SVG favicon, and for a home-screen shortcut. -->
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- The browser's own chrome, painted to match the surface behind it.
+         Both values are `--background` from `globals.css` — the light one from
+         `:root` and the dark one from `.dark` — so the seam between the page
+         and the browser disappears instead of drawing a line across the top. -->
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content="#f0f0f0"
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#1a1a1a"
+    />
+
     <title>MadMusic</title>
   </head>
   <body>

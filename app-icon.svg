@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>MadMusic</title>
+  <desc>Three stacked lines, brightening downward, on a graphite tile.</desc>
+
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#45454e"/>
+      <stop offset="0.55" stop-color="#1d1d22"/>
+      <stop offset="1" stop-color="#08080a"/>
+    </linearGradient>
+
+    <radialGradient id="sheen" cx="0.34" cy="0.02" r="0.78">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="floor" cx="0.5" cy="1" r="0.6">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <clipPath id="squircle">
+      <rect width="1024" height="1024" rx="230" ry="230"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <rect width="1024" height="1024" fill="url(#tile)"/>
+    <rect width="1024" height="1024" fill="url(#floor)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+
+    <rect x="176" y="208" width="672" height="160" rx="80" fill="#ffffff" fill-opacity="0.46"/>
+    <rect x="224" y="432" width="576" height="160" rx="80" fill="#ffffff" fill-opacity="0.73"/>
+    <rect x="272" y="656" width="480" height="160" rx="80" fill="#ffffff"/>
+  </g>
+
+  <rect x="2" y="2" width="1020" height="1020" rx="229" ry="229"
+        fill="none" stroke="#ffffff" stroke-opacity="0.11" stroke-width="4"/>
+</svg>
