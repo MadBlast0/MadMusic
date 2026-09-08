@@ -31,6 +31,7 @@
  *
  *   pnpm extractor            # this machine's platform
  *   pnpm extractor --all      # every supported target, for release builds
+ *   pnpm extractor --target universal-apple-darwin   # one named target
  *   pnpm extractor --check    # report what is installed
  *   pnpm extractor --latest   # print the newest version and its hashes
  */
@@ -190,9 +191,23 @@ async function main() {
     return;
   }
 
+  // `--target` may be repeated, and `universal-apple-darwin` expands to the
+  // two architectures a universal build actually compiles for: the bundler
+  // builds each one separately and lipos the results, so the build script
+  // looks for a sidecar named after each arch and never for "universal".
+  const asked = args
+    .filter((arg, at) => args[at - 1] === '--target')
+    .flatMap((triple) =>
+      triple === 'universal-apple-darwin'
+        ? ['aarch64-apple-darwin', 'x86_64-apple-darwin']
+        : [triple],
+    );
+
   const triples = args.includes('--all')
     ? Object.keys(TARGETS)
-    : [hostTriple()];
+    : asked.length > 0
+      ? asked
+      : [hostTriple()];
   console.log(`yt-dlp ${VERSION}`);
   for (const triple of triples) await install(triple);
   console.log(

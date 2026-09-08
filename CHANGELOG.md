@@ -9,6 +9,13 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-08
+
+The first build anybody else can install. Pre-alpha, and marked as a
+pre-release: the desktop app runs end to end on Windows, and the macOS and
+Linux installers are produced by the release workflow but have not been
+exercised by hand.
+
 ### Added
 
 - Repository groundwork: README, contributing guide, security policy, code of

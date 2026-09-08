@@ -15,11 +15,14 @@
 # no explanation is worse than one that says which key is missing.
 #
 # - `TAURI_SIGNING_PRIVATE_KEY` — from `pnpm tauri signer generate`. The public
-#   half goes in `tauri.conf.json`; the private half goes here and nowhere else.
-#   **Without it the updater cannot verify a download and will refuse every
-#   update**, which is the correct behaviour: an unsigned update is a remote
-#   code execution waiting for a compromised CDN.
-# - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the passphrase for the above.
+#   half is in `tauri.conf.json`; the private half goes here and nowhere else.
+#   **Required**, because `bundle.createUpdaterArtifacts` is on: the build
+#   produces signed updater bundles and fails outright without the key rather
+#   than shipping updates nothing can verify. The `guard` job below checks for
+#   it first so the failure is one clear sentence instead of a Rust build that
+#   dies twenty minutes in on three runners at once.
+# - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the passphrase for the above. Set it
+#   to an empty secret if the key was generated without one.
 # - `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
 #   `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` — an Apple Developer
 #   membership. Without them the macOS build still produces a `.dmg`, and
@@ -27,8 +30,9 @@
 # - `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` — an Authenticode
 #   certificate. Without it Windows SmartScreen warns on first run.
 #
-# None of those can be created from inside a repository. The build is complete
-# and reproducible; the credentials are an account someone has to hold.
+# Only the first two stop the build. The rest change how the output is received
+# on the far side, and their absence is recorded in the release notes rather
+# than hidden.
 
 name: Release
 
@@ -44,8 +48,84 @@ on:
         description: 'Version to build, without the leading v'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
+  # Everything that can be known before a compiler starts, established once.
+  #
+  # Three runners spend the better part of an hour between them, and every
+  # reason this workflow can fail early — a missing signing key, notes that
+  # cannot be read — is knowable in seconds. Finding out first is the whole
+  # job.
+  guard:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the signing key is present
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set. The build produces signed updater bundles and cannot run without it. Generate a key with 'pnpm tauri signer generate' and add the private half as a repository secret; the public half belongs in src-tauri/tauri.conf.json."
+            exit 1
+          fi
+          echo "signing key present"
+
+      - name: Work out the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # Anything below 1.0, or carrying a suffix, goes out marked as a
+          # pre-release. The project describes itself as pre-alpha, and a
+          # release page that does not say so invites people to treat it as
+          # finished.
+          case "$version" in
+            0.*|*-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # `tauri-action`'s `releaseBody` is the body itself, not a path to one.
+      # Passing it a filename put the literal string
+      # "/home/runner/work/MadMusic/MadMusic/CHANGELOG.md" on the release page,
+      # which is why the notes are read here and passed as text.
+      - name: Read the release notes
+        id: notes
+        run: |
+          # The section for this exact version, so a changelog that has moved
+          # on to the next one still describes the tag being built rather than
+          # whatever is at the top of the file.
+          notes=$(awk -v want="## [${{ steps.version.outputs.version }}]" '
+            index($0, want) == 1 { seen = 1; next }
+            seen && /^## / { exit }
+            seen { print }
+          ' CHANGELOG.md)
+
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no '## [${{ steps.version.outputs.version }}]' section with anything in it. A release describes what changed; add the section before tagging."
+            exit 1
+          fi
+
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$notes"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
   build:
+    needs: guard
+
     permissions:
       contents: write
 
@@ -57,15 +137,24 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
+            # Both, because a universal build compiles each architecture
+            # separately and lipos the results — so the build script looks for
+            # a sidecar named after each arch, never for "universal".
+            extractor: '--target universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
+            extractor: '--target x86_64-unknown-linux-gnu'
+            rust-targets: ''
           - platform: 'windows-latest'
             args: ''
+            extractor: '--target x86_64-pc-windows-msvc'
+            rust-targets: ''
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -77,11 +166,13 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      # No `version:` here on purpose. `package.json` pins the version with
+      # `packageManager`, and naming a second one made this action refuse to
+      # install anything at all — which is what failed every run of these
+      # workflows before the first release was ever attempted.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'pnpm'
@@ -90,7 +181,7 @@ jobs:
         with:
           # The universal macOS binary needs both, and `--target` alone does not
           # install them.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust-targets }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -102,11 +193,17 @@ jobs:
       # checksum. Without this step the build produces an app that stops after
       # about a minute on many catalogue tracks.
       - name: Fetch the extractor
-        run: pnpm extractor
+        shell: bash
+        run: pnpm extractor ${{ matrix.extractor }}
 
       # The gates, before anything is published. A release that fails its own
       # test suite is a release nobody should be able to make by accident.
+      # `shell: bash` matters here rather than being a style choice: PowerShell
+      # is the default on the Windows runner and only propagates the *last*
+      # command's exit code, so a failing `pnpm typecheck` three lines up would
+      # have been reported as a passing gate.
       - name: Check
+        shell: bash
         run: |
           pnpm typecheck
           pnpm lint
@@ -115,6 +212,7 @@ jobs:
 
       - name: Check Rust
         working-directory: src-tauri
+        shell: bash
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
@@ -132,13 +230,14 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'MadMusic v__VERSION__'
-          # Read from the file rather than written here, so the notes somebody
-          # reads in the app and the notes on the release page are one text.
-          releaseBody: ${{ github.workspace }}/CHANGELOG.md
+          tagName: v${{ needs.guard.outputs.version }}
+          releaseName: 'MadMusic v${{ needs.guard.outputs.version }}'
+          # The text itself, read from the changelog by the `guard` job, so the
+          # notes somebody reads in the app and the notes on the release page
+          # are one text.
+          releaseBody: ${{ needs.guard.outputs.notes }}
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ needs.guard.outputs.prerelease }}
           # This is what the updater reads. Without it the endpoint in
           # `tauri.conf.json` resolves to nothing and the app correctly reports
           # that it is up to date forever.
@@ -151,28 +250,31 @@ jobs:
   # because submitting them is a manual step in all three ecosystems — see
   # `scripts/packaging.mjs` for what each one requires.
   manifests:
-    needs: build
-    runs-on: ubuntu-22.04
+    needs: [guard, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
+      # The release the build job just made is a draft, and `gh release
+      # download` reads drafts happily with the repository token.
       - name: Download the release artefacts
         run: |
           mkdir -p bundle
-          gh release download "${{ github.ref_name }}" --dir bundle --pattern '*'
+          gh release download "v${{ needs.guard.outputs.version }}" \
+            --repo "$GITHUB_REPOSITORY" --dir bundle --pattern '*'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate the manifests
         run: >-
           node scripts/packaging.mjs
-          --version "${GITHUB_REF_NAME#v}"
+          --version "${{ needs.guard.outputs.version }}"
           --dir bundle
 
       - uses: actions/upload-artifact@v4

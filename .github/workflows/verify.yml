@@ -8,7 +8,7 @@
 # question: it proves the app compiles on three operating systems, not that the
 # tests pass or that the formatting is clean.
 #
-# The gap showed. Before this file existed, `eslint .` walked `src-tauri/target`
+# The gap showed twice. Before this file existed, `eslint .` walked `src-tauri/target`
 # and reported a parse error for every codegen asset blob it found there, so
 # `pnpm verify` failed for anyone who had ever run a release build. That went
 # unnoticed precisely because no machine ran it.
@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Tauri's own build needs these even for `cargo clippy`, because the
       # crate links against webkit2gtk through its build script.
@@ -63,11 +63,14 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      # No `version:` here on purpose. `package.json` pins the version with
+      # `packageManager`, and naming a second one made this action refuse to
+      # install anything at all: "Multiple versions of pnpm specified". Every
+      # run of this workflow failed on that line, which is how a repository
+      # ends up with a commit gate nothing has ever passed.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'pnpm'
@@ -88,5 +91,8 @@ jobs:
       # The one command, rather than its seven steps spelled out again here.
       # A CI file that lists the checks separately drifts from the script
       # developers actually run, and then "it passes locally" becomes true and
-      # useless at the same time.
+      # useless at the same time. The same drift is what kept this workflow itself
+      # from ever running: it pinned a pnpm version `package.json` already pinned,
+      # and the setup action refuses that outright, so every run failed before
+      # reaching a single check. A gate that has never gone green is not a gate.
       - run: pnpm verify
