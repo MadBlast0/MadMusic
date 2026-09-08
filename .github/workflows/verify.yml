@@ -97,6 +97,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `pnpm verify` compiles the Rust crate, and Tauri's build script refuses
+      # to run without every file named in `externalBin` — so without this the
+      # gate fails with "resource path `binaries/yt-dlp-...` doesn't exist"
+      # regardless of the state of the code. It passes on a developer's machine
+      # only because they ran `pnpm extractor` once, months ago.
+      - name: Fetch the extractor
+        run: pnpm extractor --target x86_64-unknown-linux-gnu
+
       # The one command, rather than its seven steps spelled out again here.
       # A CI file that lists the checks separately drifts from the script
       # developers actually run, and then "it passes locally" becomes true and
