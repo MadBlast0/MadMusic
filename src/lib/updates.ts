@@ -8,13 +8,15 @@
  * that restarts itself mid-album to install a patch has made a decision it had
  * no business making.
  *
- * # This build has no endpoint
+ * # What this build can and cannot do
  *
- * `tauri.conf.json` ships with an empty `endpoints` list and no public key,
- * because the project has neither a signing key nor anywhere to publish a
- * manifest yet. Everything here is written and wired; it finds nothing until
- * those exist. That is deliberately better than a placeholder URL, which would
- * mean a failing network request on every launch forever.
+ * `tauri.conf.json` names the manifest the release workflow publishes and
+ * carries the public half of the signing key; the bundler emits signed updater
+ * artefacts (`bundle.createUpdaterArtifacts`), and the workflow needs the
+ * private half in its secrets to produce them. Until a release has been
+ * published, a check finds no manifest and says so in the settings row.
+ * Checks happen only when somebody presses the button, so a missing manifest
+ * costs nothing at launch.
  *
  * **Unverified.** No update has been published, so no update has been installed.
  */

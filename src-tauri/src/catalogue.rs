@@ -1045,7 +1045,7 @@ fn track_from(item: TrackItem) -> Track {
 
     Track {
         cover: fallback_cover(&item.name),
-        artwork_url: largest(&item.cover),
+        artwork_url: largest(&item.cover).or_else(|| Some(video_thumbnail(&item.id))),
         album: item.album.map(|a| a.name),
         duration: item.duration.unwrap_or(0),
         handle: Some(item.id.clone()),
@@ -1119,6 +1119,18 @@ fn collection_from_playlist(playlist: &rustypipe::model::MusicPlaylistItem) -> C
         release_kind: None,
         artist_id: None,
     }
+}
+
+/// The thumbnail YouTube keeps for every video, whatever the item said.
+///
+/// A good third of search results — uploads, remixes, "slowed" edits, anything
+/// that is a video rather than a catalogue release — arrive with an empty
+/// cover ladder, and were drawn as gradients while the very same tracks showed
+/// a picture on YouTube. That picture is addressable from the id alone, and
+/// `hqdefault` exists for every video ever uploaded, so it is the fallback
+/// rather than nothing.
+fn video_thumbnail(id: &str) -> String {
+    format!("https://i.ytimg.com/vi/{id}/hqdefault.jpg")
 }
 
 /// The biggest thumbnail on offer.
@@ -1744,6 +1756,14 @@ mod tests {
     /// implementation, and the single-letter seeds are chosen to land on all
     /// eight palette slots, so a reordered or edited palette fails rather than
     /// slipping through on the one entry a spot-check happened to use.
+    #[test]
+    fn a_video_id_always_has_a_thumbnail_address() {
+        assert_eq!(
+            video_thumbnail("dQw4w9WgXcQ"),
+            "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+        );
+    }
+
     #[test]
     fn cover_matches_the_frontend_palette() {
         let cases: [(&str, [&str; 2]); 11] = [

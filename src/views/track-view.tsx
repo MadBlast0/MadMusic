@@ -85,7 +85,12 @@ export function TrackView({
     null,
   );
 
-  const row = track ?? { ...EMPTY_TRACK, id, title };
+  // Memoised, because the placeholder branch would otherwise be a fresh
+  // object on every render and take `playable` with it.
+  const row = useMemo(
+    () => track ?? { ...EMPTY_TRACK, id, title },
+    [track, id, title],
+  );
   const playable = useMemo(() => toPlayerTrackRow(row), [row]);
 
   const others = useMemo(

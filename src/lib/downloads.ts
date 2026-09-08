@@ -136,7 +136,19 @@ class Downloader {
   /** Removes a download and its file. */
   async remove(trackId: string): Promise<void> {
     this.queue = this.queue.filter((id) => id !== trackId);
-    await tryInvoke('cache_remove', { trackId }, null);
+    // The cache is keyed on the catalogue handle, not the library id — see
+    // `cache.rs`. Sent the id, Rust refused the call and the file stayed on
+    // disk while the row disappeared from the list.
+    const [track] = await store
+      .tracks({ ids: [trackId], includeHidden: true })
+      .catch((): TrackRow[] => []);
+    if (track?.handle) {
+      await tryInvoke(
+        'cache_remove',
+        { handle: track.handle, keepCached: false },
+        null,
+      );
+    }
     await store.downloadForget(trackId);
     void this.announce();
   }
@@ -230,11 +242,13 @@ class Downloader {
         at: Date.now(),
       });
 
+      // Exactly what `cache_download` in `cache.rs` takes. The name travels
+      // so the file is listed under it rather than under its video id.
       const bytes = await invoke<number>('cache_download', {
         handle: track.handle,
-        trackId: track.id,
+        title: track.title,
+        artist: track.artist,
         quality: this.quality,
-        pinned: true,
       });
 
       await store.downloadSet({

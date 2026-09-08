@@ -27,7 +27,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://img.clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://coverartarchive.org https://*.coverartarchive.org https://lastfm.freetls.fastly.net https://*.discogs.com https://upload.wikimedia.org https://*.mzstatic.com; media-src 'self' asset: http://asset.localhost stream: http://stream.localhost blob: https: http:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com; connect-src 'self' ipc: http://ipc.localhost https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://accounts.google.com; upgrade-insecure-requests",
+      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://img.clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://coverartarchive.org https://*.coverartarchive.org https://lastfm.freetls.fastly.net https://*.discogs.com https://upload.wikimedia.org https://*.mzstatic.com; media-src 'self' asset: http://asset.localhost stream: http://stream.localhost blob: https: http:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com; connect-src 'self' ipc: http://ipc.localhost https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://accounts.google.com; upgrade-insecure-requests",
       "assetProtocol": {
         "enable": true,
         "scope": []
@@ -37,6 +37,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/yt-dlp"],
     "icon": [
       "icons/32x32.png",
@@ -84,11 +85,11 @@
     },
     "updater": {
       "active": true,
-      "$comment": "The endpoint is what `includeUpdaterJson` in .github/workflows/release.yml publishes. `pubkey` is the public half of a key pair from `pnpm tauri signer generate`; the private half belongs in the repository's secrets and nowhere else. An empty pubkey means the app checks, finds a manifest it cannot verify, and refuses the update - which is the correct behaviour rather than a bug.",
+      "$comment": "The endpoint is what `includeUpdaterJson` in .github/workflows/release.yml publishes. `pubkey` is the public half of the key pair generated with `pnpm tauri signer generate`; the private half lives outside the repository (the maintainer's ~/.tauri/madmusic.key) and in the TAURI_SIGNING_PRIVATE_KEY repository secret, and nowhere else. `bundle.createUpdaterArtifacts` is what makes the build emit the signed updater bundles the manifest points at; with it on, a build without the private key fails rather than shipping unsigned updates.",
       "endpoints": [
         "https://github.com/MadBlast0/MadMusic/releases/latest/download/latest.json"
       ],
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzRjk3MDA0NzE4OEFFMDcKUldRSHJvaHhCSEQ1dzRCYlJKVnFXaUliUG5HblRneXJnZGM0cUFoU1AwckpFV2ZaRk9LaWEzUjkK",
       "windows": {
         "installMode": "passive"
       }

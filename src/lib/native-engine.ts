@@ -81,7 +81,8 @@ export const engine = {
   pause: () => call<EngineState>('engine_pause'),
   resume: () => call<EngineState>('engine_resume'),
   stop: () => call<EngineState>('engine_stop'),
-  volume: (level: number) => call<EngineState>('engine_volume', { level }),
+  volume: (level: number) =>
+    call<EngineState>('engine_volume', { volume: level }),
   seek: (seconds: number) => call<EngineState>('engine_seek', { seconds }),
   /**
    * Refreshes the position, which only the audio thread can read.

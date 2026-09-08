@@ -205,7 +205,11 @@ describe('resolving a catalogue track', () => {
     );
     // The chosen quality travels with the request; without it the backend
     // silently falls back to its own default and the setting does nothing.
-    expect(streamUrl).toHaveBeenCalledWith('handle-a', 'balanced');
+    // So does the name, which is what labels the cached copy in Downloads.
+    expect(streamUrl).toHaveBeenCalledWith('handle-a', 'balanced', {
+      title: 'Track a',
+      artist: 'Someone',
+    });
   });
 
   /**

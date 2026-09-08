@@ -155,7 +155,7 @@ fn make_token() -> String {
 pub async fn remote_start(app: tauri::AppHandle) -> RemoteStatus {
     let remote = app.state::<Remote>();
 
-    let token = {
+    {
         let mut state = remote.0.lock().unwrap_or_else(|p| p.into_inner());
         if state.running {
             return status(&state, String::new());
@@ -165,8 +165,7 @@ pub async fn remote_start(app: tauri::AppHandle) -> RemoteStatus {
         if state.token.is_empty() {
             state.token = make_token();
         }
-        state.token.clone()
-    };
+    }
 
     let listener = match TcpListener::bind(("127.0.0.1", PORT)).await {
         Ok(listener) => listener,
@@ -183,6 +182,11 @@ pub async fn remote_start(app: tauri::AppHandle) -> RemoteStatus {
         state.stop = Some(stop_tx);
     }
 
+    // The token is deliberately not captured by the accept loop. Every request
+    // reads it from the state at the moment it arrives, so `remote_reissue`
+    // takes effect on the next request rather than on the next restart — a
+    // copy taken here kept honouring the old token for as long as the endpoint
+    // stayed up, while the settings screen showed a new one that did not work.
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -194,9 +198,8 @@ pub async fn remote_start(app: tauri::AppHandle) -> RemoteStatus {
                 accepted = listener.accept() => {
                     let Ok((stream, _)) = accepted else { continue };
                     let handle = handle.clone();
-                    let token = token.clone();
                     tauri::async_runtime::spawn(async move {
-                        serve(stream, handle, token).await;
+                        serve(stream, handle).await;
                     });
                 }
             }
@@ -242,7 +245,13 @@ pub fn remote_reissue(app: tauri::AppHandle) -> RemoteStatus {
 /// protocol surface used here is: read a request line, compare two strings,
 /// write a fixed response. A web framework would be several hundred kilobytes
 /// of binary for that.
-async fn serve(mut stream: tokio::net::TcpStream, app: tauri::AppHandle, token: String) {
+async fn serve(mut stream: tokio::net::TcpStream, app: tauri::AppHandle) {
+    let token = {
+        let remote = app.state::<Remote>();
+        let state = remote.0.lock().unwrap_or_else(|p| p.into_inner());
+        state.token.clone()
+    };
+
     let mut buffer = [0_u8; 1024];
     let Ok(read) = stream.read(&mut buffer).await else {
         return;

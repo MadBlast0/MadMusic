@@ -8,6 +8,7 @@ import {
   writeCursor,
   type SyncEvent,
 } from '@/lib/sync';
+import type { SyncOp } from '@/lib/store/types';
 
 /**
  * The loop that actually moves the journal.
@@ -51,9 +52,35 @@ export type SyncRunner = {
 
 /** What one round needs from the outside world, so tests can supply their own. */
 export type SyncTransport = {
-  push: (events: unknown[], deviceId: string) => Promise<unknown>;
+  push: (events: WireEvent[], deviceId: string) => Promise<unknown>;
   pull: (since: number) => Promise<SyncEvent[]>;
 };
+
+/**
+ * One outbox entry, as the backend's `sync.push` declares it.
+ *
+ * Exactly these four fields and no others. Convex validators are strict — an
+ * object with a field the validator does not name is rejected outright — and
+ * this used to carry the local `at` timestamp as well, so the backend refused
+ * every push with "Unexpected field `at`" and sync never moved a single
+ * change off any device. The timestamp is not lost: each payload that needs
+ * one carries its own, which is what `applyEvent` reads.
+ */
+export type WireEvent = {
+  entity: string;
+  entityId: string;
+  op: 'put' | 'delete';
+  payload: string;
+};
+
+export function toWireEvent(op: SyncOp): WireEvent {
+  return {
+    entity: op.entity,
+    entityId: op.entityId,
+    op: op.op,
+    payload: op.payload,
+  };
+}
 
 /**
  * Runs one push-then-pull round.
@@ -79,16 +106,7 @@ export async function runRound(
 
   if (pending.length > 0) {
     try {
-      await transport.push(
-        pending.map((op) => ({
-          entity: op.entity,
-          entityId: op.entityId,
-          op: op.op,
-          payload: op.payload,
-          at: op.at,
-        })),
-        device,
-      );
+      await transport.push(pending.map(toWireEvent), device);
       // Acknowledged only after the backend has it. Clearing the outbox first
       // would lose the change entirely if the push turned out to have failed.
       await store.syncAck(pending.map((op) => op.id));
@@ -177,13 +195,26 @@ export function startSync(transport: SyncTransport): SyncRunner {
   };
 }
 
-/** The transport backed by the real backend. */
+/**
+ * The transport backed by the real backend.
+ *
+ * The argument names and the result shape are the backend's, not this file's:
+ * `sync.pull` takes `after` and answers `{ events, highestSeq }`. This used to
+ * send `since` and read the answer as a bare array, so the query was refused
+ * for a missing field and, had it not been, the array-shaped read of an object
+ * would have found no events in it. Either alone was enough to stop every
+ * pull. `convex/sync.test.ts` pins the backend half of this contract.
+ */
 export function convexTransport(
   call: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>,
 ): SyncTransport {
   return {
     push: (events, deviceId) => call(backend.sync.push, { events, deviceId }),
-    pull: async (since) =>
-      (await call(backend.sync.pull, { since })) as SyncEvent[],
+    pull: async (since) => {
+      const result = (await call(backend.sync.pull, { after: since })) as {
+        events: SyncEvent[];
+      };
+      return result.events ?? [];
+    },
   };
 }

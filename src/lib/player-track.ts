@@ -81,7 +81,14 @@ export function toPlayerTrackRow(row: TrackRow): PlayerTrack {
             albumGain: row.albumGain,
             albumPeak: row.albumPeak,
             duration: row.duration,
-            hasArtwork: Boolean(row.artworkUrl),
+            // The row never records whether the file carries a picture —
+            // `toTrackRow` leaves `artworkUrl` empty for every local file —
+            // so this used to be false for all of them, and a local track
+            // reached through a playlist, the history or the queue showed a
+            // gradient where the same file showed its sleeve in the library.
+            // Asking is the honest answer: `CoverArt` reads the file once and
+            // remembers a null as readily as a picture.
+            hasArtwork: true,
           } satisfies LocalTrack)
         : undefined,
   };

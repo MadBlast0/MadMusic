@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runRound, startSync, type SyncTransport } from '@/lib/sync-worker';
+import {
+  convexTransport,
+  runRound,
+  startSync,
+  type SyncTransport,
+} from '@/lib/sync-worker';
+import { backend } from '@/lib/backend-api';
 import { store } from '@/lib/store';
 import { keys } from '@/lib/store/keys';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/lib/settings';
@@ -57,6 +63,25 @@ describe('pushing the outbox', () => {
     const bus = transport();
     await runRound(bus);
     expect(bus.push).not.toHaveBeenCalled();
+  });
+
+  it('sends exactly the fields the backend declares', async () => {
+    await store.syncEnqueue('liked', 't1', 'put', '{"liked":true}');
+
+    const push = vi.fn().mockResolvedValue(undefined);
+    await runRound(transport({ push }));
+
+    // Convex validators are strict: one field the backend does not name and
+    // the whole batch is refused. `at` was that field, and it made every push
+    // fail — so this is the contract, spelled out key by key.
+    const [events] = push.mock.calls[0] as [unknown[]];
+    expect(events).toHaveLength(1);
+    expect(Object.keys(events[0] as object).sort()).toEqual([
+      'entity',
+      'entityId',
+      'op',
+      'payload',
+    ]);
   });
 
   it('acknowledges only after the backend accepted it', async () => {
@@ -165,5 +190,32 @@ describe('the worker loop', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('the backend transport', () => {
+  it('speaks the backend argument names and reads its result shape', async () => {
+    const call = vi.fn(async (fn: unknown, args: Record<string, unknown>) => {
+      if (fn === backend.sync.pull) {
+        // What `convex/sync.ts` declares, field for field.
+        expect(args).toEqual({ after: 7 });
+        return { events: [{ seq: 8 }], highestSeq: 8 };
+      }
+      expect(fn).toBe(backend.sync.push);
+      return { accepted: 1, highestSeq: 9 };
+    });
+
+    const bus = convexTransport(call);
+    const events = await bus.pull(7);
+    expect(events).toEqual([{ seq: 8 }]);
+
+    await bus.push(
+      [{ entity: 'like', entityId: 't', op: 'put', payload: '{}' }],
+      'd',
+    );
+    expect(call).toHaveBeenLastCalledWith(backend.sync.push, {
+      events: [{ entity: 'like', entityId: 't', op: 'put', payload: '{}' }],
+      deviceId: 'd',
+    });
   });
 });

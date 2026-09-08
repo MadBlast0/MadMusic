@@ -719,6 +719,7 @@ pub async fn cache_download<R: tauri::Runtime>(
     handle: String,
     title: String,
     artist: String,
+    quality: Option<crate::catalogue::Quality>,
 ) -> Result<u64, String> {
     use crate::catalogue::Source;
 
@@ -734,7 +735,12 @@ pub async fn cache_download<R: tauri::Runtime>(
         // A download must be complete or it is not a download, so this takes
         // the sidecar path up front rather than discovering a cap part way
         // through and throwing the partial file away.
-        .stream_url(&handle, crate::catalogue::Quality::High, true)
+        .stream_url(
+            &handle,
+            // The downloads setting, which used to be read and then ignored.
+            quality.unwrap_or(crate::catalogue::Quality::High),
+            true,
+        )
         .await?;
 
     let target = crate::stream::Target {

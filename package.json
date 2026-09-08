@@ -1,7 +1,7 @@
 {
   "name": "madmusic",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "MadMusic — one music library, every device. Cross-platform music app for Windows, macOS, Linux, Android, and iOS, built with React 19 and Tauri v2.",
   "license": "LicenseRef-Proprietary",

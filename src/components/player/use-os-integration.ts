@@ -47,6 +47,8 @@ export type OutsideAction =
   | 'shuffle'
   | 'repeat'
   | 'show-window'
+  /** Bring the window forward and put the cursor in the search box. */
+  | 'search'
   | { seek: number }
   /** An absolute level, 0–100, as sent by `madmusic --volume`. */
   | { volume: number };
@@ -146,6 +148,14 @@ export function useOsIntegration(
           break;
         case 'show-window':
           h.showWindow();
+          break;
+        case 'search':
+          // A global shortcut can be bound to this — `hotkeys.rs` lists it —
+          // and it used to fall through here and do nothing. The window comes
+          // forward first, because a focused search box behind another
+          // application is not a search box anybody can type into.
+          h.showWindow();
+          window.dispatchEvent(new Event('madmusic:focus-search'));
           break;
       }
     };

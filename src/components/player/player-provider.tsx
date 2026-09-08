@@ -566,6 +566,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           lastProgressRef.current = 0;
           setPlaying(autoplay);
           if (state.error) setError(state.error);
+          // The engine has no "load without playing": `engine_play` decodes
+          // and starts in one step. Restoring the queue on launch loads
+          // silently, so the pause is sent straight after — the audio thread
+          // applies the two commands in order, before the first buffer is
+          // audible.
+          if (!autoplay) await engine.pause().catch(() => {});
           // The volume is pushed by the effect that watches `applyVolume`,
           // which now knows about the engine. Setting it here as well would
           // make `load` depend on the volume and rebuild it on every drag of
@@ -604,10 +610,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             gainRef.current = prefetched.gain;
           } else {
             const source = await getCatalogueSource();
-            const stream = await source.streamUrl(
-              handle,
-              settingsRef.current.quality,
-            );
+            // The same call `resolve` and the prefetch make, for the same
+            // reasons: data saver and an adaptive downgrade apply to a track
+            // somebody pressed play on just as much as to the one after it,
+            // and the name is what the downloads list shows for the cached
+            // copy — without it a track first played by hand was listed as an
+            // anonymous row.
+            const stream = await source.streamUrl(handle, effectiveQuality(), {
+              title: track.title,
+              artist: track.artist ?? '',
+            });
             if (stale()) return;
             url = stream.url;
             gainRef.current = loudnessGain(
@@ -658,7 +670,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         fail(cause);
       }
     },
-    [releaseObjectUrl, applyVolume],
+    [releaseObjectUrl, applyVolume, effectiveQuality],
   );
 
   const play = useCallback(
@@ -750,117 +762,120 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     stepRef.current = step;
   }, [step]);
 
-  // The same trick for `next`, which the engine's poll loop calls when a track
-  // finishes. Depending on it directly would restart the interval every time
+  // The same trick for `advance`, which the engine's end-of-track handlers
+  // call. Depending on it directly would restart the poll interval every time
   // the queue changed.
-  const nextRef = useRef<() => void>(() => {});
+  const advanceRef = useRef<(deliberate: boolean) => void>(() => {});
 
   /**
-   * The id of the load whose end has already been acted on.
+   * Moves to the next track.
    *
-   * Two things now notice that a track finished — the engine's `trackEnded`
-   * event and the 250 ms position poll — and they race by design: the event is
-   * the fast path, the poll is what saves playback if the event never arrives.
-   * Without a guard the pair would advance twice and skip a track, which is a
-   * worse bug than the uneven gap the event was added to remove.
-   *
-   * Keyed on `loadIdRef`, which already increments on every load, so the guard
-   * clears itself for the next track without anybody having to reset it.
+   * `deliberate` says whether somebody pressed the button. Only a deliberate
+   * skip is undoable — a track that ended by itself was not a mistake, and
+   * offering to undo it would put a "back to where you were" entry in the
+   * menu whose "where" is the last second of the song.
    */
-  const endedForLoadRef = useRef(-1);
-
-  /**
-   * Advances, at most once per track.
-   *
-   * Called from both detectors. Whichever arrives first wins and the other
-   * finds the id already claimed.
-   */
-  const endTrack = useCallback(() => {
-    if (endedForLoadRef.current === loadIdRef.current) return;
-    endedForLoadRef.current = loadIdRef.current;
-    nextRef.current();
-  }, []);
-
-  const next = useCallback(() => {
-    const upcoming = step(1);
-    if (upcoming) {
-      // Recorded before the switch, because afterwards the position is gone.
-      // Only a *deliberate* skip is undoable — a track that ended by itself
-      // was not a mistake, and offering to undo it would be noise.
-      const leaving = currentRef.current;
-      if (leaving) {
-        skippedFromRef.current = {
-          track: leaving,
-          at: lastProgressRef.current,
-        };
-        setCanUndoSkip(true);
-      }
-
-      setCurrent(upcoming);
-      void load(upcoming, true);
-      return;
-    }
-
-    // The end of the queue. Either stop, or keep going with tracks like the
-    // one that just finished — which is the difference between an album that
-    // ends in silence and a station.
-    const seed = currentRef.current;
-    if (!settingsRef.current.autoplaySimilar || !seed?.handle) {
-      setPlaying(false);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const source = await getCatalogueSource();
-        const similar = await source.radio(seed.handle!);
-        if (similar.length === 0) {
-          setPlaying(false);
-          return;
+  const advance = useCallback(
+    (deliberate: boolean) => {
+      const upcoming = step(1);
+      if (upcoming) {
+        // Recorded before the switch, because afterwards the position is gone.
+        const leaving = currentRef.current;
+        if (deliberate && leaving) {
+          skippedFromRef.current = {
+            track: leaving,
+            at: lastProgressRef.current,
+          };
+          setCanUndoSkip(true);
         }
-        // Appended rather than replacing: the queue panel should still show
-        // where the user started, and Previous should still walk back into it.
-        const additions = similar.map(toPlayerTrack);
-        setQueue((existing) => {
-          const merged = [...existing, ...additions];
-          orderRef.current = Array.from({ length: merged.length }, (_, i) => i);
-          return merged;
-        });
-        setCurrent(additions[0]);
-        void load(additions[0], true);
-      } catch {
-        // No station available is an ordinary end of playback, not an error
-        // worth interrupting the user for.
-        setPlaying(false);
+
+        setCurrent(upcoming);
+        void load(upcoming, true);
+        return;
       }
-    })();
-  }, [step, load]);
+
+      // The end of the queue. Either stop, or keep going with tracks like the
+      // one that just finished — which is the difference between an album that
+      // ends in silence and a station.
+      const seed = currentRef.current;
+      if (!settingsRef.current.autoplaySimilar || !seed?.handle) {
+        setPlaying(false);
+        return;
+      }
+
+      void (async () => {
+        try {
+          const source = await getCatalogueSource();
+          const similar = await source.radio(seed.handle!);
+          if (similar.length === 0) {
+            setPlaying(false);
+            return;
+          }
+          // Appended rather than replacing: the queue panel should still show
+          // where the user started, and Previous should still walk back into it.
+          const additions = similar.map(toPlayerTrack);
+          setQueue((existing) => {
+            const merged = [...existing, ...additions];
+            orderRef.current = Array.from(
+              { length: merged.length },
+              (_, i) => i,
+            );
+            return merged;
+          });
+          setCurrent(additions[0]);
+          void load(additions[0], true);
+        } catch {
+          // No station available is an ordinary end of playback, not an error
+          // worth interrupting the user for.
+          setPlaying(false);
+        }
+      })();
+    },
+    [step, load],
+  );
 
   useEffect(() => {
-    nextRef.current = next;
-  }, [next]);
+    advanceRef.current = advance;
+  }, [advance]);
+
+  /** The button, and the hotkey, and the media key: a deliberate skip. */
+  const next = useCallback(() => advance(true), [advance]);
+
+  const seek = useCallback((seconds: number) => {
+    if (engineRef.current) {
+      void engine.seek(seconds).catch(() => {});
+    } else {
+      deckRef.current?.seek(seconds);
+    }
+    lastProgressRef.current = seconds;
+    setProgress(seconds);
+  }, []);
 
   const previous = useCallback(() => {
     // The convention every player uses: within the first few seconds
     // "previous" means the previous track, after that it means "start over".
-    const deck = deckRef.current;
+    //
+    // The position is the one the frame loop and the engine poll both keep,
+    // rather than the element's: with the native engine playing, the element
+    // has no source and reads zero, which made Previous always skip back and
+    // never restart.
     if (
-      deck &&
-      previousMeansRestart(deck.position, settingsRef.current.restartThreshold)
+      previousMeansRestart(
+        lastProgressRef.current,
+        settingsRef.current.restartThreshold,
+      )
     ) {
-      deck.restart();
-      setProgress(0);
+      seek(0);
       return;
     }
     const back = step(-1);
     if (!back) {
-      deck?.restart();
-      setProgress(0);
+      seek(0);
       return;
     }
     setCurrent(back);
     void load(back, true);
-  }, [step, load]);
+  }, [step, load, seek]);
 
   const playAt = useCallback(
     (target: number) => {
@@ -924,7 +939,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
    * what you were listening to would have taken something away.
    */
   const stopForSleep = useCallback(() => {
-    deckRef.current?.suspend(settingsRef.current.playPauseFade);
+    if (engineRef.current) void engine.pause().catch(() => {});
+    else deckRef.current?.suspend(settingsRef.current.playPauseFade);
     setPlaying(false);
     sleepFadeRef.current = 1;
     applyVolume();
@@ -984,15 +1000,49 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     void store.kvSet(keys.RESUME_POINTS, JSON.stringify(next)).catch(() => {});
   }, []);
 
-  const seek = useCallback((seconds: number) => {
-    if (engineRef.current) {
-      void engine.seek(seconds).catch(() => {});
-    } else {
-      deckRef.current?.seek(seconds);
+  /**
+   * The id of the load whose end has already been acted on.
+   *
+   * Two things notice that an engine track finished — its `trackEnded` event
+   * and the 250 ms position poll — and they race by design: the event is the
+   * fast path, the poll is what saves playback if the event never arrives.
+   * Without a guard the pair would advance twice and skip a track, which is a
+   * worse bug than the uneven gap the event was added to remove.
+   *
+   * Keyed on `loadIdRef`, which already increments on every load, so the guard
+   * clears itself for the next track without anybody having to reset it.
+   */
+  const endedForLoadRef = useRef(-1);
+
+  /**
+   * The end of a track on the engine path, acted on at most once.
+   *
+   * The element path decides all of this in its `ended` handler; this is the
+   * same set of decisions for the engine, which has no such event. Whichever
+   * detector arrives first wins and the other finds the id already claimed.
+   */
+  const endTrack = useCallback(() => {
+    if (endedForLoadRef.current === loadIdRef.current) return;
+    endedForLoadRef.current = loadIdRef.current;
+
+    // Heard to the end, so there is nothing to come back to.
+    const finished = currentRef.current;
+    if (finished) clearResumePoint(finished.id);
+
+    // Repeat one: decoded again from the start. A new load, so the guard
+    // above resets for the next ending by itself.
+    if (repeatRef.current === 'one' && finished) {
+      void load(finished, true);
+      return;
     }
-    lastProgressRef.current = seconds;
-    setProgress(seconds);
-  }, []);
+
+    if (shouldStopAfterTrack(stepRef.current(1) === null)) {
+      setPlaying(false);
+      return;
+    }
+
+    advanceRef.current(false);
+  }, [clearResumePoint, shouldStopAfterTrack, load]);
 
   /**
    * The current position, read rather than subscribed to.
@@ -1244,12 +1294,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setCurrent(track);
       // `false` is the whole point: loaded, positioned, and silent.
       await load(track, false);
-      if (session.position > 0) {
-        deckRef.current?.seek(session.position);
-        setProgress(session.position);
-      }
+      if (session.position > 0) seek(session.position);
     })();
-  }, [settings.restoreQueueOnLaunch, load]);
+  }, [settings.restoreQueueOnLaunch, load, seek]);
 
   /**
    * Writes the queue down as it changes.
@@ -1305,12 +1352,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     void load(skipped.track, true).then(() => {
       // Back to where it was interrupted, not to the beginning. Restarting a
       // forty-minute track is not an undo.
-      if (skipped.at > 1) {
-        deckRef.current?.seek(skipped.at);
-        setProgress(skipped.at);
-      }
+      if (skipped.at > 1) seek(skipped.at);
     });
-  }, [load]);
+  }, [load, seek]);
 
   const setSpeed = useCallback((rate: number) => {
     const deck = deckRef.current;
@@ -1477,7 +1521,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
       // A hand-over already moved on; `ended` here is the ordinary case where
       // nothing was staged in time.
-      next();
+      advance(false);
     };
     const onError = (event: Event) => {
       if (!active(event)) return;
@@ -1547,7 +1591,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
       }
     };
-  }, [repeat, next, shouldStopAfterTrack, clearResumePoint]);
+  }, [repeat, advance, shouldStopAfterTrack, clearResumePoint]);
 
   /**
    * Position, sampled on animation frames instead of from `timeupdate`.

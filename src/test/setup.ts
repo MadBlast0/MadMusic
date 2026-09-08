@@ -81,3 +81,27 @@ if (typeof Element.prototype.hasPointerCapture !== 'function') {
   Element.prototype.setPointerCapture = vi.fn();
   Element.prototype.releasePointerCapture = vi.fn();
 }
+
+// jsdom has no media pipeline: `play()`, `pause()` and `load()` on an audio
+// element each log "Not implemented" to stderr and, for `play()`, return
+// nothing rather than a promise. The player calls all three on mount and on
+// every track change, which turned a passing run into pages of noise and
+// left `await audio.play()` awaiting `undefined`.
+{
+  const media = HTMLMediaElement.prototype;
+  Object.defineProperty(media, 'play', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => Promise.resolve()),
+  });
+  Object.defineProperty(media, 'pause', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(media, 'load', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(),
+  });
+}
