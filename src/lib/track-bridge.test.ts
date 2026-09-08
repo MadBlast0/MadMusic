@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { videoThumbnail } from '@/lib/player-track';
 
 import {
   albumKey,
@@ -114,5 +115,20 @@ describe('the followed artist id', () => {
     expect(followedArtistId('  Aphex Twin ')).toBe(
       followedArtistId('aphex twin'),
     );
+  });
+});
+
+describe('videoThumbnail', () => {
+  it('derives the thumbnail from a catalogue handle', () => {
+    expect(videoThumbnail({ kind: 'catalogue', handle: 'dQw4w9WgXcQ' })).toBe(
+      'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    );
+  });
+
+  it('gives nothing for a local file or an address', () => {
+    expect(videoThumbnail({ kind: 'local', handle: '' })).toBe('');
+    expect(
+      videoThumbnail({ kind: 'catalogue', handle: 'https://radio.example/x' }),
+    ).toBe('');
   });
 });

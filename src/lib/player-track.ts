@@ -51,13 +51,28 @@ export function toCatalogueTrack(track: CatalogueTrack): PlayerTrack {
  * lets the native player open the file directly rather than resolving a stream
  * for something already on disk.
  */
+/**
+ * The thumbnail YouTube keeps for every video, for a row saved without one.
+ *
+ * The same fallback `catalogue.rs` applies to fresh results, repeated here for
+ * rows that were written before it existed: a liked song or a history entry
+ * from an earlier build keeps its empty field for ever, and this is what stops
+ * it staying a gradient. A handle that is an address — a station, an episode —
+ * is not a video id and gets nothing.
+ */
+export function videoThumbnail(row: Pick<TrackRow, 'kind' | 'handle'>): string {
+  if (row.kind !== 'catalogue' || !row.handle) return '';
+  if (/^[a-z]+:\/\//i.test(row.handle)) return '';
+  return `https://i.ytimg.com/vi/${encodeURIComponent(row.handle)}/hqdefault.jpg`;
+}
+
 export function toPlayerTrackRow(row: TrackRow): PlayerTrack {
   return {
     id: row.id,
     title: row.title,
     artist: row.artist || row.albumArtist,
     cover: fallbackCover(row.album || row.title),
-    artworkUrl: row.artworkUrl,
+    artworkUrl: row.artworkUrl || videoThumbnail(row),
     duration: row.duration,
     handle: row.handle || undefined,
     bpm: row.bpm || undefined,
