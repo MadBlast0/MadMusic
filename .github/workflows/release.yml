@@ -164,7 +164,9 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libasound2-dev \
+            libdbus-1-dev
 
       # No `version:` here on purpose. `package.json` pins the version with
       # `packageManager`, and naming a second one made this action refuse to

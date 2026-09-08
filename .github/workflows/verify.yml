@@ -25,6 +25,13 @@
 # for the apt step below and for pinning 22.04: the WebKit package name changed
 # between LTS releases, and `ubuntu-latest` moving underneath this workflow
 # would break it on a schedule nobody chose.
+#
+# Two packages in that step are nothing to do with Tauri, and were missing
+# until the first run that got far enough to want them: `libasound2-dev`,
+# because `cpal` opens the audio device through ALSA on Linux, and
+# `libdbus-1-dev`, because `souvlaki` reaches the desktop's media controls over
+# D-Bus. Windows and macOS reach both through frameworks that are simply there,
+# which is why a green build on either says nothing about this one.
 name: verify
 
 on:
@@ -61,7 +68,9 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libasound2-dev \
+            libdbus-1-dev
 
       # No `version:` here on purpose. `package.json` pins the version with
       # `packageManager`, and naming a second one made this action refuse to
