@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { StaticClock, StaticPlay } from '@/components/icons';
 import { AudioBars } from '@/components/player/audio-bars';
+import { Art } from '@/components/home/shelves';
 import { usePlayer } from '@/components/player/player-context';
 import {
   ContextMenu,
@@ -50,6 +51,7 @@ const ROW_HEIGHT = 52;
 export function CatalogueTrackList({
   tracks,
   showAlbum = true,
+  showCover,
   onOpenArtist,
   onRemove,
   removeLabel = 'Remove',
@@ -57,6 +59,20 @@ export function CatalogueTrackList({
 }: {
   tracks: CatalogueTrack[];
   showAlbum?: boolean;
+  /**
+   * Whether each row carries its own cover.
+   *
+   * Defaults to `showAlbum`, because they answer the same question: **does this
+   * list span more than one record?** An artist's top songs, Liked Songs,
+   * Recently played and the downloads all do, and there the cover is the
+   * fastest way to tell two rows apart — faster than reading either the title
+   * or the album column beside it. An album page does not, and a column of
+   * forty copies of the sleeve already at the top of the page is noise.
+   *
+   * Separable from `showAlbum` for a caller that wants one and not the other,
+   * but the default is the honest answer for every list there is today.
+   */
+  showCover?: boolean;
   /** Given, the artist name becomes a link. */
   onOpenArtist?: (track: CatalogueTrack) => void;
   /** Given, rows offer to remove themselves from the list showing them. */
@@ -81,6 +97,10 @@ export function CatalogueTrackList({
       </p>
     );
   }
+
+  // See `showCover`: the two answer the same question, so one defaults to the
+  // other rather than making every caller state both.
+  const covers = showCover ?? showAlbum;
 
   const columns = showAlbum
     ? 'grid-cols-[2.5rem_1fr_auto] sm:grid-cols-[2.5rem_1fr_14rem_auto]'
@@ -147,17 +167,31 @@ export function CatalogueTrackList({
                     )}
                   </span>
 
-                  <span className="min-w-0">
-                    <span
-                      className={cn(
-                        'block truncate text-sm font-medium',
-                        isCurrent && 'text-primary',
-                      )}
-                    >
-                      {track.title}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {track.artist}
+                  <span className="flex min-w-0 items-center gap-3">
+                    {covers && (
+                      // `Art` rather than a bare `img`: it paints the track's
+                      // own gradient underneath and keeps it when the picture
+                      // fails, so a dead thumbnail is a cover rather than a
+                      // torn page in the middle of a list.
+                      <Art
+                        seedCover={track.cover}
+                        src={track.artworkUrl}
+                        alt=""
+                        className="size-10 shrink-0 rounded-md"
+                      />
+                    )}
+                    <span className="min-w-0">
+                      <span
+                        className={cn(
+                          'block truncate text-sm font-medium',
+                          isCurrent && 'text-primary',
+                        )}
+                      >
+                        {track.title}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {track.artist}
+                      </span>
                     </span>
                   </span>
 

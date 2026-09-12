@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
+import { Art } from '@/components/home/shelves';
+import { fallbackCover } from '@/lib/library-model';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 
@@ -183,16 +185,14 @@ function UploadRow({
 
   return (
     <li className="flex items-center gap-3 rounded-lg border bg-card p-3">
-      {upload.artworkUrl ? (
-        <img
-          decoding="async"
-          src={upload.artworkUrl}
-          alt=""
-          className="size-12 shrink-0 rounded object-cover"
-        />
-      ) : (
-        <div className="size-12 shrink-0 rounded bg-muted" />
-      )}
+      {/* Its own colours rather than a grey square, and the gradient stays
+          if the artwork fails. See `Art`. */}
+      <Art
+        seedCover={fallbackCover(upload.title)}
+        src={upload.artworkUrl}
+        alt=""
+        className="size-12 shrink-0 rounded"
+      />
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{upload.title}</p>

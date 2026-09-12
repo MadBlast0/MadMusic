@@ -36,7 +36,8 @@ export function Art({
   children,
 }: {
   seedCover: [string, string];
-  src?: string;
+  /** `null` as well as absent: plenty of callers hold a nullable url. */
+  src?: string | null;
   alt: string;
   className?: string;
   /** Overlaid on top of the art — the hover play button. */
@@ -62,7 +63,7 @@ export function Art({
   const [shown, setShown] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
-  const loaded = src !== undefined && shown === src;
+  const loaded = Boolean(src) && shown === src;
 
   /**
    * Catches a picture that arrived before React was listening.

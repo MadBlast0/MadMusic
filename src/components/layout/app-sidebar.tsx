@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/tooltip';
 import type { Route, Tab } from '@/lib/routes';
 import type { Playlist } from '@/lib/saved';
+import { Art } from '@/components/home/shelves';
 import { cn } from '@/lib/utils';
 
 /**
@@ -109,6 +110,14 @@ type Entry = {
    */
   playlist?: Playlist;
 };
+
+/**
+ * The gradient for a row that has neither art nor colours of its own.
+ *
+ * A constant rather than a per-row hash: these are the rows that already fall
+ * through to an icon, so this is only ever the ground behind one.
+ */
+const FALLBACK: [string, string] = ['#3f3f46', '#18181b'];
 
 function gradient([from, to]: [string, string]): string {
   return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
@@ -699,13 +708,16 @@ const ListRow = memo(function ListRow({
                 : undefined
             }
           >
-            {entry.artworkUrl ? (
-              <img
-                decoding="async"
+            {/* `Art` rather than a bare `img`: it keeps the gradient showing
+                when a thumbnail fails instead of painting the webview's
+                broken-image glyph into the middle of the panel. A playlist
+                whose first track's art has gone is still a playlist. */}
+            {entry.artworkUrl || entry.cover ? (
+              <Art
+                seedCover={entry.cover ?? FALLBACK}
                 src={entry.artworkUrl}
                 alt=""
-                loading="lazy"
-                className="size-full object-cover"
+                className="size-full"
               />
             ) : entry.icon ? (
               <entry.icon className="size-4" />

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Art } from '@/components/home/shelves';
+import { fallbackCover } from '@/lib/library-model';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -191,17 +193,17 @@ export function PodcastsView({
                   onClick={() => onOpenShow(show)}
                   className="group rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent"
                 >
-                  {show.image ? (
-                    <img
-                      decoding="async"
-                      src={show.image}
-                      alt=""
-                      loading="lazy"
-                      className="aspect-square w-full rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="aspect-square w-full rounded-md bg-muted" />
-                  )}
+                  {/* A show without art gets its own colours rather than a
+                      grey square: a wall of identical grey boxes is unreadable,
+                      while a stable gradient gives each show a silhouette to
+                      recognise. `Art` also keeps that gradient when the feed's
+                      image url has gone dead, which is common for podcasts. */}
+                  <Art
+                    seedCover={fallbackCover(show.title)}
+                    src={show.image}
+                    alt=""
+                    className="aspect-square w-full rounded-md"
+                  />
                   <p className="mt-2 truncate text-sm font-medium">
                     {show.title}
                   </p>

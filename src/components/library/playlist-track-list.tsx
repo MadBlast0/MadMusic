@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Reorder } from 'motion/react';
 
 import { Heart, More, StaticClock, StaticPlay } from '@/components/icons';
+import { Art } from '@/components/home/shelves';
 import { AudioBars } from '@/components/player/audio-bars';
 import { usePlayer } from '@/components/player/player-context';
 import { useSaved } from '@/components/common/saved-context';
@@ -256,26 +257,18 @@ export function PlaylistTrackList({
                         {/* Compact drops the artwork, which is the whole point
                             of it: the same rows, more of them on screen. */}
                         {!compact && (
-                          <span
-                            className="size-10 shrink-0 overflow-hidden rounded bg-muted"
-                            style={
-                              track.artworkUrl
-                                ? undefined
-                                : {
-                                    backgroundImage: `linear-gradient(135deg, ${track.cover[0]} 0%, ${track.cover[1]} 100%)`,
-                                  }
-                            }
-                          >
-                            {track.artworkUrl && (
-                              <img
-                                src={track.artworkUrl}
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                className="size-full object-cover"
-                              />
-                            )}
-                          </span>
+                          // `Art` rather than the hand-rolled gradient and bare
+                          // `img` this used to be. That version had no `onError`
+                          // at all, so a thumbnail somebody else's server had
+                          // dropped painted the webview's broken-image glyph in
+                          // the middle of a playlist. `Art` keeps the gradient
+                          // showing instead, which is a perfectly good cover.
+                          <Art
+                            seedCover={track.cover}
+                            src={track.artworkUrl}
+                            alt=""
+                            className="size-10 shrink-0 rounded"
+                          />
                         )}
 
                         <span className="min-w-0">
