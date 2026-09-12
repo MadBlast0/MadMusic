@@ -65,6 +65,17 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
 
   const title = kind === 'liked' ? 'Liked Songs' : 'Recently played';
 
+  /**
+   * What the rest of the app calls this list.
+   *
+   * The same identity the tile on Home and the row in the library panel use —
+   * see `contextId` in `player-context.ts`. Playing from the page and playing
+   * from the tile are the same act, so they have to say the same thing, or the
+   * bars appear in one place and not the other depending on which control the
+   * user happened to press.
+   */
+  const from = { id: `saved:${kind}`, label: title };
+
   return (
     <ViewShell
       header={
@@ -87,7 +98,7 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
                 animate
                 size="sm"
                 disabled={queue.length === 0}
-                onClick={() => play(queue[0], queue)}
+                onClick={() => play(queue[0], queue, from)}
               >
                 <Play className="size-4" />
                 Play
@@ -99,7 +110,7 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
                 disabled={queue.length === 0}
                 onClick={() => {
                   const start = Math.floor(Math.random() * queue.length);
-                  play(queue[start], queue);
+                  play(queue[start], queue, from);
                 }}
               >
                 <Shuffle className="size-4" />

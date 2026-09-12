@@ -6,6 +6,16 @@ import type { SleepMode, SleepState } from '@/lib/audio/sleep-timer';
 import type { AbLoop, ShuffleMode } from '@/lib/queue';
 
 /**
+ * Where a queue came from.
+ *
+ * A bare string is the label alone, which is all most callers have and all the
+ * queue heading ever needed. The object form adds identity, for the callers
+ * that are a *place* the user can see on screen and that therefore need to be
+ * able to say "it is me that is playing".
+ */
+export type PlayedFrom = string | { id: string; label: string };
+
+/**
  * A track the player can play.
  *
  * Exactly one of `local` and `handle` says where the audio comes from, and both
@@ -118,7 +128,7 @@ export type PlayerState = {
    */
   shuffleMode: ShuffleMode;
   setShuffleMode: (mode: ShuffleMode) => void;
-  play: (track?: PlayerTrack, queue?: PlayerTrack[], label?: string) => void;
+  play: (track?: PlayerTrack, queue?: PlayerTrack[], from?: PlayedFrom) => void;
   toggle: () => void;
   next: () => void;
   previous: () => void;
@@ -169,6 +179,25 @@ export type PlayerState = {
   manualIds: ReadonlySet<string>;
   /** What supplied the non-manual part of the queue, for the panel heading. */
   contextLabel: string;
+  /**
+   * *Which* collection that was, where the caller named one.
+   *
+   * The label is prose for a heading — "Next from: Liked Songs" — and two
+   * collections can honestly share one. This is identity, and it exists
+   * because "is this the thing that is playing?" cannot be answered by asking
+   * whether a collection *contains* the current track.
+   *
+   * That is how it was answered, and it was wrong in the ordinary case rather
+   * than in a corner: play a song from Liked Songs and it is immediately in
+   * Recently played too, so both tiles showed the bars and the app claimed to
+   * be playing the same song from two places at once. Only one of them started
+   * it.
+   *
+   * Empty when playback did not come from a collection at all — a single track
+   * played from search, a file opened from Explorer — and empty is the right
+   * answer there: nothing should be lit.
+   */
+  contextId: string;
   /**
    * Timestamped markers for the current track, where any were found.
    *

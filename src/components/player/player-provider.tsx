@@ -14,6 +14,7 @@ import {
   type PlayerState,
   type PlayerTrack,
   type RepeatMode,
+  type PlayedFrom,
 } from '@/components/player/player-context';
 import { useSettings } from '@/components/common/settings-context';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -265,6 +266,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
    */
   const [manualIds, setManualIds] = useState<ReadonlySet<string>>(new Set());
   const [contextLabel, setContextLabel] = useState('');
+  const [contextId, setContextId] = useState('');
 
   /** How long the buffer has been thin, for the quality-downgrade hysteresis. */
   const thinSinceRef = useRef<number | null>(null);
@@ -674,10 +676,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   const play = useCallback(
-    (track?: PlayerTrack, nextQueue?: PlayerTrack[], label?: string) => {
+    (track?: PlayerTrack, nextQueue?: PlayerTrack[], from?: PlayedFrom) => {
       if (nextQueue) {
         setQueue(nextQueue);
-        setContextLabel(label ?? '');
+        // Both are cleared when a caller names neither, which is what makes a
+        // single track played from search stop lighting up the collection the
+        // last queue came from.
+        setContextLabel(typeof from === 'string' ? from : (from?.label ?? ''));
+        setContextId(typeof from === 'string' ? '' : (from?.id ?? ''));
         // Anything hand-queued that is not in the new list is gone with it;
         // anything still present came from the new context, not from a choice.
         setManualIds((current) => {
@@ -1886,6 +1892,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       elements,
       manualIds,
       contextLabel,
+      contextId,
       markers,
       canUndoSkip,
       undoSkip,
@@ -1932,6 +1939,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       elements,
       manualIds,
       contextLabel,
+      contextId,
       markers,
       canUndoSkip,
       undoSkip,

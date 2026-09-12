@@ -142,7 +142,7 @@ export function AppSidebar({
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
-  const { current, playing } = usePlayer();
+  const { playing, contextId } = usePlayer();
   const { root } = useLibrary();
   const { liked, history, playlists, createPlaylist } = useSaved();
 
@@ -225,7 +225,10 @@ export function AppSidebar({
       updatedAt: liked[0]?.at ?? 0,
       createdAt: 0,
       onOpen: () => onOpen({ name: 'saved', kind: 'liked' }),
-      playingFrom: current ? liked.some((t) => t.id === current.id) : false,
+      // See `contextId`: whether this collection *contains* what is playing
+      // is a different question from whether it is what is playing, and the
+      // first one lights up every list the song happens to be in.
+      playingFrom: contextId === 'saved:liked',
     });
 
     for (const playlist of playlists) {
@@ -245,14 +248,12 @@ export function AppSidebar({
         createdAt: playlist.createdAt,
         pinned: playlist.pinned === true,
         onOpen: () => onOpen({ name: 'playlist', id: playlist.id }),
-        playingFrom: current
-          ? playlist.tracks.some((t) => t.id === current.id)
-          : false,
+        playingFrom: contextId === `playlist:${playlist.id}`,
       });
     }
 
     return list;
-  }, [liked, history, playlists, current, onOpen]);
+  }, [liked, history, playlists, contextId, onOpen]);
 
   const visible = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase();

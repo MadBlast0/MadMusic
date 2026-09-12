@@ -53,7 +53,7 @@ export function HomeView({
 }) {
   const { root } = useLibrary();
   const { history, liked, playlists } = useSaved();
-  const { play, current, playing } = usePlayer();
+  const { play, current, playing, contextId } = usePlayer();
 
   /**
    * Which half of the screen's content is showing.
@@ -142,11 +142,15 @@ export function HomeView({
         title: 'Liked Songs',
         cover: liked[0]?.cover ?? ['#4c1d95', '#2563eb'],
         artworkUrl: liked[0]?.artworkUrl,
-        playingFrom: liked.some((t) => t.id === current?.id),
+        // Identity, not containment. See `contextId` in `player-context.ts`:
+        // a song played from here is in Recently played a moment later, so
+        // "do I contain it" lights both and claims the app is playing one song
+        // from two places.
+        playingFrom: contextId === 'saved:liked',
         onOpen: () => onOpen({ name: 'saved', kind: 'liked' }),
         onPlay: () => {
           const queue = liked.map(fromSaved);
-          play(queue[0], queue);
+          play(queue[0], queue, { id: 'saved:liked', label: 'Liked Songs' });
         },
       });
     }
@@ -157,11 +161,14 @@ export function HomeView({
         title: 'Recently played',
         cover: history[0]?.cover ?? ['#3f3f46', '#18181b'],
         artworkUrl: history[0]?.artworkUrl,
-        playingFrom: history.some((t) => t.id === current?.id),
+        playingFrom: contextId === 'saved:history',
         onOpen: () => onOpen({ name: 'saved', kind: 'history' }),
         onPlay: () => {
           const queue = history.map(fromSaved);
-          play(queue[0], queue);
+          play(queue[0], queue, {
+            id: 'saved:history',
+            label: 'Recently played',
+          });
         },
       });
     }
@@ -175,12 +182,15 @@ export function HomeView({
         title: playlist.name,
         cover: playlist.cover,
         artworkUrl: playlist.artworkUrl ?? playlist.tracks[0]?.artworkUrl,
-        playingFrom: playlist.tracks.some((t) => t.id === current?.id),
+        playingFrom: contextId === `playlist:${playlist.id}`,
         onOpen: () => onOpen({ name: 'playlist', id: playlist.id }),
         onPlay: () => {
           if (playlist.tracks.length === 0) return;
           const queue = playlist.tracks.map(fromSaved);
-          play(queue[0], queue);
+          play(queue[0], queue, {
+            id: `playlist:${playlist.id}`,
+            label: playlist.name,
+          });
         },
       });
     }

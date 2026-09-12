@@ -37,15 +37,28 @@ export function usePlaylistActions(playlist: Playlist) {
   const tracks = playlist.tracks;
   const queue = useMemo(() => tracks.map(fromSaved), [tracks]);
 
+  /**
+   * What the rest of the app calls this playlist.
+   *
+   * The same identity the tile on Home and the row in the library panel use —
+   * see `contextId` in `player-context.ts`. Every way of starting this
+   * playlist has to say the same thing, or the bars appear beside it only when
+   * it was started from one particular control.
+   */
+  const from = useMemo(
+    () => ({ id: `playlist:${playlist.id}`, label: playlist.name }),
+    [playlist.id, playlist.name],
+  );
+
   const playAll = useCallback(() => {
-    if (queue.length > 0) play(queue[0], queue);
-  }, [queue, play]);
+    if (queue.length > 0) play(queue[0], queue, from);
+  }, [queue, play, from]);
 
   const shuffle = useCallback(() => {
     if (queue.length === 0) return;
     const start = Math.floor(Math.random() * queue.length);
-    play(queue[start], queue);
-  }, [queue, play]);
+    play(queue[start], queue, from);
+  }, [queue, play, from]);
 
   const queueAll = useCallback(() => {
     if (queue.length === 0) return;
@@ -75,11 +88,13 @@ export function usePlaylistActions(playlist: Playlist) {
         return;
       }
       const full = [...queue, ...more.map(toPlayerTrackRow)];
-      play(full[0], full);
+      // Deliberately not `from`: the queue is the playlist *plus* the radio,
+      // so it is no longer that playlist and should not claim to be.
+      play(full[0], full, `${playlist.name} radio`);
     } finally {
       setExtending(false);
     }
-  }, [queue, play]);
+  }, [queue, play, playlist.name]);
 
   /**
    * Keeps the playlist for when there is no network.
