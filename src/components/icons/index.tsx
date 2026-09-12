@@ -369,6 +369,40 @@ export function Mic({ className, ...props }: IconProps) {
   );
 }
 
+/**
+ * The words, timed to the music.
+ *
+ * A caption card rather than a microphone. A mic is what you *record* with —
+ * it says "sing into this", which is a karaoke app. What this button opens is
+ * text on a screen, moving with the audio, and for a podcast it is a
+ * transcript rather than lyrics at all. A subtitle card is the one glyph that
+ * is honest about both.
+ *
+ * The lines slide as it is pointed at, the way a line of lyrics slides when
+ * its moment arrives. Staggered so they read as a verse rather than as a
+ * block, and the short line moves furthest because it has the room.
+ */
+export function Lyrics({ className, ...props }: IconProps) {
+  return (
+    <Frame className={className} {...props}>
+      <rect x="2" y="5" width="20" height="14" rx="3" />
+      <m.path d="M6 10.5h6" variants={{ hover: { x: 1.5, transition: t } }} />
+      <m.path
+        d="M6 14.5h4"
+        variants={{
+          hover: { x: 2.5, transition: { ...t, delay: 0.05 } },
+        }}
+      />
+      <m.path
+        d="M14 14.5h4"
+        variants={{
+          hover: { x: -1.5, transition: { ...t, delay: 0.05 } },
+        }}
+      />
+    </Frame>
+  );
+}
+
 export function Search({ className, ...props }: IconProps) {
   return (
     <Frame className={className} {...props}>

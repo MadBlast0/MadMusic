@@ -5,7 +5,7 @@ import { CoverArt } from '@/components/library/cover-art';
 import { RollingTime } from '@/components/player/rolling-time';
 import {
   Fullscreen,
-  Mic,
+  Lyrics,
   More,
   PictureInPicture,
   PlayPause,
@@ -21,12 +21,11 @@ import { IconButton } from '@/components/icons/icon-button';
 import { EpisodeControls } from '@/components/player/episode-controls';
 import { ListenTogether } from '@/components/player/listen-together';
 import {
-  CastControl,
+  CastMenu,
   ConnectionIndicator,
-  LoopControl,
-  ShuffleModeControl,
-  SleepControl,
-  SpeedControl,
+  ShuffleModeMenu,
+  SleepMenu,
+  SpeedMenu,
 } from '@/components/player/transport-extras';
 
 import {
@@ -40,11 +39,14 @@ import { Slider } from '@/components/ui/slider';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { backendAvailable } from '@/lib/convex-client';
 import { MAX_VOLUME } from '@/lib/audio/curve';
 import { formatTime } from '@/lib/library-model';
 import { ShareDialog } from '@/components/player/share-dialog';
@@ -156,6 +158,26 @@ export function NowPlayingBar({
   /** The share dialog, which is a mode of the bar rather than a route. */
   const [sharing, setSharing] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+
+  /**
+   * Opens one of the menu's dialogs without the two fighting over focus.
+   *
+   * A menu closing returns focus to its trigger, and a dialog opening takes
+   * focus for itself. Both happen on the same commit when a menu item opens a
+   * dialog, and the menu wins — so the equaliser opened with focus back on the
+   * ⋯ button behind it, and the first Escape closed nothing the user could
+   * see.
+   *
+   * The flag tells the menu's `onCloseAutoFocus` to stand down for exactly
+   * that one close. It is state rather than a ref because the menu has to
+   * re-render to read it, and it is cleared by the handler that used it.
+   */
+  const [handingOff, setHandingOff] = useState(false);
+  const openDialog = useCallback((show: (on: boolean) => void) => {
+    setHandingOff(true);
+    show(true);
+  }, []);
 
   const beginScrub = useCallback(
     (value: number) => {
@@ -426,53 +448,90 @@ export function NowPlayingBar({
               <More />
             </IconButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          {/* A menu, arranged as a menu.
+
+              It used to be three rows of bare icon buttons wedged between the
+              labels — a toolbar drawn inside a popover. That cost more than it
+              looked like it did. Radix's roving focus only visits menu items,
+              so the arrow keys walked straight past every one of them and the
+              whole thing was unreachable from the keyboard. Nothing showed
+              what it was set to without decoding a glyph. And each of those
+              buttons opened a `DropdownMenu` of its own *inside this one*,
+              which Radix reads as an interaction outside this menu: it
+              dismissed this content, unmounted the trigger, and took the menu
+              that was opening down with it. Speed, the sleep timer, the
+              shuffle mode and casting could not be opened at all.
+
+              So: one row per thing, its current value on the right, and the
+              ones that have options are branches rather than menus of their
+              own. See `transport-extras.tsx`. */}
+          <DropdownMenuContent
+            align="end"
+            className="w-64"
+            /* See `handingOff`: the menu gives up its focus-return for the one
+               close that is handing over to a dialog. */
+            onCloseAutoFocus={(event) => {
+              if (!handingOff) return;
+              event.preventDefault();
+              setHandingOff(false);
+            }}
+          >
             <DropdownMenuLabel>Playback</DropdownMenuLabel>
-            {/* These carry their own value — "1.5x", "20m", the loop's two
-                points — so they appear as themselves rather than as items
-                whose label would repeat what the control already says. */}
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <SpeedControl />
-              <SleepControl />
-              {loop !== null && <LoopControl />}
-              <IconButton
-                label="Equaliser"
-                size="sm"
-                active={eqOpen}
-                onClick={() => setEqOpen(true)}
-              >
-                <Sliders />
-              </IconButton>
-            </div>
-            <DropdownMenuItem onSelect={markLoopPoint}>
-              {loop === null
-                ? 'Repeat a section'
-                : Number.isFinite(loop.end)
-                  ? 'Stop repeating the section'
-                  : 'Set where the section ends'}
-            </DropdownMenuItem>
-            {canUndoSkip && (
-              <DropdownMenuItem onSelect={undoSkip}>
-                Bring back the skipped track
+            <DropdownMenuGroup>
+              <SpeedMenu />
+              <SleepMenu />
+              <ShuffleModeMenu />
+
+              {/* One row, three presses: mark A, mark B, clear. This was two
+                  controls — a lettered button in the icon row *and* an item
+                  saying the same thing — which meant the menu offered the
+                  same loop twice, in two different languages. */}
+              <DropdownMenuItem onSelect={markLoopPoint}>
+                {loop === null
+                  ? 'Repeat a section'
+                  : Number.isFinite(loop.end)
+                    ? 'Stop repeating the section'
+                    : 'Set where the section ends'}
+                {loop !== null && (
+                  <DropdownMenuShortcut className="tracking-normal text-primary">
+                    {Number.isFinite(loop.end) ? 'A–B' : 'A–'}
+                  </DropdownMenuShortcut>
+                )}
               </DropdownMenuItem>
-            )}
+
+              <DropdownMenuItem onSelect={() => openDialog(setEqOpen)}>
+                <Sliders />
+                Equaliser…
+              </DropdownMenuItem>
+
+              {canUndoSkip && (
+                <DropdownMenuItem onSelect={undoSkip}>
+                  Bring back the skipped track
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
             <DropdownMenuLabel>This track</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => setSharing(true)}>
-              Share...
+            <DropdownMenuItem onSelect={() => openDialog(setSharing)}>
+              Share…
             </DropdownMenuItem>
 
-            {/* These keep their own menus and dialogs, so they sit here as
-                themselves rather than as items that would need a second menu
-                nested inside this one. */}
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Send elsewhere</DropdownMenuLabel>
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <ListenTogether />
-              <CastControl />
-              <ShuffleModeControl />
-            </div>
+            <DropdownMenuGroup>
+              {/* Renders nothing in a browser tab, where there is no network
+                  discovery to do. */}
+              <CastMenu />
+              {/* And nothing at all without a backend configured, which is the
+                  ordinary case — there would be nowhere for a session to
+                  live. */}
+              {backendAvailable && (
+                <DropdownMenuItem onSelect={() => openDialog(setListening)}>
+                  Listen together…
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -494,7 +553,7 @@ export function NowPlayingBar({
           active={lyricsOpen}
           onClick={onToggleLyrics}
         >
-          <Mic />
+          <Lyrics />
         </IconButton>
 
         <IconButton
@@ -578,6 +637,14 @@ export function NowPlayingBar({
       </div>
 
       <ShareDialog track={current} open={sharing} onOpenChange={setSharing} />
+
+      {/* Mounted here rather than inside the menu, and mounted *whether or not
+          it is open*, because it owns a session: the code, the host's
+          four-second publish loop and the follower's heartbeat all live in its
+          state. Inside the menu it unmounted the moment the menu closed, which
+          silently ended the session the user had just started and left the
+          people who had joined following nothing. */}
+      <ListenTogether open={listening} onOpenChange={setListening} />
 
       {/* A dialog rather than a trip to Settings: adjusting an equaliser is
           something you do *while listening*, and navigating away from the

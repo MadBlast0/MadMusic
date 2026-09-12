@@ -1,20 +1,23 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import {
   usePlayer,
   usePlayerProgress,
 } from '@/components/player/player-context';
 import type { ShuffleMode } from '@/lib/queue';
-import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Globe, StaticClock } from '@/components/icons';
 import { describeSleep, SLEEP_MINUTES, sleepIn } from '@/lib/audio/sleep-timer';
 import { describeSpeed, SPEEDS } from '@/lib/audio/playback';
 import { castTo, findReceivers, type Receiver } from '@/lib/os-media';
@@ -24,149 +27,203 @@ import { cn } from '@/lib/utils';
 /**
  * The transport controls that are not play, pause and skip.
  *
- * Speed, the sleep timer, the A–B loop and casting. Grouped because they share
- * a property that shapes how they are presented: **none of them are on by
- * default, and each one changes something the user needs to be able to see it
- * has changed.** So each button shows its state in the button itself — `1.5×`
- * rather than a speed icon, `28 min` rather than a clock — and looks inert when
- * it is doing nothing.
+ * Speed, the sleep timer, how shuffle shuffles, and casting. Grouped because
+ * they share a property that shapes how they are presented: **none of them are
+ * on by default, and each one changes something the user needs to be able to
+ * see has changed.** So each carries its current value on the row that opens
+ * it — `1.5×`, `28 min`, `Spread artists` — and reads as `Off` when it is
+ * doing nothing.
+ *
+ * # Why these are submenus rather than components with menus of their own
+ *
+ * Because they are rendered *inside* the player bar's overflow menu, and a
+ * `DropdownMenu` nested in another `DropdownMenu`'s content is not a submenu —
+ * it is a second, unrelated menu that happens to be drawn inside the first.
+ * Radix reads the inner content opening as an interaction outside the outer
+ * one, dismisses the outer menu, and unmounts the inner trigger along with it.
+ * The inner menu therefore closes in the same frame it opened.
+ *
+ * That was not a subtle rendering fault: **speed, the sleep timer, the shuffle
+ * mode and casting could not be opened at all** from the bar. Each was a
+ * control that flashed and vanished.
+ *
+ * `DropdownMenuSub` is the primitive for this. It is one menu with a branch, so
+ * the parent stays open by definition, the arrow keys walk into the branch and
+ * back out, and Escape closes one level at a time. It is also what makes these
+ * reachable from the keyboard at all — the icon rows they used to sit in were
+ * bare `div`s, which Radix's roving focus steps straight past.
  */
 
-/** Playback speed. */
-export function SpeedControl() {
+/* ── playback speed ──────────────────────────────────────────────────── */
+
+/**
+ * Playback speed, as a branch of the menu it is opened from.
+ *
+ * A radio group rather than a list of commands, because speed is a *value the
+ * player is at* rather than a thing you do to it — so the menu should show
+ * which one is current without the reader having to compare each row against
+ * the number on the trigger.
+ */
+export function SpeedMenu() {
   const { speed, setSpeed } = usePlayer();
-  const changed = speed !== 1;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('tabular-nums', changed && 'text-primary')}
-          aria-label={`Playback speed, currently ${describeSpeed(speed)}`}
-        >
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        Speed
+        <DropdownMenuShortcut className="tabular-nums tracking-normal">
           {describeSpeed(speed)}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Speed</DropdownMenuLabel>
-        {SPEEDS.map((rate) => (
-          <DropdownMenuItem key={rate} onSelect={() => setSpeed(rate)}>
-            <span
-              className={cn('tabular-nums', rate === speed && 'font-semibold')}
+        </DropdownMenuShortcut>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-44">
+        <DropdownMenuRadioGroup
+          value={String(speed)}
+          onValueChange={(value) => setSpeed(Number(value))}
+        >
+          {SPEEDS.map((rate) => (
+            <DropdownMenuRadioItem
+              key={rate}
+              value={String(rate)}
+              className="tabular-nums"
             >
               {describeSpeed(rate)}
-            </span>
-            {rate === 1 && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                Normal
-              </span>
-            )}
-          </DropdownMenuItem>
-        ))}
+              {rate === 1 && (
+                <DropdownMenuShortcut className="tracking-normal">
+                  Normal
+                </DropdownMenuShortcut>
+              )}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         {/* Stated because people assume the opposite from the first player they
             used that did not do it. */}
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+        <DropdownMenuLabel className="max-w-44 text-xs font-normal text-wrap text-muted-foreground">
           Pitch is preserved, so voices do not change.
         </DropdownMenuLabel>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
+
+/* ── how shuffle shuffles ────────────────────────────────────────────── */
+
+const SHUFFLE_LABELS: Record<ShuffleMode, string> = {
+  off: 'Off',
+  on: 'Tracks',
+  spread: 'Spread artists',
+  album: 'Whole albums',
+  smart: 'Smart shuffle',
+};
 
 /**
  * How shuffle shuffles.
  *
- * Three modes, and the difference between them is the difference between
- * "random" and "what people actually mean by random". Plain shuffle plays
- * everything once in an unpredictable order; spread additionally avoids putting
- * two tracks by the same artist next to each other, which is what most people
+ * Four modes, and the difference between them is the difference between
+ * "random" and what people actually mean by random. Spread avoids putting two
+ * tracks by the same artist next to each other, which is what most people
  * assume shuffle already does; album keeps records whole and shuffles those
- * instead.
+ * instead; smart mixes in tracks from the library that resemble the queue.
  *
- * Only offered while shuffle is on. A mode picker for a disabled feature is a
- * control that does nothing.
+ * # Why `Off` is one of the modes here
+ *
+ * Shuffle is two pieces of state — whether it is on, and how it shuffles — and
+ * the old control only offered the second, so it rendered nothing at all while
+ * shuffle was off. That is a row that appears and disappears according to a
+ * toggle somewhere else on the bar, which is how a menu ends up feeling
+ * haunted.
+ *
+ * Presenting the two as one list of five answers is both easier to read and
+ * easier to use: picking a mode turns shuffle on, and `Off` turns it off. The
+ * shuffle button on the bar stays exactly what it was — a one-press toggle for
+ * people who never open this.
  */
-export function ShuffleModeControl() {
-  const { shuffle, shuffleMode, setShuffleMode } = usePlayer();
-  if (!shuffle) return null;
+export function ShuffleModeMenu() {
+  const { shuffle, shuffleMode, setShuffleMode, toggleShuffle } = usePlayer();
+  const value: ShuffleMode = shuffle ? shuffleMode : 'off';
 
-  const labels: Record<ShuffleMode, string> = {
-    // `off` is unreachable here — the control does not render unless shuffle
-    // is on — but the map is exhaustive so that adding a mode is a compile
-    // error rather than a blank button.
-    off: 'Shuffle off',
-    on: 'Shuffle tracks',
-    spread: 'Spread artists',
-    album: 'Shuffle albums',
-    smart: 'Smart shuffle',
+  const choose = (next: string) => {
+    const mode = next as ShuffleMode;
+
+    if (mode === 'off') {
+      if (shuffle) toggleShuffle();
+      return;
+    }
+
+    setShuffleMode(mode);
+    // Order matters: the mode is written first so that the reshuffle
+    // `toggleShuffle` kicks off uses the mode just chosen rather than the
+    // previous one.
+    if (!shuffle) toggleShuffle();
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Shuffle mode, currently ${labels[shuffleMode]}`}
-        >
-          {labels[shuffleMode]}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Shuffle</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => setShuffleMode('on')}>
-          <span className={cn(shuffleMode === 'on' && 'font-semibold')}>
-            Tracks
-          </span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setShuffleMode('spread')}>
-          <span className={cn(shuffleMode === 'spread' && 'font-semibold')}>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        Shuffle
+        <DropdownMenuShortcut className="tracking-normal">
+          {SHUFFLE_LABELS[value]}
+        </DropdownMenuShortcut>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-56">
+        <DropdownMenuRadioGroup value={value} onValueChange={choose}>
+          <DropdownMenuRadioItem value="off">Off</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="on">Tracks</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="spread">
             Spread artists
-          </span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setShuffleMode('album')}>
-          <span className={cn(shuffleMode === 'album' && 'font-semibold')}>
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="album">
             Whole albums
-          </span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setShuffleMode('smart')}>
-          <span className={cn(shuffleMode === 'smart' && 'font-semibold')}>
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="smart">
             Smart shuffle
-          </span>
-        </DropdownMenuItem>
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="max-w-56 text-xs font-normal text-wrap text-muted-foreground">
-          Spread keeps two tracks by the same artist apart. Albums shuffles
-          records rather than songs, keeping each one in order. Smart shuffle
+          Spread keeps two tracks by the same artist apart. Whole albums
+          shuffles records rather than songs, keeping each one in order. Smart
           mixes in tracks from your library that resemble the queue.
         </DropdownMenuLabel>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 
-/** The sleep timer. */
-export function SleepControl() {
+/* ── the sleep timer ─────────────────────────────────────────────────── */
+
+/**
+ * The sleep timer.
+ *
+ * # Why this is not one radio group
+ *
+ * Because the rows are two different kinds of thing, and pretending otherwise
+ * would put a tick beside a row that is no longer true. "In 30 minutes" is an
+ * *action*: the moment it is chosen it becomes a deadline counting down, and
+ * thirty seconds later the honest label for it is "29 min", not "30 minutes".
+ * The queue-position modes are genuinely states — "at the end of this track"
+ * stays exactly that until it fires — so those are checkboxes, and unticking
+ * one cancels it.
+ *
+ * The countdown itself is on the trigger, where it can be read without opening
+ * the branch at all.
+ */
+export function SleepMenu() {
   const { sleep, setSleepMode, cancelSleep } = usePlayer();
   const label = describeSleep(sleep);
+  const kind = sleep.mode.kind;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(label && 'text-primary')}
-          aria-label={label ? `Sleep timer: ${label}` : 'Set a sleep timer'}
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        Sleep timer
+        <DropdownMenuShortcut
+          className={cn('tracking-normal', label && 'text-primary')}
         >
-          <StaticClock className="size-4" />
-          {label && <span className="ml-1.5 tabular-nums">{label}</span>}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+          {label ?? 'Off'}
+        </DropdownMenuShortcut>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-52">
         <DropdownMenuLabel>Stop playing</DropdownMenuLabel>
         {SLEEP_MINUTES.map((minutes) => (
           <DropdownMenuItem
@@ -176,6 +233,7 @@ export function SleepControl() {
             In {minutes} minutes
           </DropdownMenuItem>
         ))}
+
         <DropdownMenuSeparator />
         {/*
           The two that are not clocks. They are the reason this is a state
@@ -183,58 +241,37 @@ export function SleepControl() {
           position in the queue, and a timer cannot express it without cutting
           off mid-phrase.
         */}
-        <DropdownMenuItem
-          onSelect={() => setSleepMode({ kind: 'end-of-track' })}
+        <DropdownMenuCheckboxItem
+          checked={kind === 'end-of-track'}
+          onCheckedChange={(on) =>
+            on ? setSleepMode({ kind: 'end-of-track' }) : cancelSleep()
+          }
         >
           At the end of this track
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => setSleepMode({ kind: 'end-of-queue' })}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem
+          checked={kind === 'end-of-queue'}
+          onCheckedChange={(on) =>
+            on ? setSleepMode({ kind: 'end-of-queue' }) : cancelSleep()
+          }
         >
           At the end of the queue
-        </DropdownMenuItem>
+        </DropdownMenuCheckboxItem>
+
         {label && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={cancelSleep}>Cancel</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={cancelSleep}>
+              Turn the timer off
+            </DropdownMenuItem>
           </>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 
-/**
- * The A–B loop.
- *
- * One button, three presses: mark A, mark B, clear. That is the interaction
- * every looper uses and it needs no separate control — which matters in a
- * transport bar where every extra button costs room the scrubber wanted.
- */
-export function LoopControl() {
-  const { loop, markLoopPoint } = usePlayer();
-
-  const state =
-    loop === null ? 'off' : Number.isFinite(loop.end) ? 'looping' : 'waiting';
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={markLoopPoint}
-      className={cn(state !== 'off' && 'text-primary')}
-      aria-label={
-        state === 'off'
-          ? 'Start an A to B loop'
-          : state === 'waiting'
-            ? 'Set the end of the loop'
-            : 'Clear the loop'
-      }
-    >
-      {state === 'waiting' ? 'A–' : state === 'looping' ? 'A–B' : 'A'}
-    </Button>
-  );
-}
+/* ── casting ─────────────────────────────────────────────────────────── */
 
 /**
  * Casting to something else on the network.
@@ -251,29 +288,34 @@ export function LoopControl() {
  * handshake against a key Apple has never published. Listing devices the app
  * cannot play to would be exactly the control-that-does-nothing this project
  * refuses to ship. `src-tauri/src/cast.rs` has the full reasoning.
+ *
+ * # Why the outcome is a toast
+ *
+ * Because choosing a receiver closes the menu — that is what selecting a menu
+ * item means — so a failure rendered inside the branch would be drawn into a
+ * surface that is already unmounting. It used to hold its own menu open to
+ * show the error; as a branch of the player menu it cannot, and should not: a
+ * message about a device belongs where the user is looking, not inside a menu
+ * they have to reopen to read.
  */
-export function CastControl() {
+export function CastMenu() {
   const { current } = usePlayer();
   const [receivers, setReceivers] = useState<Receiver[]>([]);
   const [looking, setLooking] = useState(false);
-  const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
 
   if (!isNative()) return null;
 
   /**
-   * Starts discovery when the menu opens.
+   * Starts discovery when the branch opens.
    *
    * In the open handler rather than in an effect, because opening a menu *is*
    * an event — and setting state synchronously inside an effect is a cascading
    * render React's compiler rightly objects to.
    */
   const opened = (next: boolean) => {
-    setOpen(next);
     if (!next) return;
 
     setLooking(true);
-    setError('');
     void findReceivers(3)
       .then(setReceivers)
       .finally(() => setLooking(false));
@@ -283,30 +325,18 @@ export function CastControl() {
     // The handle is the only thing that could be a reachable URL; a local file
     // has a path, and a path means nothing on another device.
     const url = current?.handle ?? '';
-    setError('');
     try {
       await castTo(receiver, url, current?.title ?? '', current?.artist ?? '');
-      setOpen(false);
+      toast.success(`Playing on ${receiver.name}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      toast.error(cause instanceof Error ? cause.message : String(cause));
     }
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={opened}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          animate
-          variant="ghost"
-          size="icon"
-          aria-label="Play on another device"
-        >
-          <Globe className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>Play on</DropdownMenuLabel>
-
+    <DropdownMenuSub onOpenChange={opened}>
+      <DropdownMenuSubTrigger>Play on another device</DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-64">
         {looking && (
           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
             Looking on the network…
@@ -314,7 +344,7 @@ export function CastControl() {
         )}
 
         {!looking && receivers.length === 0 && (
-          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          <DropdownMenuLabel className="max-w-64 text-xs font-normal text-wrap text-muted-foreground">
             Nothing found. DLNA receivers appear here — most network speakers,
             most smart televisions, and Sonos. Chromecast and AirPlay do not:
             playing to either needs a protocol this build cannot ship.
@@ -334,19 +364,12 @@ export function CastControl() {
             </span>
           </DropdownMenuItem>
         ))}
-
-        {error && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-destructive">
-              {error}
-            </DropdownMenuLabel>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
+
+/* ── buffer health ───────────────────────────────────────────────────── */
 
 /**
  * A quiet indicator for a struggling connection.

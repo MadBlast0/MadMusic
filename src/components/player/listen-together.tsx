@@ -8,16 +8,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Users } from '@/components/icons';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { backend, type Session } from '@/lib/backend-api';
 import { backendAvailable } from '@/lib/convex-client';
-import { cn } from '@/lib/utils';
 
 /**
  * Listening together.
@@ -53,12 +51,17 @@ import { cn } from '@/lib/utils';
  * ordinary case for anybody who has not set a backend up, the whole app
  * rendered a black screen.
  */
-export function ListenTogether() {
+export function ListenTogether({ open, onOpenChange }: Controlled) {
   if (!backendAvailable) return null;
-  return <ListenTogetherPanel />;
+  return <ListenTogetherPanel open={open} onOpenChange={onOpenChange} />;
 }
 
-function ListenTogetherPanel() {
+type Controlled = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function ListenTogetherPanel({ open, onOpenChange }: Controlled) {
   const player = usePlayer();
   const { progress } = usePlayerProgress();
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -163,28 +166,18 @@ function ListenTogetherPanel() {
   const hosting = Boolean(session?.isHost);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          animate
-          variant="ghost"
-          size="icon"
-          className={cn(sessionId && session?.open && 'text-primary')}
-          aria-label="Listen together"
-        >
-          <Users className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 p-3">
-        <DropdownMenuLabel className="px-0">Listen together</DropdownMenuLabel>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Listen together</DialogTitle>
+          <DialogDescription>
+            Everybody plays the same track at the same moment from their own
+            copy. Nothing is streamed between you.
+          </DialogDescription>
+        </DialogHeader>
 
         {!sessionId ? (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Everybody plays the same track at the same moment from their own
-              copy. Nothing is streamed between you.
-            </p>
-
             <Button
               size="sm"
               className="w-full"
@@ -286,13 +279,8 @@ function ListenTogetherPanel() {
           </div>
         )}
 
-        {error && (
-          <>
-            <DropdownMenuSeparator />
-            <p className="text-xs text-destructive">{error}</p>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </DialogContent>
+    </Dialog>
   );
 }
