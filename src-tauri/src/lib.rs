@@ -9,6 +9,7 @@ mod db;
 mod diagnostics;
 mod discord;
 mod engine;
+mod envfile;
 mod export;
 mod extractor;
 mod hotkeys;
