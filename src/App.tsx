@@ -278,22 +278,41 @@ function App() {
   const tab = tabFor(route);
 
   /**
-   * Where the words are showing, or `null` for nowhere.
+   * Whether the words are showing over the canvas.
    *
-   * Not a boolean. The mic puts the lyrics *over the canvas*, and the ask is
-   * that they come down again on the next press **or** the moment the user goes
-   * anywhere else — Home, a playlist, another view tab. A boolean would need an
-   * effect watching the route to clear itself, which is a render cascade and
-   * one more thing to keep in step with every way of navigating.
+   * The mic puts the lyrics *over* the page rather than in place of it, and the
+   * ask is that they come down on the next press **or** the moment the user
+   * goes anywhere else — Home, a playlist, another view tab.
    *
-   * Storing which canvas they were opened over answers it without either: the
-   * anchor stops matching the moment the route or the tab changes, so the
-   * lyrics are down and nothing had to notice. Every navigation path in the
-   * app goes through `setTabs`, so there is none this can miss.
+   * # Why this is a flag and a remembered canvas, rather than just an anchor
+   *
+   * It used to be one piece of state: the canvas the words were opened over,
+   * with `lyricsOpen` derived as `anchor === canvasKey`. That reads as
+   * elegant — navigating makes the key stop matching, so the words are down
+   * and no effect had to notice — and it is wrong in a way that only shows up
+   * on the way back. **Comparing is not clearing.** The anchor still named the
+   * page it was opened over, so returning to that page made it match again and
+   * the words came back up over a screen nobody asked for them on.
+   *
+   * That is the whole bug: open the lyrics on the library, go to Home, click
+   * Library — and the canvas shows lyrics instead of the library, apparently
+   * refusing to navigate. `lyrics-canvas.test.tsx` pins every path.
+   *
+   * So the canvas is remembered only to notice that it *changed*, and the
+   * change clears the flag. Adjusted during render rather than in an effect:
+   * React re-renders immediately without committing the first pass, so there
+   * is no flash of lyrics over the new page and no second paint — which is
+   * exactly the cascade the original comment was right to want to avoid.
+   * Every navigation path in the app goes through `setTabs`, so there is none
+   * this can miss.
    */
-  const [lyricsAnchor, setLyricsAnchor] = useState<string | null>(null);
   const canvasKey = `${tabs.activeId}:${routeKey(route)}`;
-  const lyricsOpen = lyricsAnchor === canvasKey;
+  const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [lyricsCanvas, setLyricsCanvas] = useState(canvasKey);
+  if (lyricsCanvas !== canvasKey) {
+    setLyricsCanvas(canvasKey);
+    if (lyricsOpen) setLyricsOpen(false);
+  }
   const canGoBack = nav.cursor > 0;
   const canGoForward = nav.cursor < nav.stack.length - 1;
 
@@ -558,7 +577,7 @@ function App() {
         // only while they are up: clearing an anchor that is already null is a
         // no-op, and a binding that comes and goes is a binding that races the
         // press that was meant to use it.
-        { key: 'Escape', run: () => setLyricsAnchor(null) },
+        { key: 'Escape', run: () => setLyricsOpen(false) },
       ],
       [
         player,
@@ -571,7 +590,7 @@ function App() {
         settings.seekStep,
         goInNewTab,
         route,
-        setLyricsAnchor,
+        setLyricsOpen,
         show,
       ],
     ),
@@ -884,11 +903,7 @@ function App() {
                 queueOpen={queueOpen}
                 onToggleQueue={() => setQueueOpen((open) => !open)}
                 lyricsOpen={lyricsOpen}
-                onToggleLyrics={() =>
-                  setLyricsAnchor((anchor) =>
-                    anchor === canvasKey ? null : canvasKey,
-                  )
-                }
+                onToggleLyrics={() => setLyricsOpen((open) => !open)}
                 compact={
                   presentation === 'compact' ||
                   presentation === 'widget' ||
