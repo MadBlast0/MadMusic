@@ -14,6 +14,23 @@ Markers: **[S]** Spotify · **[A]** Apple Music · **[SC]** SoundCloud ·
 | `[~]` | **Partial.** Real code exists and works, but something named is missing. |
 | `[ ]` | **Not started.**                                                         |
 
+`[x]` is a claim with four parts, and **"reachable in the app" is the one that
+failed.** A pass on 2026-09-12 checked the registered Tauri commands and the
+exported TypeScript against what actually calls them, and found six features
+that were built, tested, marked done, and could not be reached by a user:
+cross-device sync (nothing ever wrote to the outgoing journal), the artwork
+thumbnail cache (the asset protocol's scope was an empty list, so the path it
+returned was not loadable), the charts, the year in review (rendered by
+nothing), DLNA transport control, and the capture half of audio recognition.
+All six are wired now.
+
+The lesson is in the shape of the failure rather than in any one item: a
+feature whose backend is complete and whose last mile is missing looks finished
+from every angle except using it. Nothing failed, no test went red, and the
+gradient or the empty shelf that resulted looked like an ordinary absence of
+data. Checking "is there a caller" is the only thing that finds these, and it
+is now a thing this document has been wrong about.
+
 Every `[~]` says what is missing. There are two recurring reasons, and they are
 worth understanding before reading the list:
 
@@ -31,8 +48,9 @@ worth understanding before reading the list:
 
 Counts as of this pass: **215 done, 9 partial, 8 not started** — 232 items.
 
-Nothing remaining is unbuilt. Every one of the seventeen is a stated blocker,
-and each says what it is blocked on:
+Nothing remaining is unbuilt, and that was true even of the six above — they
+were unreachable rather than unwritten. Every one of the seventeen below is a
+stated blocker, and each says what it is blocked on:
 
 | Blocked on                                                                              | Items                                                                                                                                                             |
 | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,9 +197,16 @@ and each says what it is blocked on:
 - [x] Similar-artist graph browsing - each related artist opens their page
       rather than playing, so the graph is walkable a hop at a time
 - [x] Genre and mood browse pages **[A][Y]**
-- [x] Charts - global, by country, by genre **[S][A][SC]**
+- [x] Charts - global, by country, by genre **[S][A][SC]** — the commands had
+      no caller until 2026-09-12. A chart row is deliberately not a track:
+      Last.fm returns a name and a listener count and nothing playable, so
+      pressing one looks it up in the catalogue and says so when the match is
+      not what was asked for.
 - [x] Curated-style shelves, generated locally
-- [x] Year in review / "Wrapped" style summary **[S][A]**
+- [x] Year in review / "Wrapped" style summary **[S][A]** — the component was
+      complete and rendered by nothing until 2026-09-12, so there was no way to
+      see a year's listening despite `statsReview` being able to answer for one.
+      On the statistics page now, with the years either side reachable.
 - [x] Time-of-day aware home shelves **[A][Y]**
 - [x] "Because you listened to..." shelves **[S]**
 - [x] Recommendation feedback - more like this, less like this **[Y]** -
@@ -203,10 +228,14 @@ and each says what it is blocked on:
       never navigates, unlike the field in the title bar
 - [x] Lyrics search - find a track by a line **[A][Y]** - in its own section,
       because "contains that line" is a different claim from "is called that"
-- [~] Audio recognition - "what is playing" via microphone **[S]** - the whole
-  path is built: capture, WAV encode, fingerprint, lookup. **Blocked on an
-  AcoustID key**, which is a credential rather than code, and on the `fpcalc`
-  binary. Unverified against a speaker for the same reason.
+- [~] Audio recognition - "what is playing" via microphone **[S]** - the
+  fingerprint and lookup were built; **the capture and WAV encode were not**,
+  despite this entry claiming them, so `acoustid_listen` had no caller at all.
+  Written on 2026-09-12: microphone capture, decode, mixdown to mono at
+  11,025 Hz and a hand-rolled WAV, with the encoder tested byte by byte because
+  a wrong header does not fail — it fingerprints against nothing. Now **blocked
+  only on an AcoustID key** and the `fpcalc` binary, which are credentials
+  rather than code. Unverified against a speaker for the same reason.
 - [x] Results ranked by the user's own play history - relevance decides and
       play count only breaks a near-tie, so a favourite can never surface for a
       query it barely matches
@@ -301,7 +330,13 @@ and each says what it is blocked on:
 
 ## 10. Offline, sync and data
 
-- [x] Automatic cross-device sync
+- [x] Automatic cross-device sync — the journal, the worker, the typed
+      payloads and the runner were all built and **nothing ever wrote to the
+      outgoing queue**: `syncEnqueue` had no callers, so the worker found it
+      empty on every round and two devices could never converge. Wired on
+      2026-09-12, above both store implementations, with the echo guard that
+      stops a pulled change being published straight back. See
+      `lib/store/journal.ts`.
 - [x] Conflict resolution UI for backup import - the merge rules were applied
       silently; the arithmetic is now shown before anything is written, naming
       each playlist that exists on both and which copy wins
@@ -384,8 +419,12 @@ and each says what it is blocked on:
 - [x] Drag and drop files onto the window to play or import
 - [x] CLI arguments for play, pause, next
 - [x] Local control API for Stream Deck and scripts **[F]**
-- [~] DLNA / UPnP output **[S][A]** — discovery and control implemented in full;
-  unverified against a receiver, which needs one on the network
+- [~] DLNA / UPnP output **[S][A]** — discovery and control implemented in full
+  in Rust, and until 2026-09-12 the control half had no caller: casting was a
+  one-way door, because the receiver fetches the stream itself and the player's
+  own transport drives an audio element that is no longer making the sound. The
+  cast menu now offers pause, resume and stop for whatever it last sent. Still
+  unverified against a receiver, which needs one on the network.
 - [ ] Chromecast — **deliberately not offered.** The one usable crate links
       OpenSSL, which does not build on Windows without a system OpenSSL and would
       put a second TLS stack in a binary that already links rustls. Discovering
@@ -469,7 +508,13 @@ and each says what it is blocked on:
       modification time and size are unchanged is not re-read at all. Measured
       on this machine: a first scan reports `1 read, 0 unchanged`, the next
       `0 read, 1 unchanged`. See `src-tauri/src/scan.rs`.
-- [x] Background artwork thumbnail generation and cache
+- [x] Background artwork thumbnail generation and cache — built, tested, and
+      unreachable until 2026-09-12: the commands return a _path_ for the webview
+      to load through the asset protocol, and `assetProtocol.scope` was an empty
+      list, which denies every path. Every cover came through as a
+      two-megabyte base64 string instead. A test now pins the scope against the
+      directory the cache writes to, because when those drift nothing fails —
+      the JPEG is still written and every cover silently takes the slow route.
 - [x] Virtualisation on every long list
 - [x] Cold-start time budget, measured — recorded on every launch and shown on
       the Diagnostics page against a stated target. A budget written in a
