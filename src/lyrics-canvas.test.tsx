@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -51,9 +51,33 @@ const topBar = () => screen.getByRole('search');
 const wordsButton = () =>
   screen.getByRole('button', { name: /^(Lyrics|Hide the words)$/ });
 
+/**
+ * The overlay itself, or `null` once it has left.
+ *
+ * Asserted alongside the button because the two are different claims and only
+ * one of them is what the user feels. The button says what the app *believes*.
+ * This says whether there is still a full-bleed element over the page — and an
+ * overlay that lingers is invisible the moment it has faded while still
+ * swallowing every click meant for the screen underneath. The button alone is
+ * not evidence that the canvas came back.
+ */
+const overlay = () => screen.queryByRole('region', { name: 'Lyrics' });
+
 async function openTheWords(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Lyrics' }));
   expect(wordsButton()).toHaveAccessibleName('Hide the words');
+  expect(overlay()).toBeInTheDocument();
+}
+
+/**
+ * The words are down, and the page underneath is reachable again.
+ *
+ * `waitFor` because the overlay leaves on an exit animation rather than on the
+ * commit that hid it — the label flips first and the element follows.
+ */
+async function expectTheWordsDown() {
+  expect(wordsButton()).toHaveAccessibleName('Lyrics');
+  await waitFor(() => expect(overlay()).not.toBeInTheDocument());
 }
 
 function renderApp() {
@@ -78,7 +102,7 @@ describe('the words over the canvas', () => {
     await openTheWords(user);
 
     await user.click(wordsButton());
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 
   it('takes the words down when the bar navigates somewhere else', async () => {
@@ -89,7 +113,7 @@ describe('the words over the canvas', () => {
     // Browse is a genuine navigation: home → search, in the same tab.
     await user.click(within(topBar()).getByRole('button', { name: /browse/i }));
 
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 
   it('takes the words down when the sidebar opens something', async () => {
@@ -102,7 +126,7 @@ describe('the words over the canvas', () => {
       within(panel).getByRole('button', { name: /recently played/i }),
     );
 
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 
   /**
@@ -121,7 +145,7 @@ describe('the words over the canvas', () => {
 
     await user.click(screen.getByRole('button', { name: /^back$/i }));
 
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 
   /**
@@ -138,7 +162,7 @@ describe('the words over the canvas', () => {
 
     await user.keyboard('{Control>}t{/Control}');
 
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 
   /**
@@ -153,10 +177,10 @@ describe('the words over the canvas', () => {
     await openTheWords(user);
 
     await user.click(within(topBar()).getByRole('button', { name: /browse/i }));
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
 
     await user.click(screen.getByRole('button', { name: /^back$/i }));
 
-    expect(wordsButton()).toHaveAccessibleName('Lyrics');
+    await expectTheWordsDown();
   });
 });

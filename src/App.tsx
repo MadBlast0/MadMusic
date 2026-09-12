@@ -857,6 +857,16 @@ function App() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: duration.base, ease: ease.enter }}
                     className="absolute inset-0 z-10 flex flex-col bg-card"
+                    /* Named, because it covers the page rather than sitting
+                       beside it: a screen reader landing here should be told
+                       what took the canvas over, and the name is the same word
+                       the button that opened it uses. It also gives the one
+                       thing that matters about this element — whether it is
+                       still over the page — something to assert on. */
+                    role="region"
+                    aria-label={
+                      player.current?.episodeId ? 'Transcript' : 'Lyrics'
+                    }
                   >
                     {/* One tab for both, as the side panel does it: timed
                         text scrolling with the audio is the same thing
