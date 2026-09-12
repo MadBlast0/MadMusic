@@ -18,7 +18,9 @@ import {
   type Release,
 } from '@/lib/recommend';
 import type { Route } from '@/lib/routes';
-import { SHELF_KEYS } from '@/lib/shelf-source';
+import { listeningMixes, SHELF_KEYS } from '@/lib/shelf-source';
+import { decadeMixes, genreMixes } from '@/lib/playlists';
+import { useRefreshEpoch } from '@/hooks/use-refresh-epoch';
 import type { TrackRow } from '@/lib/store/types';
 import { Button } from '@/components/ui/button';
 
@@ -64,19 +66,33 @@ function firstCover(tracks: TrackRow[]): string | undefined {
 export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
   const { play } = usePlayer();
   const [sections, setSections] = useState<Section[] | null>(null);
+  /**
+   * The current part of the day, which is what these are seeded on.
+   *
+   * These shelves were built once, on mount — so an app left open overnight
+   * showed yesterday's daily mixes all day, although the mixes themselves had
+   * long since moved on. Depending on this rebuilds them at each boundary and
+   * when a window hidden across one is looked at again. See
+   * `hooks/use-refresh-epoch.ts`.
+   */
+  const epoch = useRefreshEpoch();
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       // `allSettled`, not `all`: one generator throwing — a missing table, a
-      // library too small — must not take the other three down with it.
-      const [daily, weekly, timely, because] = await Promise.allSettled([
-        dailyMixes(6),
-        weeklyDiscovery(),
-        forThisTimeOfDay(),
-        becauseYouPlayed(3),
-      ]);
+      // library too small — must not take the rest down with it.
+      const [daily, weekly, timely, because, listening, decades, genres] =
+        await Promise.allSettled([
+          dailyMixes(6),
+          weeklyDiscovery(),
+          forThisTimeOfDay(),
+          becauseYouPlayed(3),
+          listeningMixes(),
+          decadeMixes(6),
+          genreMixes(8),
+        ]);
       if (cancelled) return;
 
       const built: Section[] = [];
@@ -114,6 +130,23 @@ export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
         });
       }
 
+      // The playlists that look back rather than out: what you cannot stop
+      // playing, what you stopped, what your year sounded like, and liked
+      // songs that went quiet. Each appears only with enough history behind
+      // it, so a new library shows none of these rather than four thin ones.
+      const listeningMixList = (
+        listening.status === 'fulfilled' ? listening.value : []
+      ).filter((mix): mix is Mix => mix !== null);
+      if (listeningMixList.length > 0) {
+        built.push({
+          id: 'listening',
+          title: 'Your listening',
+          blurb: 'Built from what you play, and what you stopped playing',
+          mixes: listeningMixList,
+          key: SHELF_KEYS.madeListening,
+        });
+      }
+
       const becauseMixes = because.status === 'fulfilled' ? because.value : [];
       if (becauseMixes.length > 0) {
         built.push({
@@ -125,13 +158,35 @@ export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
         });
       }
 
+      const decadeMixList = decades.status === 'fulfilled' ? decades.value : [];
+      if (decadeMixList.length > 0) {
+        built.push({
+          id: 'decades',
+          title: 'By decade',
+          blurb: 'Your library, era by era',
+          mixes: decadeMixList,
+          key: SHELF_KEYS.madeDecades,
+        });
+      }
+
+      const genreMixList = genres.status === 'fulfilled' ? genres.value : [];
+      if (genreMixList.length > 0) {
+        built.push({
+          id: 'genres',
+          title: 'By genre',
+          blurb: 'Your library, sound by sound',
+          mixes: genreMixList,
+          key: SHELF_KEYS.madeGenres,
+        });
+      }
+
       setSections(built);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [epoch]);
 
   const playMix = useCallback(
     (tracks: TrackRow[]) => {

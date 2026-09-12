@@ -28,7 +28,19 @@ import {
   type Collection,
 } from '@/lib/catalogue';
 import { fallbackCover } from '@/lib/library-model';
-import { toCatalogueTrack, toPlayerTrackRow } from '@/lib/player-track';
+import {
+  coverUrlOf,
+  toCatalogueTrack,
+  toPlayerTrackRow,
+} from '@/lib/player-track';
+import {
+  decadeMixes,
+  forgottenFavourites,
+  genreMixes,
+  onRepeat,
+  repeatRewind,
+  topSongsOf,
+} from '@/lib/playlists';
 import type { PlayerTrack } from '@/components/player/player-context';
 import {
   becauseYouPlayed,
@@ -101,6 +113,9 @@ export const SHELF_KEYS = {
   mixWeekly: 'mix:weekly',
   mixTimely: 'mix:timely',
   mixBecause: 'mix:because',
+  madeListening: 'made:listening',
+  madeDecades: 'made:decades',
+  madeGenres: 'made:genres',
   radar: 'radar',
   featured: 'feed:featured',
 } as const;
@@ -116,6 +131,12 @@ export function shelfTitle(key: string): string {
       return 'Most played';
     case SHELF_KEYS.mixDaily:
       return 'Made for you';
+    case SHELF_KEYS.madeListening:
+      return 'Your listening';
+    case SHELF_KEYS.madeDecades:
+      return 'By decade';
+    case SHELF_KEYS.madeGenres:
+      return 'By genre';
     case SHELF_KEYS.mixWeekly:
       return 'Discovery';
     case SHELF_KEYS.mixTimely:
@@ -140,7 +161,11 @@ function fromRow(row: TrackRow): ShelfEntry {
     title: row.title,
     subtitle: row.artist || row.albumArtist || 'Unknown artist',
     cover: track.cover,
-    artworkUrl: row.artworkUrl || undefined,
+    // `track.artworkUrl` rather than the stored field: `toPlayerTrackRow` has
+    // already applied the video-thumbnail fallback one line up, and reading the
+    // row directly threw that away — which is why "View all" drew gradients for
+    // tracks that had covers on the player bar.
+    artworkUrl: track.artworkUrl || undefined,
     duration: row.duration,
     track,
   };
@@ -174,7 +199,7 @@ function albumEntries(rows: TrackRow[]): ShelfEntry[] {
         title: row.album || row.title,
         subtitle: row.albumArtist || row.artist || 'Unknown artist',
         cover: fallbackCover(row.album || row.title),
-        artworkUrl: row.artworkUrl || undefined,
+        artworkUrl: coverUrlOf(row) || undefined,
         route: { name: 'local-album', key: albumKey, title: row.album || '' },
         resolve: async () => {
           const tracks = await store
@@ -231,9 +256,27 @@ function fromMix(mix: Mix): ShelfEntry {
     cover: [mix.coverA, mix.coverB],
     // The first track that has artwork, so a mix looks like its contents. A
     // mix is generated and owns no picture of its own.
-    artworkUrl: mix.tracks.find((track) => track.artworkUrl)?.artworkUrl,
+    artworkUrl:
+      mix.tracks.map((track) => coverUrlOf(track)).find(Boolean) || undefined,
     resolve: async () => mix.tracks.map(toPlayerTrackRow),
   };
+}
+
+/**
+ * The playlists that look back at how you listen, in the order they are worth
+ * reaching for: what you cannot stop playing, what you stopped, what your year
+ * sounded like, and the liked songs that went quiet.
+ */
+export async function listeningMixes(): Promise<(Mix | null)[]> {
+  const results = await Promise.allSettled([
+    onRepeat(),
+    repeatRewind(),
+    topSongsOf(),
+    forgottenFavourites(),
+  ]);
+  return results.map((result) =>
+    result.status === 'fulfilled' ? result.value : null,
+  );
 }
 
 /* ── the loader ──────────────────────────────────────────────────────── */
@@ -308,6 +351,45 @@ export async function loadShelf(key: string): Promise<ShelfPage | null> {
         key,
         title: 'Made for you',
         blurb: 'Rebuilt every morning from what you play',
+        kind: 'collections',
+        entries: mixes.map(fromMix),
+      };
+    }
+
+    case SHELF_KEYS.madeListening: {
+      const found = await listeningMixes().catch(() => [] as (Mix | null)[]);
+      const mixes = found.filter((mix): mix is Mix => mix !== null);
+      if (mixes.length === 0) return null;
+      return {
+        key,
+        title: 'Your listening',
+        blurb: 'Built from what you play, and what you stopped playing',
+        kind: 'collections',
+        entries: mixes.map(fromMix),
+      };
+    }
+
+    case SHELF_KEYS.madeDecades: {
+      // More decades than the shelf shows: the page is for the ones it had no
+      // room for.
+      const mixes = await decadeMixes(10).catch(() => []);
+      if (mixes.length === 0) return null;
+      return {
+        key,
+        title: 'By decade',
+        blurb: 'Your library, era by era',
+        kind: 'collections',
+        entries: mixes.map(fromMix),
+      };
+    }
+
+    case SHELF_KEYS.madeGenres: {
+      const mixes = await genreMixes(20).catch(() => []);
+      if (mixes.length === 0) return null;
+      return {
+        key,
+        title: 'By genre',
+        blurb: 'Your library, sound by sound',
         kind: 'collections',
         entries: mixes.map(fromMix),
       };

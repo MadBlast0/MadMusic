@@ -29,6 +29,7 @@ import { SHELF_KEYS } from '@/lib/shelf-source';
 import { ChartSection } from '@/components/catalogue/chart-rows';
 import { chart } from '@/lib/charts';
 import { personalise, tasteProfile } from '@/lib/taste';
+import { useRefreshEpoch } from '@/hooks/use-refresh-epoch';
 import { toCatalogueTrack, toPlayerTrack } from '@/lib/player-track';
 import { fromSaved } from '@/lib/saved';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,16 @@ export function HomeView({
   const [source, setSource] = useState<CatalogueSource | null>(null);
   const [feed, setFeed] = useState<HomeFeed | null>(null);
 
+  /**
+   * Rebuilds the catalogue feed with the rest of Home.
+   *
+   * The feed and the taste profile were read once, on mount, so the charts,
+   * new releases and the order the listener's taste gave them stayed as they
+   * were when the app opened — however long ago that was. See
+   * `hooks/use-refresh-epoch.ts`.
+   */
+  const epoch = useRefreshEpoch();
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -96,7 +107,7 @@ export function HomeView({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [epoch]);
 
   const yourAlbums = useMemo(() => {
     if (!root) return [];

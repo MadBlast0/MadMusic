@@ -183,7 +183,10 @@ export async function dailyMixes(count = 6): Promise<Mix[]> {
 
     mixes.push({
       id: `mix:${artist.label}`,
-      title: `${artist.label} Mix`,
+      // Numbered, as the daily mixes are everywhere else people meet them, with
+      // the artist moved into the line underneath — which is also where it
+      // reads as the *reason*, rather than as the mix being one artist's songs.
+      title: `Daily Mix ${mixes.length + 1}`,
       reason: similarNames.length
         ? `${artist.label} and artists like them`
         : `${artist.label} and others from your library`,
