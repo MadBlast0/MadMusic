@@ -3,6 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Art } from '@/components/home/shelves';
 import { useSettings } from '@/components/common/settings-context';
 import { SaveButton } from '@/components/library/save-button';
+import { DownloadButton } from '@/components/library/download-button';
+import { useDownload } from '@/hooks/use-download';
+import { formatTime } from '@/lib/library-model';
 import { useDebounced } from '@/hooks/use-debounced';
 import { Play, Search } from '@/components/icons';
 import { usePlayer } from '@/components/player/player-context';
@@ -88,6 +91,8 @@ export function SearchView({
 }) {
   const { settings } = useSettings();
   const { play, current, playing } = usePlayer();
+  /** Whether a download column exists at all — not in a browser. */
+  const downloads = useDownload().supported;
 
   const [source, setSource] = useState<CatalogueSource | null>(null);
   /**
@@ -438,7 +443,17 @@ export function SearchView({
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {row.kind === 'Song'
-                            ? `Song • ${row.track.artist || 'Unknown artist'}`
+                            ? // The album too, where the source knows it: two
+                              // results with one title are usually the album
+                              // cut and a live one, and the album is what
+                              // tells them apart.
+                              [
+                                'Song',
+                                row.track.artist || 'Unknown artist',
+                                row.track.album,
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')
                             : row.kind === 'Album'
                               ? `Album • ${row.album.subtitle}`
                               : 'Artist'}
@@ -452,8 +467,31 @@ export function SearchView({
                       {row.kind}
                     </span>
 
-                    {/* Only a song can be saved. An album or an artist is a
-                        place to go, not a thing a playlist holds. */}
+                    {/* Length, download and save — only a song has them.
+                        An album or an artist is a place to go, not a thing a
+                        playlist holds, so those rows keep the same columns
+                        empty and everything stays lined up. */}
+                    <span className="hidden w-10 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
+                      {row.kind === 'Song' && row.track.duration > 0
+                        ? formatTime(row.track.duration)
+                        : ''}
+                    </span>
+                    {downloads &&
+                      (row.kind === 'Song' ? (
+                        <DownloadButton
+                          reveal
+                          // The row's group is named, so the plain
+                          // `group-hover` the button reveals on never fires.
+                          className="group-hover/row:opacity-100"
+                          track={{
+                            handle: row.track.handle,
+                            title: row.track.title,
+                            artist: row.track.artist,
+                          }}
+                        />
+                      ) : (
+                        <span className="size-7 shrink-0" aria-hidden />
+                      ))}
                     {row.kind === 'Song' ? (
                       <SaveButton track={toCatalogueTrack(row.track)} />
                     ) : (

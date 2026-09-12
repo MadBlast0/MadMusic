@@ -105,15 +105,19 @@ export function NowPlayingPanel() {
           </div>
         )}
 
-        {/* The file's own facts, for a local track. Nobody needs these often,
-            and when they do there is nowhere else in the app that answers
-            "what actually is this file". */}
-        {local && (
+        {/* The track's facts. These were shown for a local file only, so a
+            song from the catalogue had no album and no length here although
+            both were known — the album now travels with every track. Nobody
+            needs these often, and when they do there is nowhere else in the
+            app that answers "what actually is this". */}
+        {(current.album ||
+          current.duration > 0 ||
+          current.bpm !== undefined) && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-            {local.album && (
+            {(current.album || local?.album) && (
               <>
                 <dt className="text-muted-foreground">Album</dt>
-                <dd className="truncate">{local.album}</dd>
+                <dd className="truncate">{current.album || local?.album}</dd>
               </>
             )}
             {current.duration > 0 && (
