@@ -34,6 +34,7 @@
 /// The ids are what Windows sends back in `WM_COMMAND`, so they have to be
 /// stable and small. Named rather than bare numbers because a mistyped literal
 /// in the message handler would silently wire "next" to "previous".
+#[cfg(any(target_os = "windows", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThumbButton {
     Previous,
@@ -41,6 +42,7 @@ pub enum ThumbButton {
     Next,
 }
 
+#[cfg(any(target_os = "windows", test))]
 impl ThumbButton {
     pub const fn id(self) -> u32 {
         match self {
@@ -79,6 +81,7 @@ impl ThumbButton {
 }
 
 /// Which shape to draw.
+#[cfg(any(target_os = "windows", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Glyph {
     Previous,
@@ -96,6 +99,7 @@ pub enum Glyph {
 /// Premultiplied, because that is what `CreateDIBSection` and `CreateIconIndirect`
 /// expect for an alpha bitmap — and getting it wrong produces a glyph with a
 /// dark halo rather than an error.
+#[cfg(any(target_os = "windows", test))]
 pub fn glyph(shape: Glyph, size: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; size * size * 4];
 
@@ -130,6 +134,7 @@ pub fn glyph(shape: Glyph, size: usize) -> Vec<u8> {
 }
 
 /// Whether a point in the unit square is part of the shape.
+#[cfg(any(target_os = "windows", test))]
 fn inside(shape: Glyph, x: f32, y: f32) -> bool {
     match shape {
         // A triangle pointing right: as `x` grows, the band of `y` it covers
@@ -575,21 +580,17 @@ mod other {
     /// macOS has a dock menu and Linux has neither; both are separate features
     /// rather than this one, so this reports its absence rather than pretending
     /// to have worked.
-    pub fn set_thumb_buttons(_hwnd: isize, _playing: bool, _added: bool) -> Result<(), String> {
-        Err("taskbar buttons are a Windows feature".into())
-    }
-
+    ///
+    /// Only the jump list has a stand-in. The thumbnail buttons need a window
+    /// handle, and `taskbar_update` has a non-Windows body of its own that
+    /// never asks for one - so stand-ins for those would be code nothing calls.
     pub fn set_jump_list(_exe: &str, _items: &[(String, String)]) -> Result<(), String> {
         Err("the jump list is a Windows feature".into())
-    }
-
-    pub fn listen_for_clicks(_app: tauri::AppHandle, _hwnd: isize) -> Result<(), String> {
-        Err("taskbar buttons are a Windows feature".into())
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-pub use other::{listen_for_clicks, set_jump_list, set_thumb_buttons};
+pub use other::set_jump_list;
 
 #[cfg(test)]
 mod tests {
@@ -731,6 +732,7 @@ static ADDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 ///
 /// One refusal is enough to know the answer. Asking again is how a feature
 /// nobody has ends up costing everybody frames.
+#[cfg(target_os = "windows")]
 static REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Set once the jump list has been refused, for the same reason.
@@ -785,6 +787,7 @@ pub struct RecentItem {
 /// Whether the work was *scheduled*, not whether it succeeded. The outcome is
 /// known on the other thread and is logged there; the diagnostics screen reads
 /// `buttons_installed` for the real answer rather than this return value.
+#[cfg(target_os = "windows")]
 #[tauri::command]
 pub fn taskbar_update(app: tauri::AppHandle, playing: bool) -> Result<(), String> {
     use std::sync::atomic::Ordering;
@@ -833,6 +836,19 @@ pub fn taskbar_update(app: tauri::AppHandle, playing: bool) -> Result<(), String
         }
     })
     .map_err(|e| format!("could not reach the main thread: {e}"))
+}
+
+/// Off Windows there are no thumbnail buttons to update.
+///
+/// Registered all the same, so the front end calls one command on every
+/// platform. This used to be the Windows body compiled everywhere, which asked
+/// the window for an `HWND` - a method that only exists on Windows - so the
+/// Linux and macOS builds did not compile at all, and no release could be made
+/// for either.
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+pub fn taskbar_update(_app: tauri::AppHandle, _playing: bool) -> Result<(), String> {
+    Ok(())
 }
 
 /// Replaces the jump list with these tracks.
