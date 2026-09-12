@@ -34,6 +34,19 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
   Escape closed nothing the user could see.
 - The A–B loop was offered twice in the same menu, as a lettered button and as
   an item saying the same thing.
+- Covers went missing across the app and looked like a cache fault. A catalogue
+  card kept two booleans about its picture on a component that is reused, so
+  the previous cover decided what the next one was allowed to do: a card handed
+  one dead url stayed empty for every cover afterwards. Both are urls now. The
+  reveal also no longer depends on catching an event — a picture the browser
+  already had could finish loading before anything was listening, leaving it
+  invisible over its gradient, which only ever happened to cached pictures.
+- The ten-foot player showed a gradient for every catalogue track: it was only
+  ever given the embedded art, never the thumbnail.
+- Two collections claimed to be playing the same song at once. The bars asked
+  whether a list *contained* the current track, so playing something from Liked
+  Songs lit up Recently played as well the moment it was recorded there. The
+  player now carries which collection playback actually started from.
 - The block at the top of Home listed local folders. With one untagged folder
   it showed a tile called "Music" — the name of the directory, with the flat
   fallback gradient, sitting among Liked Songs and the catalogue and looking
@@ -54,6 +67,12 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ### Changed
 
+- The full-screen player's lyrics pane can be put away, from a control in a new
+  top-left cluster, and says "No lyrics for this track" rather than opening
+  empty. Closing it grows the artwork into the space. The visualiser picker
+  moved into the same cluster as a menu, out from under the play button. The
+  background is three layers from the track's own colour rather than one flat
+  sweep.
 - The player's overflow menu is a menu, rather than a popover with three strips
   of unlabelled icon buttons wedged between its labels. Each control is a row
   carrying its own current value — `1.5×`, `28 min`, `Spread artists` — and the
