@@ -34,6 +34,7 @@ import {
 } from '@/components/player/player-context';
 import { useSettings } from '@/components/common/settings-context';
 import { SaveButton } from '@/components/library/save-button';
+import { DownloadButton } from '@/components/library/download-button';
 import { LoudnessMeter } from '@/components/player/loudness-meter';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -339,6 +340,18 @@ export function NowPlayingBar({
             and it sat where the heart does everywhere else — so the muscle
             memory for "save this" was one pixel from "throw the queue away". */}
         <SaveButton track={current} size="sm" />
+        {/* Beside the heart, because they are the two ways of keeping a track:
+            one in the library, one on the disk. Always visible here rather than
+            on hover — the bar has one track, and "can I have this offline?" is
+            a question worth answering without hunting. Nothing for a local
+            file, which is already on disk. */}
+        <DownloadButton
+          track={{
+            handle: current.handle,
+            title: current.title,
+            artist: current.artist,
+          }}
+        />
       </div>
 
       {/* Transport */}

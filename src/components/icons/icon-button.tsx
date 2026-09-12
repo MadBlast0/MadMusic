@@ -40,7 +40,12 @@ export function IconButton({
   ...rest
 }: {
   label: string;
-  onClick?: () => void;
+  /**
+   * Given the event, for a control that sits inside something else pressable —
+   * a download button on a row that plays, say — and has to stop the press
+   * reaching it. Zero-argument handlers still fit, so no caller changes.
+   */
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   /** Renders the pressed state and announces `aria-pressed`. For toggles. */
   active?: boolean;

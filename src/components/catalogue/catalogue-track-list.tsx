@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { StaticClock, StaticPlay } from '@/components/icons';
 import { AudioBars } from '@/components/player/audio-bars';
 import { Art } from '@/components/home/shelves';
+import { DownloadButton } from '@/components/library/download-button';
+import { useDownload } from '@/hooks/use-download';
 import { usePlayer } from '@/components/player/player-context';
 import {
   ContextMenu,
@@ -82,6 +84,7 @@ export function CatalogueTrackList({
 }) {
   const { play, playNext, addToQueue, current, playing } = usePlayer();
   const offline = useOffline();
+  const download = useDownload();
   const { playlists, createPlaylist, addToPlaylist, isLiked, toggleLike } =
     useSaved();
 
@@ -201,8 +204,23 @@ export function CatalogueTrackList({
                     </span>
                   )}
 
-                  <span className="text-sm text-muted-foreground tabular-nums">
-                    {track.duration > 0 ? formatTime(track.duration) : '—'}
+                  {/* The download control sits beside the length rather than in
+                      a column of its own: a column would be forty empty cells on
+                      a list where most rows are never downloaded. It reveals on
+                      hover, and stays up for the states worth seeing — in
+                      flight, done, failed. */}
+                  <span className="flex items-center justify-end gap-1 text-sm text-muted-foreground tabular-nums">
+                    <DownloadButton
+                      reveal
+                      track={{
+                        handle: track.handle,
+                        title: track.title,
+                        artist: track.artist,
+                      }}
+                    />
+                    <span className="w-10 text-right">
+                      {track.duration > 0 ? formatTime(track.duration) : '—'}
+                    </span>
                   </span>
                 </button>
               </ContextMenuTrigger>
@@ -325,18 +343,16 @@ export function CatalogueTrackList({
                   label that promises something. */}
                 {offline.supported && track.handle && (
                   <ContextMenuItem
-                    onSelect={() => {
-                      const handle = track.handle!;
-                      if (offline.isDownloaded(handle)) {
-                        void offline.remove(handle);
-                      } else {
-                        void offline.download({
-                          handle,
-                          title: track.title,
-                          artist: track.artist,
-                        });
-                      }
-                    }}
+                    // Through the same hook as the row and the player bar, so
+                    // right-click also asks for a folder when there is none
+                    // rather than saving somewhere the user will never find.
+                    onSelect={() =>
+                      download.toggle({
+                        handle: track.handle,
+                        title: track.title,
+                        artist: track.artist,
+                      })
+                    }
                   >
                     {offline.isDownloaded(track.handle)
                       ? 'Remove download'
