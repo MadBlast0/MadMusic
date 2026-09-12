@@ -13,6 +13,7 @@
  */
 
 import { isNative } from '@/lib/platform';
+import { journalled } from '@/lib/store/journal';
 import { nativeStore } from '@/lib/store/native';
 import type { Store } from '@/lib/store/types';
 import { webStore } from '@/lib/store/web';
@@ -25,6 +26,14 @@ import { webStore } from '@/lib/store/web';
  * whose writes could land in two different places, and no caller is prepared
  * for that.
  */
-export const store: Store = isNative() ? nativeStore : webStore;
+/**
+ * Wrapped so that the mutations sync cares about also reach the journal.
+ *
+ * Above the two implementations rather than inside either, because a rule
+ * enforced in each of them is a rule that will eventually be enforced in one of
+ * them — and because that list is worth being able to read in one place. See
+ * `journal.ts`, including why applying a pulled change must not write back.
+ */
+export const store: Store = journalled(isNative() ? nativeStore : webStore);
 
 export * from '@/lib/store/types';

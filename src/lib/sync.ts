@@ -34,6 +34,7 @@
  */
 
 import { store } from '@/lib/store';
+import { whileApplying } from '@/lib/store/journal';
 import { keys } from '@/lib/store/keys';
 import { deviceIdFrom } from '@/lib/convex-client';
 import { EMPTY_PLAYLIST, EMPTY_TRACK } from '@/lib/store/types';
@@ -260,10 +261,15 @@ export async function applyBatch(
 
   // In sequence order. The journal is a total order per user, and applying
   // "add track to playlist" before "create playlist" would drop the track.
-  for (const event of [...events].sort((a, b) => a.seq - b.seq)) {
-    if (event.deviceId === self) continue;
-    if (await applyEvent(event)) applied += 1;
-  }
+  // Inside `whileApplying`, so the writes these make do not go straight back
+  // into the outgoing queue. Without it every pulled event is re-published and
+  // the two devices feed each other forever — see `store/journal.ts`.
+  await whileApplying(async () => {
+    for (const event of [...events].sort((a, b) => a.seq - b.seq)) {
+      if (event.deviceId === self) continue;
+      if (await applyEvent(event)) applied += 1;
+    }
+  });
 
   return applied;
 }
