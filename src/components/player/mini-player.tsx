@@ -3,9 +3,9 @@ import { useEffect } from 'react';
 import { WidgetPlayer } from '@/components/player/widget-player';
 import { IconButton } from '@/components/icons/icon-button';
 import { X } from '@/components/icons';
-import { invoke, isNative } from '@/lib/native';
+import { isNative } from '@/lib/native';
 import { onShellEvent } from '@/lib/desktop';
-import { WIDGET_EVENTS } from '@/lib/widget-link';
+import { setWidgetOpen, WIDGET_EVENTS } from '@/lib/widget-link';
 
 /**
  * The compact player, in whichever form this platform can give it.
@@ -34,17 +34,27 @@ import { WIDGET_EVENTS } from '@/lib/widget-link';
  * the desktop now matches.
  */
 export function MiniPlayer({ onClose }: { onClose: () => void }) {
+  /**
+   * The window follows this component's life.
+   *
+   * Through `setWidgetOpen` rather than by invoking the commands directly,
+   * because this effect does not run once — `StrictMode` mounts it, unmounts
+   * it and mounts it again, and the three commands that produced raced each
+   * other into either two windows or none. `setWidgetOpen` records the state
+   * wanted and reconciles towards it, so that sequence collapses to a single
+   * open. See `lib/widget-link.ts` for the whole account.
+   */
   useEffect(() => {
     if (!isNative()) return;
 
-    void invoke('widget_open').catch(() => {
+    void setWidgetOpen(true).catch(() => {
       // The window would not open. Leaving the app in a mode whose window does
       // not exist is worse than not entering it.
       onClose();
     });
 
     return () => {
-      void invoke('widget_close').catch(() => {});
+      void setWidgetOpen(false).catch(() => {});
     };
     // Once. `onClose` is only read on the failure path, and depending on it
     // would tear the window down and rebuild it whenever the parent

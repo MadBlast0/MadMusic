@@ -537,6 +537,38 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Serialises everything that creates or destroys the widget window.
+///
+/// # Why a lock rather than the existence check alone
+///
+/// Because `widget_open` is `async` (see below for why it has to be), and an
+/// async command runs on Tauri's runtime rather than on the caller's thread.
+/// Two of them run *concurrently*. The check that used to guard the builder -
+/// "is there already a window called `widget`?" - therefore had a gap between
+/// the question and the answer being acted on, and two calls arriving together
+/// both saw `None` and both built.
+///
+/// That gap was not theoretical. React's `StrictMode` mounts an effect, tears
+/// it down and mounts it again, so opening the compact player in development
+/// fires `widget_open`, `widget_close`, `widget_open` with nothing ordering
+/// them. Interleaved, the close could land between the two builds and remove
+/// the *first* window from Tauri's registry while its native window was still
+/// alive - leaving a second window free to take the label, and an orphan on
+/// screen that the app no longer knew about. That orphan is the duplicate
+/// widget: it never receives the state broadcast, which is why it shows the
+/// placeholder disc and an empty scrubber while the real one plays.
+///
+/// Holding this for the whole of each command makes the three calls happen in
+/// the order they were made, so the sequence above ends with exactly one
+/// window. Nothing in either command awaits, so the guard is never held across
+/// a suspension point.
+#[derive(Default)]
+pub struct Widget(Mutex<()>);
+
+/// The label Tauri knows the widget window by. Matches `WIDGET_LABEL` in
+/// `src/lib/widget-link.ts`, and `windows` in `capabilities/widget.json`.
+const WIDGET: &str = "widget";
+
 /// Opens the widget in a window of its own, or focuses the one already open.
 ///
 /// # Why a second window rather than resizing this one
@@ -570,20 +602,27 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
 /// window and to changing its layer, so all four are async rather than only
 /// the one that first showed the fault.
 #[tauri::command]
-pub async fn widget_open(app: AppHandle) -> Result<(), String> {
+pub async fn widget_open(app: AppHandle, widget: State<'_, Widget>) -> Result<(), String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-    if let Some(existing) = app.get_webview_window("widget") {
+    let _turn = widget
+        .0
+        .lock()
+        .map_err(|_| "the widget lock was poisoned".to_string())?;
+
+    if let Some(existing) = app.get_webview_window(WIDGET) {
         // Already there. Raising it is what a second press should do, rather
         // than building a duplicate the user cannot tell apart.
+        log::info!("widget already open - raising it");
         let _ = existing.show();
         let _ = existing.set_focus();
         return Ok(());
     }
 
+    log::info!("opening the widget window");
     let url = WebviewUrl::App("index.html#widget".into());
 
-    WebviewWindowBuilder::new(&app, "widget", url)
+    WebviewWindowBuilder::new(&app, WIDGET, url)
         .title("MadMusic")
         .inner_size(304.0, 212.0)
         .resizable(false)
@@ -595,6 +634,11 @@ pub async fn widget_open(app: AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| format!("could not open the widget: {e}"))?;
 
+    log::info!(
+        "widget opened - {} window(s) now exist",
+        app.webview_windows().len()
+    );
+
     Ok(())
 }
 
@@ -604,10 +648,24 @@ pub async fn widget_open(app: AppHandle) -> Result<(), String> {
 /// mode whether or not the window survived, and a window the user already
 /// closed is the expected case rather than a failure.
 #[tauri::command]
-pub async fn widget_close(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("widget") {
+pub async fn widget_close(app: AppHandle, widget: State<'_, Widget>) -> Result<(), String> {
+    let _turn = widget
+        .0
+        .lock()
+        .map_err(|_| "the widget lock was poisoned".to_string())?;
+
+    if let Some(window) = app.get_webview_window(WIDGET) {
+        log::info!("closing the widget window");
+        // `destroy` rather than `close`. `close` *requests* a close: it fires
+        // the window's CloseRequested event and returns, so the window is
+        // still registered under its label for as long as the event takes to
+        // be handled. Reopening in that gap - which is exactly what a
+        // StrictMode remount does - found the label still taken or, worse,
+        // freed it a moment later and stranded the window that had just been
+        // built. `destroy` tears it down there and then, so when this returns
+        // the label is genuinely free.
         window
-            .close()
+            .destroy()
             .map_err(|e| format!("could not close the widget: {e}"))?;
     }
 
@@ -622,7 +680,7 @@ pub async fn widget_close(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
     let window = app
-        .get_webview_window("widget")
+        .get_webview_window(WIDGET)
         .ok_or("the widget is not open")?;
 
     window
@@ -636,7 +694,7 @@ pub async fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
 #[tauri::command]
 pub async fn widget_on_desktop(app: AppHandle, on: bool) -> Result<(), String> {
     let window = app
-        .get_webview_window("widget")
+        .get_webview_window(WIDGET)
         .ok_or("the widget is not open")?;
 
     window

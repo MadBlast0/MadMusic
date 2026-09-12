@@ -29,7 +29,7 @@
 
 import type { PlayerTrack } from '@/components/player/player-context';
 import type { RepeatMode } from '@/lib/queue';
-import { isNative } from '@/lib/native';
+import { invoke, isNative } from '@/lib/native';
 
 /** The label the Rust side gives the widget window. */
 export const WIDGET_LABEL = 'widget';
@@ -97,5 +97,74 @@ export async function sendToWidget(
   } catch {
     // The other window is gone, or the bridge is not up yet. Both are states
     // this is expected to be called in.
+  }
+}
+
+/* ── opening and closing the window ──────────────────────────────────── */
+
+/**
+ * What the app currently wants: the widget up, or not.
+ *
+ * Module scope rather than component state because it outlives any one mount —
+ * which is the whole point. See [`setWidgetOpen`].
+ */
+let desired: boolean = false;
+
+/** The run that is working towards [`desired`], or `null` when it is settled. */
+let settling: Promise<void> | null = null;
+
+/**
+ * Asks for the widget window to be open, or closed.
+ *
+ * # Why this is not just `invoke('widget_open')`
+ *
+ * Because the widget's lifetime used to be tied directly to a React effect
+ * mounting and unmounting, and in development an effect mounts **twice**:
+ * `StrictMode` runs it, tears it down, and runs it again to surface exactly
+ * this class of bug. So one press of the compact-player button sent
+ * `widget_open`, `widget_close`, `widget_open` in three separate commands.
+ *
+ * Each of those is `async` on the Rust side — it has to be, or creating a
+ * window deadlocks the main thread — so the three ran *concurrently*, and the
+ * order they arrived in was not the order they were made in. Two outcomes,
+ * both seen: two builds racing the same label left an orphan window the app no
+ * longer tracked, drawn on the desktop with no track in it; and a close
+ * landing last left no window at all. Serialising them in Rust did not fix it
+ * either, because `destroy` does not free the label by the time it returns —
+ * the reopen then found the dying window and politely raised a corpse.
+ *
+ * The fault is asking for three transitions when the user asked for one state.
+ * So this records the *state wanted* and reconciles towards it: one command in
+ * flight at a time, and when it lands, another only if the answer has changed
+ * since. `StrictMode`'s mount-unmount-mount collapses to a single
+ * `widget_open`, because by the time it resolves the app wants what it already
+ * has.
+ *
+ * Every caller gets the same promise, which settles when the window has
+ * actually reached the state asked for. It rejects if a command failed —
+ * `MiniPlayer` leaves the mode on that, rather than sitting in a mode whose
+ * window does not exist.
+ */
+export function setWidgetOpen(open: boolean): Promise<void> {
+  desired = open;
+  if (!isNative()) return Promise.resolve();
+
+  settling ??= reconcile().finally(() => {
+    settling = null;
+  });
+
+  return settling;
+}
+
+/** Drives the window towards [`desired`], one command at a time. */
+async function reconcile(): Promise<void> {
+  let applied: boolean | null = null;
+
+  while (applied !== desired) {
+    const wanted: boolean = desired;
+    await invoke<void>(wanted ? 'widget_open' : 'widget_close');
+    // Read `desired` again on the next pass rather than caching it: the whole
+    // reason this loop exists is that it may have changed while we were away.
+    applied = wanted;
   }
 }

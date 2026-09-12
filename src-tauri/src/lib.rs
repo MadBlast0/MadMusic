@@ -51,6 +51,7 @@ pub fn run() {
         .manage(library::GrantedRoots::default())
         .manage(scan::Scan::default())
         .manage(shell::Shell::default())
+        .manage(shell::Widget::default())
         .manage(watcher::FolderWatcher::default())
         .manage(catalogue::Resolved::default())
         .manage(stream::Streams::default())
