@@ -379,3 +379,144 @@ export function sortArtists(
     }
   });
 }
+
+/* ── filtering the library ───────────────────────────────────────────── */
+
+/**
+ * Names a decade the way people say it: `1990` → `90s`, `2010` → `2010s`.
+ *
+ * Here rather than beside the decade mixes, because the library filter needs
+ * the same words — a filter that says "1990–1999" beside a mix called "90s Mix"
+ * is two names for one thing.
+ */
+export function decadeName(decade: number): string {
+  return decade < 2000 ? `${String(decade).slice(2)}s` : `${decade}s`;
+}
+
+/** Whether a song needs cover art to be shown, or the lack of it. */
+export type ArtworkFilter = 'any' | 'with' | 'without';
+
+/**
+ * What the library is narrowed to, beyond the text filter.
+ *
+ * Every list is "any of these", and an empty list means "no restriction" — so
+ * choosing Rock and Jazz shows both, and clearing a group shows everything
+ * again. Groups combine with *and*: Rock from the 90s in FLAC.
+ */
+export type LibraryFilters = {
+  genres: string[];
+  decades: number[];
+  formats: string[];
+  artwork: ArtworkFilter;
+};
+
+export const NO_FILTERS: LibraryFilters = {
+  genres: [],
+  decades: [],
+  formats: [],
+  artwork: 'any',
+};
+
+/** How many groups are narrowing the list — the number on the button. */
+export function activeFilterCount(filters: LibraryFilters): number {
+  return (
+    Number(filters.genres.length > 0) +
+    Number(filters.decades.length > 0) +
+    Number(filters.formats.length > 0) +
+    Number(filters.artwork !== 'any')
+  );
+}
+
+/** A tag written three ways is one genre: `Rock`, `rock` and ` ROCK `. */
+function genreKey(genre: string | null): string {
+  return (genre ?? '').trim().toLowerCase();
+}
+
+function decadeOf(year: number | null): number | null {
+  return year && year >= 1900 ? Math.floor(year / 10) * 10 : null;
+}
+
+export function matchesFilters(
+  track: LocalTrack,
+  filters: LibraryFilters,
+): boolean {
+  if (
+    filters.genres.length > 0 &&
+    !filters.genres.some((genre) => genreKey(genre) === genreKey(track.genre))
+  ) {
+    return false;
+  }
+  if (filters.decades.length > 0) {
+    const decade = decadeOf(track.year);
+    if (decade === null || !filters.decades.includes(decade)) return false;
+  }
+  if (
+    filters.formats.length > 0 &&
+    !filters.formats.includes(track.extension.toLowerCase())
+  ) {
+    return false;
+  }
+  if (filters.artwork === 'with' && !track.hasArtwork) return false;
+  if (filters.artwork === 'without' && track.hasArtwork) return false;
+  return true;
+}
+
+export type FilterOption<T> = { value: T; label: string; count: number };
+
+/**
+ * What there is to filter by, counted over the whole library.
+ *
+ * Built from the library rather than a fixed list, so the menu never offers
+ * "Classical" to someone who owns none and never hides a genre somebody does
+ * have. Genres are listed under the spelling most of their tracks use.
+ */
+export function filterOptions(tracks: LocalTrack[]): {
+  genres: FilterOption<string>[];
+  decades: FilterOption<number>[];
+  formats: FilterOption<string>[];
+} {
+  const genres = new Map<
+    string,
+    { spellings: Map<string, number>; count: number }
+  >();
+  const decades = new Map<number, number>();
+  const formats = new Map<string, number>();
+
+  for (const track of tracks) {
+    const key = genreKey(track.genre);
+    if (key) {
+      const entry = genres.get(key) ?? { spellings: new Map(), count: 0 };
+      const spelling = (track.genre ?? '').trim();
+      entry.spellings.set(spelling, (entry.spellings.get(spelling) ?? 0) + 1);
+      entry.count += 1;
+      genres.set(key, entry);
+    }
+    const decade = decadeOf(track.year);
+    if (decade !== null) decades.set(decade, (decades.get(decade) ?? 0) + 1);
+    const format = track.extension.toLowerCase();
+    if (format) formats.set(format, (formats.get(format) ?? 0) + 1);
+  }
+
+  return {
+    genres: [...genres.values()]
+      .map(({ spellings, count }) => {
+        // The most-used spelling; on a tie, the capitalised one, since
+        // "Rock" is how a genre is written as a heading.
+        const capitalised = (text: string) => text !== text.toLowerCase();
+        const label = [...spellings.entries()].sort(
+          (a, b) =>
+            b[1] - a[1] ||
+            Number(capitalised(b[0])) - Number(capitalised(a[0])) ||
+            a[0].localeCompare(b[0]),
+        )[0][0];
+        return { value: label, label, count };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    decades: [...decades.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([value, count]) => ({ value, label: decadeName(value), count })),
+    formats: [...formats.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([value, count]) => ({ value, label: value.toUpperCase(), count })),
+  };
+}

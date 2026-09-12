@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  activeFilterCount,
+  decadeName,
+  filterOptions,
+  matchesFilters,
+  NO_FILTERS,
   groupAlbums,
   groupArtists,
   sortAlbums,
@@ -265,5 +270,93 @@ describe('sortArtists', () => {
       'Ann',
       'Zed',
     ]);
+  });
+});
+
+describe('library filters', () => {
+  const library = [
+    track({
+      title: 'A',
+      genre: 'Rock',
+      year: 1994,
+      extension: 'flac',
+      hasArtwork: true,
+    }),
+    track({ title: 'B', genre: 'rock ', year: 1999, extension: 'mp3' }),
+    track({
+      title: 'C',
+      genre: 'Jazz',
+      year: 2004,
+      extension: 'mp3',
+      hasArtwork: true,
+    }),
+    track({ title: 'D', genre: null, year: null, extension: 'MP3' }),
+  ];
+  const titles = (filters: Parameters<typeof matchesFilters>[1]) =>
+    library.filter((t) => matchesFilters(t, filters)).map((t) => t.title);
+
+  it('lets everything through with no filters', () => {
+    expect(titles(NO_FILTERS)).toEqual(['A', 'B', 'C', 'D']);
+    expect(activeFilterCount(NO_FILTERS)).toBe(0);
+  });
+
+  /** Tags are written by whoever ripped the file. */
+  it('matches a genre however it was spelled', () => {
+    expect(titles({ ...NO_FILTERS, genres: ['Rock'] })).toEqual(['A', 'B']);
+  });
+
+  it('shows any of the chosen values within a group', () => {
+    expect(titles({ ...NO_FILTERS, genres: ['Rock', 'Jazz'] })).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
+  });
+
+  it('requires every group at once', () => {
+    const filters = { ...NO_FILTERS, genres: ['rock'], formats: ['flac'] };
+    expect(titles(filters)).toEqual(['A']);
+    expect(activeFilterCount(filters)).toBe(2);
+  });
+
+  /** A song with no year belongs to no decade, rather than to the 0s. */
+  it('filters by decade and leaves out undated songs', () => {
+    expect(titles({ ...NO_FILTERS, decades: [1990] })).toEqual(['A', 'B']);
+  });
+
+  it('filters by format regardless of case', () => {
+    expect(titles({ ...NO_FILTERS, formats: ['mp3'] })).toEqual([
+      'B',
+      'C',
+      'D',
+    ]);
+  });
+
+  it('filters by whether a song has a cover', () => {
+    expect(titles({ ...NO_FILTERS, artwork: 'without' })).toEqual(['B', 'D']);
+    expect(titles({ ...NO_FILTERS, artwork: 'with' })).toEqual(['A', 'C']);
+  });
+
+  /** The menu offers what the library has, and nothing it does not. */
+  it('builds its options from the library', () => {
+    const options = filterOptions(library);
+
+    expect(options.genres).toEqual([
+      { value: 'Jazz', label: 'Jazz', count: 1 },
+      { value: 'Rock', label: 'Rock', count: 2 },
+    ]);
+    expect(options.decades.map((d) => [d.label, d.count])).toEqual([
+      ['2000s', 1],
+      ['90s', 2],
+    ]);
+    expect(options.formats).toEqual([
+      { value: 'mp3', label: 'MP3', count: 3 },
+      { value: 'flac', label: 'FLAC', count: 1 },
+    ]);
+  });
+
+  it('names decades the way people say them', () => {
+    expect(decadeName(1970)).toBe('70s');
+    expect(decadeName(2020)).toBe('2020s');
   });
 });

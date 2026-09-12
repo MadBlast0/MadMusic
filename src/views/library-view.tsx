@@ -16,6 +16,7 @@ import { SavedCollections } from '@/components/library/saved-collections';
 import {
   FilterBox,
   Notice,
+  FilterMenu,
   SortMenu,
   ViewToggle,
   type ViewMode,
@@ -38,16 +39,21 @@ import {
   ALBUM_SORT_LABELS,
   ARTIST_SORT_LABELS,
   SORT_LABELS,
+  activeFilterCount,
   allTracks,
+  filterOptions,
   formatTotal,
   groupAlbums,
   groupArtists,
+  matchesFilters,
   matchesQuery,
+  NO_FILTERS,
   sortAlbums,
   sortArtists,
   sortTracks,
   type AlbumSortKey,
   type ArtistSortKey,
+  type LibraryFilters,
   type SortKey,
 } from '@/lib/library-model';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -89,6 +95,13 @@ export function LibraryView({
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('title');
   const [descending, setDescending] = useState(false);
+  /**
+   * Genre, decade, format and cover. Not persisted, like the text filter: both
+   * are a search somebody is in the middle of, and a library that opens
+   * already narrowed to jazz looks like it lost the rest.
+   */
+  const [filters, setFilters] = useState<LibraryFilters>(NO_FILTERS);
+  const filtering = activeFilterCount(filters) > 0;
 
   /**
    * How the Albums and Artists tabs are ordered and shown.
@@ -135,9 +148,14 @@ export function LibraryView({
   const unavailable = sourceKind === 'unavailable';
 
   const tracks = useMemo(() => (root ? allTracks(root) : []), [root]);
+  const options = useMemo(() => filterOptions(tracks), [tracks]);
   const matched = useMemo(
-    () => tracks.filter((track) => matchesQuery(track, deferredQuery)),
-    [tracks, deferredQuery],
+    () =>
+      tracks.filter(
+        (track) =>
+          matchesQuery(track, deferredQuery) && matchesFilters(track, filters),
+      ),
+    [tracks, deferredQuery, filters],
   );
   const sorted = useMemo(
     () => sortTracks(matched, sort, descending),
@@ -277,6 +295,15 @@ export function LibraryView({
                     <ViewToggle value={artistView} onChange={setArtistView} />
                   </>
                 )}
+                {(tab === 'albums' ||
+                  tab === 'artists' ||
+                  tab === 'tracks') && (
+                  <FilterMenu
+                    filters={filters}
+                    options={options}
+                    onChange={setFilters}
+                  />
+                )}
                 <FilterBox value={query} onChange={setQuery} />
               </div>
             </div>
@@ -339,8 +366,10 @@ export function LibraryView({
             {!scanning && matched.length === 0 && (
               <Notice>
                 {deferredQuery
-                  ? `Nothing matches “${deferredQuery}”.`
-                  : 'No audio in this folder. MadMusic reads MP3, FLAC, M4A, AAC, OGG, Opus, WAV, WMA, AIFF and ALAC.'}
+                  ? `Nothing matches “${deferredQuery}”${filtering ? ' with these filters' : ''}.`
+                  : filtering
+                    ? 'Nothing matches these filters.'
+                    : 'No audio in this folder. MadMusic reads MP3, FLAC, M4A, AAC, OGG, Opus, WAV, WMA, AIFF and ALAC.'}
               </Notice>
             )}
 

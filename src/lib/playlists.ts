@@ -27,7 +27,9 @@
  */
 
 import type { Mix } from '@/lib/recommend';
-import { fallbackCover } from '@/lib/library-model';
+import { decadeName, fallbackCover } from '@/lib/library-model';
+
+export { decadeName };
 import { store } from '@/lib/store';
 import { EMPTY_FILTER, type TopEntry, type TrackRow } from '@/lib/store/types';
 
@@ -145,9 +147,6 @@ export function decadesOf(
 }
 
 /** `1990` → `90s`, `2000` → `2000s`, `2010` → `2010s`. How people say them. */
-export function decadeName(decade: number): string {
-  return decade < 2000 ? `${String(decade).slice(2)}s` : `${decade}s`;
-}
 
 /**
  * The genres the library has enough of, largest first.

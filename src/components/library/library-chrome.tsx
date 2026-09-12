@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List, ListFilter } from 'lucide-react';
 
 import { Search, SortAsc, X } from '@/components/icons';
 import { IconButton } from '@/components/icons/icon-button';
@@ -7,12 +7,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  activeFilterCount,
+  NO_FILTERS,
+  type ArtworkFilter,
+  type FilterOption,
+  type LibraryFilters,
+} from '@/lib/library-model';
 import { cn } from '@/lib/utils';
 
 /**
@@ -98,6 +111,132 @@ export function SortMenu<K extends string>({
           <DropdownMenuRadioItem value="asc">Ascending</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="desc">Descending</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+type FilterGroup = 'genres' | 'decades' | 'formats';
+
+/**
+ * Narrowing the library by genre, decade, format and cover.
+ *
+ * One button with a submenu per group, rather than a row of chips: a library
+ * can have forty genres, and a toolbar that grows with the collection pushes the
+ * filter box off the edge. The count on the button says how many groups are
+ * narrowing the list, so a filter left on is never invisible.
+ *
+ * Choosing a value keeps the menu open — picking Rock and then Jazz is one
+ * gesture, not two trips to the toolbar.
+ */
+export function FilterMenu({
+  filters,
+  options,
+  onChange,
+}: {
+  filters: LibraryFilters;
+  options: {
+    genres: FilterOption<string>[];
+    decades: FilterOption<number>[];
+    formats: FilterOption<string>[];
+  };
+  onChange: (filters: LibraryFilters) => void;
+}) {
+  const active = activeFilterCount(filters);
+
+  const toggle = (key: FilterGroup, value: string | number) => {
+    const current = filters[key] as (string | number)[];
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value];
+    onChange({ ...filters, [key]: next });
+  };
+
+  const group = (
+    key: FilterGroup,
+    label: string,
+    items: FilterOption<string | number>[],
+  ) => (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger disabled={items.length === 0}>
+        {label}
+        {filters[key].length > 0 && (
+          <span className="ml-auto pl-3 text-xs text-muted-foreground tabular-nums">
+            {filters[key].length}
+          </span>
+        )}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
+        {items.map((item) => (
+          <DropdownMenuCheckboxItem
+            key={String(item.value)}
+            checked={(filters[key] as (string | number)[]).includes(item.value)}
+            onCheckedChange={() => toggle(key, item.value)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            <span className="pl-3 text-xs text-muted-foreground tabular-nums">
+              {item.count}
+            </span>
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          animate
+          variant={active > 0 ? 'secondary' : 'outline'}
+          size="sm"
+          aria-label={
+            active > 0
+              ? `Filters, ${active} active`
+              : 'Filter by genre, decade, format or cover'
+          }
+        >
+          <ListFilter className="size-4" />
+          Filters
+          {active > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-[11px] leading-4 font-semibold text-primary-foreground tabular-nums">
+              {active}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Filter by</DropdownMenuLabel>
+        {group('genres', 'Genre', options.genres)}
+        {group('decades', 'Decade', options.decades)}
+        {group('formats', 'Format', options.formats)}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>Cover art</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup
+              value={filters.artwork}
+              onValueChange={(value) =>
+                onChange({ ...filters, artwork: value as ArtworkFilter })
+              }
+            >
+              <DropdownMenuRadioItem value="any">Any</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="with">
+                Has a cover
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="without">
+                Missing a cover
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={active === 0}
+          onSelect={() => onChange(NO_FILTERS)}
+        >
+          Clear filters
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
