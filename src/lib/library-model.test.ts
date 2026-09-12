@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   groupAlbums,
   groupArtists,
+  sortAlbums,
+  sortArtists,
   sortTracks,
   UNKNOWN_ARTIST,
+  type Album,
+  type Artist,
 } from '@/lib/library-model';
 import type { LocalTrack } from '@/lib/local-source';
 
@@ -140,6 +144,126 @@ describe('sortTracks', () => {
       2001,
       1999,
       null,
+    ]);
+  });
+});
+
+/**
+ * Ordering a shelf of records.
+ *
+ * The Albums tab had one order and no control over it. Two things are worth
+ * pinning, because both are easy to get backwards and neither looks wrong until
+ * you are looking for something: an album with **no year** is not the oldest
+ * one in the library, whichever way the list runs; and records that tie keep a
+ * readable order rather than the order the grouping happened to produce.
+ */
+describe('sortAlbums', () => {
+  const album = (over: Partial<Album> & { title: string }): Album => ({
+    key: over.title,
+    artist: 'Band',
+    year: null,
+    tracks: [],
+    duration: 0,
+    cover: null,
+    ...over,
+  });
+
+  const titles = (albums: Album[]) => albums.map((a) => a.title);
+
+  it('orders by year, oldest first', () => {
+    const shelf = [
+      album({ title: 'Later', year: 2010 }),
+      album({ title: 'Earlier', year: 1997 }),
+    ];
+
+    expect(titles(sortAlbums(shelf, 'year', false))).toEqual([
+      'Earlier',
+      'Later',
+    ]);
+  });
+
+  /** A record with no date is not the oldest one, and not the newest either. */
+  it('puts an album with no year last in both directions', () => {
+    const shelf = [
+      album({ title: 'Undated', year: null }),
+      album({ title: 'Old', year: 1990 }),
+      album({ title: 'New', year: 2020 }),
+    ];
+
+    expect(titles(sortAlbums(shelf, 'year', false))).toEqual([
+      'Old',
+      'New',
+      'Undated',
+    ]);
+    expect(titles(sortAlbums(shelf, 'year', true))).toEqual([
+      'New',
+      'Old',
+      'Undated',
+    ]);
+  });
+
+  it('orders by how many songs a record has', () => {
+    const shelf = [
+      album({ title: 'EP', tracks: new Array(4) }),
+      album({ title: 'Double', tracks: new Array(24) }),
+    ];
+
+    expect(titles(sortAlbums(shelf, 'tracks', true))).toEqual(['Double', 'EP']);
+  });
+
+  /** Ties fall back to artist, then title, so the order stays readable. */
+  it('keeps a stable, readable order among records that tie', () => {
+    const shelf = [
+      album({ title: 'Zebra', artist: 'Band', year: 2000 }),
+      album({ title: 'Apple', artist: 'Band', year: 2000 }),
+      album({ title: 'Mango', artist: 'Another', year: 2000 }),
+    ];
+
+    expect(titles(sortAlbums(shelf, 'year', false))).toEqual([
+      'Mango',
+      'Apple',
+      'Zebra',
+    ]);
+  });
+
+  it('never reorders the list it was given', () => {
+    const shelf = [album({ title: 'B' }), album({ title: 'A' })];
+    sortAlbums(shelf, 'title', false);
+
+    expect(titles(shelf)).toEqual(['B', 'A']);
+  });
+});
+
+describe('sortArtists', () => {
+  const artist = (over: Partial<Artist> & { name: string }): Artist => ({
+    tracks: [],
+    albumCount: 0,
+    duration: 0,
+    cover: null,
+    ...over,
+  });
+
+  it('orders by the size of their catalogue in this library', () => {
+    const artists = [
+      artist({ name: 'Small', tracks: new Array(2) }),
+      artist({ name: 'Large', tracks: new Array(40) }),
+    ];
+
+    expect(sortArtists(artists, 'tracks', true).map((a) => a.name)).toEqual([
+      'Large',
+      'Small',
+    ]);
+  });
+
+  it('breaks ties by name', () => {
+    const artists = [
+      artist({ name: 'Zed', albumCount: 3 }),
+      artist({ name: 'Ann', albumCount: 3 }),
+    ];
+
+    expect(sortArtists(artists, 'albums', true).map((a) => a.name)).toEqual([
+      'Ann',
+      'Zed',
     ]);
   });
 });

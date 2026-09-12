@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { LayoutGrid, List } from 'lucide-react';
 
 import { Search, SortAsc, X } from '@/components/icons';
 import { IconButton } from '@/components/icons/icon-button';
@@ -12,7 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SORT_LABELS, type SortKey } from '@/lib/library-model';
 import { cn } from '@/lib/utils';
 
 /**
@@ -45,33 +45,48 @@ export function Notice({
   );
 }
 
-export function SortMenu({
+/**
+ * How a list is ordered, and which way.
+ *
+ * Generic over the keys, because the Songs, Albums and Artists tabs each sort by
+ * different things — and a copy of this menu per tab is three menus that drift
+ * apart in wording and order. The labels are passed in, so the menu reads as
+ * the tab it is on.
+ */
+export function SortMenu<K extends string>({
   sort,
   descending,
+  labels,
   onSort,
   onDirection,
 }: {
-  sort: SortKey;
+  sort: K;
   descending: boolean;
-  onSort: (key: SortKey) => void;
+  labels: Record<K, string>;
+  onSort: (key: K) => void;
   onDirection: (descending: boolean) => void;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button animate variant="outline" size="sm">
+        <Button
+          animate
+          variant="outline"
+          size="sm"
+          aria-label={`Sort by ${labels[sort]}, ${descending ? 'descending' : 'ascending'}`}
+        >
           <SortAsc className="size-4" />
-          {SORT_LABELS[sort]}
+          {labels[sort]}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup
           value={sort}
-          onValueChange={(value) => onSort(value as SortKey)}
+          onValueChange={(value) => onSort(value as K)}
         >
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+          {(Object.keys(labels) as K[]).map((key) => (
             <DropdownMenuRadioItem key={key} value={key}>
-              {SORT_LABELS[key]}
+              {labels[key]}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -85,6 +100,51 @@ export function SortMenu({
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Whether a tab shows its items as cards or as rows. */
+export type ViewMode = 'grid' | 'list';
+
+/**
+ * Cards or rows.
+ *
+ * Two buttons rather than a menu: there are exactly two answers, the current one
+ * should be visible without opening anything, and switching is something people
+ * do repeatedly while looking for something. A grid is for recognising covers; a
+ * list is for reading — years, lengths and counts line up in columns a grid
+ * scatters across a card.
+ */
+export function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (mode: ViewMode) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Show as"
+      className="flex items-center rounded-md border border-border p-0.5"
+    >
+      <IconButton
+        label="Show as a grid"
+        size="sm"
+        active={value === 'grid'}
+        onClick={() => onChange('grid')}
+      >
+        <LayoutGrid className="size-4" />
+      </IconButton>
+      <IconButton
+        label="Show as a list"
+        size="sm"
+        active={value === 'list'}
+        onClick={() => onChange('list')}
+      >
+        <List className="size-4" />
+      </IconButton>
+    </div>
   );
 }
 

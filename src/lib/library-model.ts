@@ -284,3 +284,98 @@ export const SORT_LABELS: Record<SortKey, string> = {
   duration: 'Length',
   year: 'Year',
 };
+
+/* ── sorting records and artists ─────────────────────────────────────── */
+
+/**
+ * How the Albums tab can be ordered.
+ *
+ * It had one order and no control: artist, then title, as `groupAlbums` returns
+ * them. That is a reasonable default and a poor only option — "what did I add
+ * recently", "what is from the nineties" and "which records do I have most of"
+ * are all ordinary questions a shelf of records should answer.
+ */
+export type AlbumSortKey = 'title' | 'artist' | 'year' | 'tracks' | 'duration';
+
+export const ALBUM_SORT_LABELS: Record<AlbumSortKey, string> = {
+  title: 'Title',
+  artist: 'Artist',
+  year: 'Year',
+  tracks: 'Number of songs',
+  duration: 'Length',
+};
+
+/**
+ * Sorts albums, a copy, never the input.
+ *
+ * Ties fall back to artist then title, so two records from the same year keep a
+ * stable, readable order rather than whatever the grouping happened to produce.
+ * An unknown year sorts last in either direction — a record with no date is not
+ * the oldest one in the library.
+ */
+export function sortAlbums(
+  albums: Album[],
+  key: AlbumSortKey,
+  descending: boolean,
+): Album[] {
+  const direction = descending ? -1 : 1;
+  const tieBreak = (a: Album, b: Album) =>
+    a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title);
+
+  return [...albums].sort((a, b) => {
+    switch (key) {
+      case 'title':
+        return direction * a.title.localeCompare(b.title) || tieBreak(a, b);
+      case 'artist':
+        return (
+          direction * a.artist.localeCompare(b.artist) ||
+          a.title.localeCompare(b.title)
+        );
+      case 'year': {
+        // Unknown last whichever way the list runs.
+        if (a.year === null && b.year === null) return tieBreak(a, b);
+        if (a.year === null) return 1;
+        if (b.year === null) return -1;
+        return direction * (a.year - b.year) || tieBreak(a, b);
+      }
+      case 'tracks':
+        return (
+          direction * (a.tracks.length - b.tracks.length) || tieBreak(a, b)
+        );
+      case 'duration':
+        return direction * (a.duration - b.duration) || tieBreak(a, b);
+    }
+  });
+}
+
+/** How the Artists tab can be ordered. */
+export type ArtistSortKey = 'name' | 'tracks' | 'albums' | 'duration';
+
+export const ARTIST_SORT_LABELS: Record<ArtistSortKey, string> = {
+  name: 'Name',
+  tracks: 'Number of songs',
+  albums: 'Number of albums',
+  duration: 'Time in library',
+};
+
+export function sortArtists(
+  artists: Artist[],
+  key: ArtistSortKey,
+  descending: boolean,
+): Artist[] {
+  const direction = descending ? -1 : 1;
+  const byName = (a: Artist, b: Artist) => a.name.localeCompare(b.name);
+
+  return [...artists].sort((a, b) => {
+    switch (key) {
+      case 'name':
+        return direction * byName(a, b);
+      case 'tracks':
+        return direction * (a.tracks.length - b.tracks.length) || byName(a, b);
+      case 'albums':
+        return direction * (a.albumCount - b.albumCount) || byName(a, b);
+      case 'duration':
+        return direction * (a.duration - b.duration) || byName(a, b);
+    }
+  });
+}

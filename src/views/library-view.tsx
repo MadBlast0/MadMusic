@@ -4,7 +4,12 @@ import { ScanProgress } from '@/components/library/scan-progress';
 import { AnimatePresence, m } from 'motion/react';
 
 import { useLibrary } from '@/components/library/library-context';
-import { AlbumGrid, ArtistGrid } from '@/components/library/album-grid';
+import {
+  AlbumGrid,
+  AlbumList,
+  ArtistGrid,
+  ArtistList,
+} from '@/components/library/album-grid';
 import { FolderBar } from '@/components/library/folder-bar';
 import { FolderTree } from '@/components/library/folder-tree';
 import { SavedCollections } from '@/components/library/saved-collections';
@@ -12,6 +17,8 @@ import {
   FilterBox,
   Notice,
   SortMenu,
+  ViewToggle,
+  type ViewMode,
 } from '@/components/library/library-chrome';
 import { AlbumDetail, ArtistDetail } from '@/components/library/local-detail';
 import { TrackList } from '@/components/library/track-list';
@@ -28,14 +35,22 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  ALBUM_SORT_LABELS,
+  ARTIST_SORT_LABELS,
+  SORT_LABELS,
   allTracks,
   formatTotal,
   groupAlbums,
   groupArtists,
   matchesQuery,
+  sortAlbums,
+  sortArtists,
   sortTracks,
+  type AlbumSortKey,
+  type ArtistSortKey,
   type SortKey,
 } from '@/lib/library-model';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { duration, ease } from '@/lib/motion';
 import type { Route } from '@/lib/routes';
 import { ViewShell, ViewTitle } from '@/views/view-shell';
@@ -75,6 +90,42 @@ export function LibraryView({
   const [sort, setSort] = useState<SortKey>('title');
   const [descending, setDescending] = useState(false);
 
+  /**
+   * How the Albums and Artists tabs are ordered and shown.
+   *
+   * Persisted, unlike the song sort above, because these describe how somebody
+   * likes to *see their shelf* rather than a search they are in the middle of.
+   * Someone who reads their records as a list reads them as a list every time,
+   * and a toggle that forgets itself is one people stop using.
+   *
+   * Separate per tab, because the questions differ: albums are most usefully
+   * sorted by artist, and artists by name.
+   */
+  const [albumSort, setAlbumSort] = usePersistedState<AlbumSortKey>(
+    'madmusic-library-album-sort',
+    'artist',
+  );
+  const [albumDescending, setAlbumDescending] = usePersistedState(
+    'madmusic-library-album-descending',
+    false,
+  );
+  const [artistSort, setArtistSort] = usePersistedState<ArtistSortKey>(
+    'madmusic-library-artist-sort',
+    'name',
+  );
+  const [artistDescending, setArtistDescending] = usePersistedState(
+    'madmusic-library-artist-descending',
+    false,
+  );
+  const [albumView, setAlbumView] = usePersistedState<ViewMode>(
+    'madmusic-library-album-view',
+    'grid',
+  );
+  const [artistView, setArtistView] = usePersistedState<ViewMode>(
+    'madmusic-library-artist-view',
+    'grid',
+  );
+
   // The input stays responsive while the filter runs against a lagging value.
   // Every keystroke used to re-filter and re-group the entire library
   // synchronously, which on a large folder made typing drop characters. A
@@ -92,8 +143,14 @@ export function LibraryView({
     () => sortTracks(matched, sort, descending),
     [matched, sort, descending],
   );
-  const albums = useMemo(() => groupAlbums(matched), [matched]);
-  const artists = useMemo(() => groupArtists(matched), [matched]);
+  const albums = useMemo(
+    () => sortAlbums(groupAlbums(matched), albumSort, albumDescending),
+    [matched, albumSort, albumDescending],
+  );
+  const artists = useMemo(
+    () => sortArtists(groupArtists(matched), artistSort, artistDescending),
+    [matched, artistSort, artistDescending],
+  );
 
   // Counted over everything, not the filtered set: a header that changed as
   // you typed would describe the filter rather than the library.
@@ -182,14 +239,43 @@ export function LibraryView({
                 </TabsList>
               </Tabs>
 
+              {/* Each tab carries the controls that mean something for what
+                  it shows: songs sort, albums and artists sort *and* switch
+                  between cards and rows. Folders and Saved have their own order
+                  and nothing to sort, so they get only the filter. */}
               <div className="flex items-center gap-2">
                 {tab === 'tracks' && (
                   <SortMenu
                     sort={sort}
                     descending={descending}
+                    labels={SORT_LABELS}
                     onSort={setSort}
                     onDirection={setDescending}
                   />
+                )}
+                {tab === 'albums' && (
+                  <>
+                    <SortMenu
+                      sort={albumSort}
+                      descending={albumDescending}
+                      labels={ALBUM_SORT_LABELS}
+                      onSort={setAlbumSort}
+                      onDirection={setAlbumDescending}
+                    />
+                    <ViewToggle value={albumView} onChange={setAlbumView} />
+                  </>
+                )}
+                {tab === 'artists' && (
+                  <>
+                    <SortMenu
+                      sort={artistSort}
+                      descending={artistDescending}
+                      labels={ARTIST_SORT_LABELS}
+                      onSort={setArtistSort}
+                      onDirection={setArtistDescending}
+                    />
+                    <ViewToggle value={artistView} onChange={setArtistView} />
+                  </>
                 )}
                 <FilterBox value={query} onChange={setQuery} />
               </div>
@@ -266,23 +352,53 @@ export function LibraryView({
                 transition={{ duration: duration.base, ease: ease.enter }}
                 className="flex min-h-0 flex-1 flex-col"
               >
-                {tab === 'albums' && (
-                  <AlbumGrid
-                    albums={albums}
-                    indexBy={(album) => album.title}
-                    onOpen={(key, title) =>
-                      onOpen({ name: 'local-album', key, title })
-                    }
-                  />
-                )}
-                {tab === 'artists' && (
-                  <ArtistGrid
-                    artists={artists}
-                    onOpen={(artistName) =>
-                      onOpen({ name: 'local-artist', artistName })
-                    }
-                  />
-                )}
+                {tab === 'albums' &&
+                  (albumView === 'list' ? (
+                    <AlbumList
+                      albums={albums}
+                      onOpen={(key, title) =>
+                        onOpen({ name: 'local-album', key, title })
+                      }
+                    />
+                  ) : (
+                    <AlbumGrid
+                      albums={albums}
+                      // The A–Z rail only where the order is alphabetical —
+                      // over a list sorted by year it would jump to the wrong
+                      // place on every press.
+                      indexBy={
+                        albumSort === 'title'
+                          ? (album) => album.title
+                          : albumSort === 'artist'
+                            ? (album) => album.artist
+                            : undefined
+                      }
+                      onOpen={(key, title) =>
+                        onOpen({ name: 'local-album', key, title })
+                      }
+                    />
+                  ))}
+                {tab === 'artists' &&
+                  (artistView === 'list' ? (
+                    <ArtistList
+                      artists={artists}
+                      onOpen={(artistName) =>
+                        onOpen({ name: 'local-artist', artistName })
+                      }
+                    />
+                  ) : (
+                    <ArtistGrid
+                      artists={artists}
+                      indexBy={
+                        artistSort === 'name'
+                          ? (artist) => artist.name
+                          : undefined
+                      }
+                      onOpen={(artistName) =>
+                        onOpen({ name: 'local-artist', artistName })
+                      }
+                    />
+                  ))}
                 {tab === 'tracks' && (
                   <TrackList
                     tracks={sorted}
