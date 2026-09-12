@@ -26,6 +26,7 @@ import {
 } from '@/lib/catalogue';
 import { allTracks, groupAlbums } from '@/lib/library-model';
 import { SHELF_KEYS } from '@/lib/shelf-source';
+import { personalise, tasteProfile } from '@/lib/taste';
 import { toCatalogueTrack, toPlayerTrack } from '@/lib/player-track';
 import { fromSaved } from '@/lib/saved';
 import { cn } from '@/lib/utils';
@@ -75,10 +76,20 @@ export function HomeView({
     let cancelled = false;
     void (async () => {
       const resolved = await getCatalogueSource();
-      const home = await resolved.home();
+      // The profile is read alongside the feed rather than after it: both are
+      // needed before anything is shown, and doing them in sequence would put a
+      // database round trip between the network answering and the screen
+      // filling.
+      const [home, taste] = await Promise.all([
+        resolved.home(),
+        tasteProfile(),
+      ]);
       if (cancelled) return;
       setSource(resolved);
-      setFeed(home);
+      // Blocked artists out, familiar ones first — within each shelf, never
+      // across them. See `lib/taste.ts` for why the nudge is deliberately
+      // gentle, and why nothing is ever dropped for being unfamiliar.
+      setFeed(personalise(home, taste));
     })();
     return () => {
       cancelled = true;
