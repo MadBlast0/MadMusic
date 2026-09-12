@@ -26,6 +26,8 @@ import {
 } from '@/lib/catalogue';
 import { allTracks, groupAlbums } from '@/lib/library-model';
 import { SHELF_KEYS } from '@/lib/shelf-source';
+import { ChartSection } from '@/components/catalogue/chart-rows';
+import { chart } from '@/lib/charts';
 import { personalise, tasteProfile } from '@/lib/taste';
 import { toCatalogueTrack, toPlayerTrack } from '@/lib/player-track';
 import { fromSaved } from '@/lib/saved';
@@ -508,6 +510,27 @@ export function HomeView({
                 </Stagger>
               </Shelf>
             )}
+
+            {/* What everybody is playing, as opposed to what you are. Every
+                other shelf on this page is built from your own history or from
+                the catalogue's editorial; this is the one that does not know
+                who you are, which is how anybody finds the record their taste
+                would never have led them to. Renders nothing without a Last.fm
+                key. */}
+            <ChartSection load={() => chart('', 20)}>
+              {(rows) => (
+                <section>
+                  <h2 className="mb-1 font-display text-lg font-semibold">
+                    Charts
+                  </h2>
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    The most played tracks worldwide, from Last.fm. Pressing one
+                    finds it in the catalogue.
+                  </p>
+                  {rows}
+                </section>
+              )}
+            </ChartSection>
 
             {!root && (
               <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-dashed border-border px-5 py-4">

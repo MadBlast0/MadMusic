@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 
 import { CatalogueTrackList } from '@/components/catalogue/catalogue-track-list';
+import { ChartSection } from '@/components/catalogue/chart-rows';
+import { topTracks } from '@/lib/charts';
 import { ArtistExtras } from '@/components/catalogue/artist-extras';
 import { FansAlsoLike } from '@/components/catalogue/fans-also-like';
 import { CollectionCard, Shelf, Stagger, Art } from '@/components/home/shelves';
@@ -160,7 +162,31 @@ export function ArtistView({
         label="Artist sections"
       />
 
-      {active === 'popular' && <CatalogueTrackList tracks={artist.tracks} />}
+      {active === 'popular' && (
+        <div className="flex flex-col gap-6">
+          <CatalogueTrackList tracks={artist.tracks} />
+
+          {/* The world's ranking beside the catalogue's own. They answer
+              different questions: the catalogue ranks by what it can serve,
+              this ranks by what people actually played — so on an artist whose
+              catalogue presence is thin, this is the half that knows the hits.
+              Renders nothing at all without a Last.fm key. */}
+          <ChartSection load={() => topTracks(name, 10)}>
+            {(rows) => (
+              <section>
+                <h2 className="mb-1 font-display text-lg font-semibold">
+                  Most played
+                </h2>
+                <p className="mb-2 text-sm text-muted-foreground">
+                  What listeners play most, from Last.fm. Pressing one finds it
+                  in the catalogue.
+                </p>
+                {rows}
+              </section>
+            )}
+          </ChartSection>
+        </div>
+      )}
 
       {active === 'albums' && (
         <Releases releases={releases.albums} onOpen={onOpen} />
