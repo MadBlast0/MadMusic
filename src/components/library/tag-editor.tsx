@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Sparkle } from '@/components/icons';
+import { StaticMusic, Sparkle } from '@/components/icons';
 import {
   applyEdit,
   commonFields,
@@ -20,6 +21,7 @@ import {
   identify,
   previewEdit,
   recognitionAvailable,
+  spreadArtwork,
   type Change,
   type CommonFields,
   type Identification,
@@ -89,6 +91,44 @@ function TagForm({
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  /**
+   * Copies the first file's cover onto the rest of the selection.
+   *
+   * Writes at once rather than going through the preview, because this moves
+   * bytes rather than setting a field: a diff row saying "artwork: (a picture)"
+   * tells the reader nothing they could check. The count in the button is the
+   * honest preview, and the result says how many files actually took it — a
+   * read-only file fails on its own and must not take the others down.
+   */
+  const spread = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const results = await spreadArtwork(
+        editable[0].path,
+        editable.map((track) => track.path),
+      );
+      const written = results.filter((result) => result.written).length;
+      const failed = results.length - written;
+
+      if (written > 0) {
+        toast.success(
+          `Cover written to ${written} ${written === 1 ? 'file' : 'files'}` +
+            (failed > 0 ? `, ${failed} could not be changed` : ''),
+        );
+      } else {
+        setError(
+          results[0]?.error ||
+            'None of those files would take the cover. They may be read-only.',
+        );
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
   const [matches, setMatches] = useState<Identification[]>([]);
   const [recognition, setRecognition] = useState({
     available: false,
@@ -268,6 +308,24 @@ function TagForm({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <DialogFooter className="gap-2 sm:justify-between">
+        {/* Only for a selection, and only before a review: it writes to files
+            immediately rather than joining the previewed changes, because it
+            copies bytes rather than setting a field and there is nothing
+            legible to show in a diff. The first file is the source, which is
+            the one whose cover the user can see in the row above. */}
+        {editable.length > 1 && changes === null && (
+          <Button
+            animate
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void spread()}
+          >
+            <StaticMusic className="size-4" />
+            Use the first cover for all {editable.length}
+          </Button>
+        )}
+
         {editable.length === 1 && recognition.available && changes === null ? (
           <Button
             animate

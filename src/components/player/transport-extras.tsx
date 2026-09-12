@@ -20,7 +20,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { describeSleep, SLEEP_MINUTES, sleepIn } from '@/lib/audio/sleep-timer';
 import { describeSpeed, SPEEDS } from '@/lib/audio/playback';
-import { castTo, findReceivers, type Receiver } from '@/lib/os-media';
+import {
+  castTo,
+  castTransport,
+  findReceivers,
+  type CastAction,
+  type Receiver,
+} from '@/lib/os-media';
 import { isNative } from '@/lib/native';
 import { cn } from '@/lib/utils';
 
@@ -302,6 +308,21 @@ export function CastMenu() {
   const { current } = usePlayer();
   const [receivers, setReceivers] = useState<Receiver[]>([]);
   const [looking, setLooking] = useState(false);
+  /**
+   * The receiver something was last sent to, or null.
+   *
+   * Held because casting was a one-way door: the URL is handed to the receiver
+   * and *it* fetches and plays the stream, so our own play button is driving an
+   * audio element that is no longer making the sound. Pausing locally paused
+   * nothing, and stopping the speaker meant walking over to it or opening its
+   * own app.
+   *
+   * Session state rather than persisted: a receiver we sent to an hour ago may
+   * be off, on another network, or playing something somebody else started, and
+   * offering to pause it on the strength of a remembered name would be a
+   * control that acts on a guess.
+   */
+  const [sentTo, setSentTo] = useState<Receiver | null>(null);
 
   if (!isNative()) return null;
 
@@ -327,7 +348,21 @@ export function CastMenu() {
     const url = current?.handle ?? '';
     try {
       await castTo(receiver, url, current?.title ?? '', current?.artist ?? '');
+      setSentTo(receiver);
       toast.success(`Playing on ${receiver.name}`);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  /** Tells the receiver to do something to what it is already playing. */
+  const drive = async (action: CastAction) => {
+    if (!sentTo) return;
+    try {
+      await castTransport(sentTo, action);
+      // Stopping ends the relationship: there is nothing left to pause, and
+      // leaving the rows up would offer to drive a receiver that is idle.
+      if (action === 'stop') setSentTo(null);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
     }
@@ -364,6 +399,30 @@ export function CastMenu() {
             </span>
           </DropdownMenuItem>
         ))}
+
+        {/* Once something has been sent, these drive *it* rather than us. The
+            sound is coming from the receiver, so the player's own transport
+            cannot reach it. */}
+        {sentTo && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="max-w-64 text-xs font-normal text-wrap text-muted-foreground">
+              Playing on {sentTo.name}
+            </DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => void drive('pause')}>
+              Pause it
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void drive('play')}>
+              Resume it
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => void drive('stop')}
+            >
+              Stop it
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

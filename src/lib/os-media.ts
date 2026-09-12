@@ -205,3 +205,28 @@ export async function castTo(
 ): Promise<void> {
   await invoke('cast_play', { receiver, url, title, artist });
 }
+
+/** What a receiver can be told to do once something is playing on it. */
+export type CastAction = 'play' | 'pause' | 'stop';
+
+/**
+ * Drives a receiver that is already playing.
+ *
+ * # Why this is separate from the player's own transport
+ *
+ * Because the audio is not ours any more. Casting hands the *URL* to the
+ * receiver and it fetches and plays the stream itself — that is what makes
+ * casting cheap and legal here — so our play button is driving an audio element
+ * that is no longer the thing making sound. Pausing locally would pause
+ * nothing.
+ *
+ * Which left casting as a one-way door: you could start playing on a speaker
+ * and then had to walk over to it, or use its own app, to stop it.
+ * `cast_transport` was written for this and never called.
+ */
+export async function castTransport(
+  receiver: Receiver,
+  action: CastAction,
+): Promise<void> {
+  await invoke('cast_transport', { receiver, action });
+}

@@ -199,6 +199,30 @@ export type Identification = {
   score: number;
 };
 
+/**
+ * Copies one file's embedded cover onto others.
+ *
+ * # Why this is its own command and not part of a tag write
+ *
+ * Because artwork is the one tag that is routinely right on *one* track of a
+ * record and missing from the rest — a single downloaded file with the sleeve,
+ * eleven ripped ones without. Writing it as a normal field would mean handing
+ * the same picture to the writer once per file, so the bytes would cross the
+ * bridge twelve times to be written twelve times. `tags_spread_artwork` reads
+ * the picture once in Rust and writes it straight out.
+ *
+ * The result is per-file, because a read-only file or one another program has
+ * open fails on its own and the other eleven should still be done.
+ */
+export async function spreadArtwork(
+  from: string,
+  to: string[],
+): Promise<WriteResult[]> {
+  const targets = to.filter((path) => path !== from);
+  if (targets.length === 0) return [];
+  return invoke<WriteResult[]>('tags_spread_artwork', { from, to: targets });
+}
+
 /** Whether recognition is possible in this build and on this machine. */
 export async function recognitionAvailable(): Promise<{
   available: boolean;

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { StarRating } from '@/components/library/star-rating';
+import * as lastfm from '@/lib/scrobble';
 import { useTrackActions } from '@/components/library/track-actions-context';
 import {
   ContextMenuCheckboxItem,
@@ -50,6 +51,26 @@ export function TrackLibraryMenu({
 }) {
   const actions = useTrackActions();
   const [busy, setBusy] = useState(false);
+  /**
+   * The connected Last.fm account, or null.
+   *
+   * Asked once per menu rather than held globally: the answer changes only when
+   * somebody connects or disconnects in settings, and a menu that is about to
+   * be drawn is the right moment to find out. `null` hides the item entirely —
+   * an item that reports "no account is connected" when pressed is a worse
+   * answer than no item.
+   */
+  const [scrobbleAccount, setScrobbleAccount] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void lastfm.account().then((name) => {
+      if (!cancelled) setScrobbleAccount(name);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (tracks.length === 0) return null;
 
@@ -69,6 +90,38 @@ export function TrackLibraryMenu({
 
       {/* Only for a single track. "Go to song" on a selection of forty has no
           answer to which song it meant. */}
+      {/* A love is published to somebody else's service under the user's
+          name, so it is a single, named, per-track action — never a side
+          effect of liking. See `lastfm.love`. */}
+      {scrobbleAccount && !many && first.artist && first.title && (
+        <ContextMenuItem
+          onSelect={() => {
+            void lastfm
+              .love(first.artist, first.title)
+              .then(() =>
+                toast.success(`Loved “${first.title}” on Last.fm`, {
+                  action: {
+                    label: 'Undo',
+                    onClick: () =>
+                      void lastfm
+                        .love(first.artist, first.title, false)
+                        .catch(() => toast.error('Could not undo that')),
+                  },
+                }),
+              )
+              .catch((cause: unknown) =>
+                toast.error(
+                  cause instanceof Error
+                    ? cause.message
+                    : 'Last.fm would not accept that',
+                ),
+              );
+          }}
+        >
+          Love on Last.fm
+        </ContextMenuItem>
+      )}
+
       {onOpenTrack && !many && (
         <ContextMenuItem onSelect={() => onOpenTrack(first)}>
           Go to song

@@ -104,6 +104,36 @@ export function earnedScrobble(
 }
 
 /**
+ * Loves, or unloves, one track on the connected account.
+ *
+ * # Why this is a deliberate action and not the heart
+ *
+ * Because they are claims about different things. A like is a fact about *this*
+ * library; a love is a fact about an account somebody else hosts and that other
+ * people can read. `loved-sync.tsx` has said so from the beginning — publishing
+ * outward on every like would be acting on the user's behalf, silently and
+ * continuously — and it names this function as the deliberate alternative.
+ *
+ * It then turned out not to exist. The comment described the design correctly
+ * and there was nothing behind it, so the only half that worked was the one
+ * that pulls Last.fm's loves inward. This is the other half, called from one
+ * place: an item in a single track's menu, shown only when an account is
+ * connected.
+ *
+ * Never called in a loop, and nothing should.
+ */
+export async function love(
+  artist: string,
+  title: string,
+  loved = true,
+): Promise<void> {
+  if (!artist.trim() || !title.trim()) {
+    throw new Error('a track needs an artist and a title to be loved');
+  }
+  await invoke('scrobble_love', { artist, track: title, loved });
+}
+
+/**
  * Everything the connected account has loved.
  *
  * Throws rather than returning an empty list when nothing is connected: an
