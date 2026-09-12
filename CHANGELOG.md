@@ -9,7 +9,47 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
+### Added
+
+- Playlists that build themselves from how you listen, on Home and each with a
+  View-all page: **Daily Mix 1–6**, **On Repeat** (most played this month, by
+  the month's own counts), **Repeat Rewind** (played heavily, then not for two
+  months), **Your Top Songs** for the calendar year, **Forgotten Favourites**
+  (liked songs that went quiet), **This Is** an artist (their songs you like,
+  rate and play most), and mixes **by decade** and **by genre**. Each appears
+  only with enough behind it.
+- Home rebuilds as the day moves on — at the four parts of the day, at
+  midnight, and when a window left hidden across one is looked at again. It
+  built its mixes once, on mount, so an app left open overnight showed
+  yesterday's all day.
+- A download button on every song row, on search results and on the player
+  bar, beside the right-click item that already existed. Downloads go to the
+  music folder; with no folder chosen, pressing download asks for one and then
+  carries on.
+- The Music folder can be filtered by genre, decade, format and whether a song
+  has a cover, and its Albums and Artists tabs can be sorted — by year, size,
+  length and more — and shown as a list as well as a grid.
+
 ### Fixed
+
+- Mixes, Recently added and Most played on Home, the View-all pages behind
+  them, Liked Songs, Recently played, playlists and Downloads drew gradients
+  for songs that had covers. It was not a cache — clearing one would have
+  changed nothing. The player fell back to the video's thumbnail for a song
+  saved without artwork, and each of those lists read the stored field
+  directly and skipped the fallback, which is why a song got its cover the
+  moment it was played. One rule, `coverUrlOf`, is followed everywhere now.
+- The album went missing wherever a song was saved. The player's track had no
+  album field, and every like, history entry and playlist entry is copied from
+  it — so Liked Songs and Recently played had an Album column of dashes, and
+  playlists had no album column at all. The album travels with the song now,
+  older entries are filled in from the library, and playlists have the column.
+- Album and artist cards in a small library stretched to the height of the
+  page, with a hover outline around the empty space. Grids of fewer than sixty
+  items were laid out with rows stretched to fill.
+- An artist card's count read "12" rather than "12 songs".
+- Search results for songs show the album and the length. The now-playing
+  panel shows them for catalogue songs, not only local files.
 
 - The lyrics came back on their own. The words sit *over* the canvas, and which
   canvas they were opened over was compared rather than cleared — so navigating
