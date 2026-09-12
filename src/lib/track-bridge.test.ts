@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { videoThumbnail } from '@/lib/player-track';
+import { coverUrlOf, videoThumbnail } from '@/lib/player-track';
 
 import {
   albumKey,
@@ -130,5 +130,36 @@ describe('videoThumbnail', () => {
     expect(
       videoThumbnail({ kind: 'catalogue', handle: 'https://radio.example/x' }),
     ).toBe('');
+  });
+});
+
+/**
+ * The cover a stored row can offer, from any screen that reads one.
+ *
+ * `toPlayerTrackRow` already fell back to the video thumbnail, so a track had a
+ * cover once it was playing. The shelves on Home and the playlist mosaic read
+ * the stored field and did not, which drew a gradient for the same track in
+ * the same session. One function, so there is one answer.
+ */
+describe('coverUrlOf', () => {
+  it('prefers the stored artwork', () => {
+    expect(
+      coverUrlOf({
+        kind: 'catalogue',
+        handle: 'dQw4w9WgXcQ',
+        artworkUrl: 'https://img.example/cover.jpg',
+      }),
+    ).toBe('https://img.example/cover.jpg');
+  });
+
+  it('falls back to the video thumbnail when none was saved', () => {
+    expect(
+      coverUrlOf({ kind: 'catalogue', handle: 'dQw4w9WgXcQ', artworkUrl: '' }),
+    ).toBe('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+  });
+
+  /** Local art is embedded, and only `CoverArt` can reach it. */
+  it('has nothing for a local file', () => {
+    expect(coverUrlOf({ kind: 'local', handle: '', artworkUrl: '' })).toBe('');
   });
 });

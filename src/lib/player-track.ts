@@ -60,6 +60,29 @@ export function toCatalogueTrack(track: CatalogueTrack): PlayerTrack {
  * it staying a gradient. A handle that is an address — a station, an episode —
  * is not a video id and gets nothing.
  */
+/**
+ * The best remote cover a stored row can offer.
+ *
+ * # Why this exists as one function
+ *
+ * Because the rule already existed and only one path followed it. A catalogue
+ * row saved without artwork falls back to the thumbnail YouTube keeps for every
+ * video — `toPlayerTrackRow` applied that, so a track showed its cover once it
+ * was *playing*. Everywhere that read the stored row directly skipped it: the
+ * Recently added and Most played shelves on Home, and the four-cover mosaic
+ * behind playlists and mixes. Those drew a gradient for a track that had a
+ * perfectly good cover one function call away, and it looked like a caching
+ * fault because the same track had art the moment you pressed play.
+ *
+ * Empty for a local file, whose art is embedded rather than addressable and has
+ * to go through `CoverArt`.
+ */
+export function coverUrlOf(
+  row: Pick<TrackRow, 'kind' | 'handle' | 'artworkUrl'>,
+): string {
+  return row.artworkUrl || videoThumbnail(row);
+}
+
 export function videoThumbnail(row: Pick<TrackRow, 'kind' | 'handle'>): string {
   if (row.kind !== 'catalogue' || !row.handle) return '';
   if (/^[a-z]+:\/\//i.test(row.handle)) return '';
@@ -72,7 +95,7 @@ export function toPlayerTrackRow(row: TrackRow): PlayerTrack {
     title: row.title,
     artist: row.artist || row.albumArtist,
     cover: fallbackCover(row.album || row.title),
-    artworkUrl: row.artworkUrl || videoThumbnail(row),
+    artworkUrl: coverUrlOf(row),
     duration: row.duration,
     handle: row.handle || undefined,
     bpm: row.bpm || undefined,

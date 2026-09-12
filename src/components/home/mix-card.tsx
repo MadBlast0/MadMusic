@@ -15,11 +15,20 @@ import type { Mix } from '@/lib/recommend';
 export function MixCard({
   mix,
   artworkUrl,
+  mosaicCss,
   onPlay,
 }: {
   mix: Mix;
   /** Remote art, where there is any. Otherwise the seeded gradient shows. */
   artworkUrl?: string;
+  /**
+   * Four covers as one, for a mix of many records.
+   *
+   * Takes precedence over `artworkUrl`. A mix is by definition several records,
+   * so any single sleeve on its card is a claim about one of them — the mosaic
+   * says what is actually inside. See `mosaic` in `lib/playlist-io.ts`.
+   */
+  mosaicCss?: string | null;
   onPlay: () => void;
 }) {
   const count = mix.tracks.length;
@@ -42,12 +51,24 @@ export function MixCard({
         }
         className="block w-full rounded-lg p-2 text-left transition-colors duration-fast hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
-        <Art
-          seedCover={[mix.coverA, mix.coverB]}
-          src={artworkUrl}
-          alt=""
-          className="aspect-square w-full rounded-xl shadow-sm"
-        />
+        {mosaicCss ? (
+          <span
+            aria-hidden
+            className="block aspect-square w-full rounded-xl bg-muted shadow-sm"
+            style={{
+              // The gradient underneath, so the moment before four remote
+              // images have loaded is the mix's own colour rather than grey.
+              background: `${mosaicCss}, linear-gradient(135deg, ${mix.coverA}, ${mix.coverB})`,
+            }}
+          />
+        ) : (
+          <Art
+            seedCover={[mix.coverA, mix.coverB]}
+            src={artworkUrl}
+            alt=""
+            className="aspect-square w-full rounded-xl shadow-sm"
+          />
+        )}
         <div className="mt-2.5 min-w-0">
           <p className="truncate text-sm font-medium">{mix.title}</p>
           <p className="truncate text-xs text-muted-foreground">{mix.reason}</p>

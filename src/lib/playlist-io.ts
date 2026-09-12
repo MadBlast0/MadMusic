@@ -21,6 +21,7 @@
  */
 
 import type { PlaylistRow, TrackRow } from '@/lib/store/types';
+import { coverUrlOf } from '@/lib/player-track';
 
 export type ExportFormat = 'm3u' | 'csv' | 'json';
 
@@ -280,8 +281,12 @@ export function parseCsv(text: string): string[][] {
  * machinery every music app builds for it.
  */
 export function mosaic(tracks: TrackRow[]): string | null {
+  // `coverUrlOf` rather than the stored field, so a catalogue row saved without
+  // artwork still contributes its video thumbnail. Reading the field directly
+  // was why a playlist of perfectly good tracks could fall short of four covers
+  // and show a gradient instead.
   const covers = [
-    ...new Set(tracks.map((track) => track.artworkUrl).filter(Boolean)),
+    ...new Set(tracks.map((track) => coverUrlOf(track)).filter(Boolean)),
   ].slice(0, 4);
   if (covers.length < 4) return null;
 

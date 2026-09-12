@@ -226,6 +226,16 @@ export function VirtualisedGrid({
     display: 'grid',
     gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
     gap: `${gap}px`,
+    // `start`, which is the whole of a real bug. Below the threshold this very
+    // element is the scroll container, sized by the page with `flex-1` — and a
+    // grid with no row sizing distributes its leftover height across its rows.
+    // With one album there is one row, so that row stretched to the full height
+    // of the screen: a card with its cover at the top and a tall empty panel
+    // underneath, whose hover highlight looked like an outline round nothing.
+    // It only ever showed on small libraries, because the windowed branch
+    // positions its rows absolutely and never stretches them.
+    alignContent: 'start',
+    alignItems: 'start',
   } as const;
 
   if (count <= THRESHOLD) {

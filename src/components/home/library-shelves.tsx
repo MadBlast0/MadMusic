@@ -4,6 +4,7 @@ import { Shelf, Stagger } from '@/components/home/shelves';
 import { MixCard } from '@/components/home/mix-card';
 import { Button } from '@/components/ui/button';
 import { usePlayer } from '@/components/player/player-context';
+import { coverUrlOf } from '@/lib/player-track';
 import { fallbackCover } from '@/lib/library-model';
 import { toPlayerTrackRow } from '@/lib/player-track';
 import type { Route } from '@/lib/routes';
@@ -170,7 +171,11 @@ export function LibraryShelves({
                   coverB: fallbackCover(track.album || track.title)[1],
                   tracks: [],
                 }}
-                artworkUrl={track.artworkUrl || undefined}
+                // `coverUrlOf`, not the stored field: a catalogue row saved
+                // without artwork still has its video thumbnail, and reading the
+                // field directly drew a gradient for a track that showed its
+                // cover the moment it was played.
+                artworkUrl={coverUrlOf(track) || undefined}
                 onPlay={() => void playFrom(track)}
               />
             ))}

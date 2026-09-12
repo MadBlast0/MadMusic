@@ -197,6 +197,33 @@ describe('the generated cover', () => {
     );
     expect(mosaic(same)).toBeNull();
   });
+
+  /**
+   * A catalogue row saved without artwork still has a cover.
+   *
+   * The thumbnail YouTube keeps for every video is one function call away, and
+   * reading the stored field directly skipped it — so a playlist of perfectly
+   * good tracks could fall short of four covers and show a gradient, while the
+   * same tracks showed their art the moment they were played.
+   */
+  it('counts a catalogue track that was saved without artwork', () => {
+    const tracks = ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc'].map(
+      (handle) => ({
+        ...EMPTY_TRACK,
+        id: handle,
+        kind: 'catalogue' as const,
+        handle,
+        artworkUrl: '',
+      }),
+    );
+    const withOneStored = [...tracks, withArt('d', 'd.jpg')];
+
+    const css = mosaic(withOneStored);
+
+    expect(css).not.toBeNull();
+    expect(css).toContain('i.ytimg.com/vi/aaaaaaaaaaa');
+    expect(css).toContain('url("d.jpg")');
+  });
 });
 
 describe('exporting listening history', () => {

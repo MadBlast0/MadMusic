@@ -4,7 +4,8 @@ import { Shelf, Stagger } from '@/components/home/shelves';
 import { MixCard } from '@/components/home/mix-card';
 import { usePlayer } from '@/components/player/player-context';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toPlayerTrackRow } from '@/lib/player-track';
+import { coverUrlOf, toPlayerTrackRow } from '@/lib/player-track';
+import { mosaic } from '@/lib/playlist-io';
 import { getCatalogueSource } from '@/lib/catalogue';
 import { fallbackCover } from '@/lib/library-model';
 import {
@@ -50,6 +51,15 @@ type Section = {
    */
   key: string;
 };
+
+/** The first cover a mix's tracks can offer, or nothing. */
+function firstCover(tracks: TrackRow[]): string | undefined {
+  for (const track of tracks) {
+    const url = coverUrlOf(track);
+    if (url) return url;
+  }
+  return undefined;
+}
 
 export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
   const { play } = usePlayer();
@@ -184,6 +194,13 @@ export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
               <MixCard
                 key={mix.id}
                 mix={mix}
+                // These were never passed, so every mix drew only its seeded
+                // gradient while every track inside it carried a cover. The
+                // mosaic where there are four distinct records, the first cover
+                // where there are fewer — and the gradient only when there is
+                // genuinely nothing.
+                mosaicCss={mosaic(mix.tracks)}
+                artworkUrl={firstCover(mix.tracks)}
                 onPlay={() => playMix(mix.tracks)}
               />
             ))}
