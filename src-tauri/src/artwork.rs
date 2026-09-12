@@ -155,45 +155,6 @@ fn generate(source: &Path, target: &Path) -> Result<String, String> {
     Ok(target.to_string_lossy().into_owned())
 }
 
-/// Produces a thumbnail from bytes the frontend already has.
-///
-/// Used for catalogue artwork, which arrives over the network rather than from
-/// a file. The key is a hash of the bytes, so the same cover fetched twice is
-/// stored once.
-#[tauri::command]
-pub async fn artwork_thumbnail_bytes(
-    app: tauri::AppHandle,
-    bytes: Vec<u8>,
-) -> Result<String, String> {
-    let dir = cache_dir(&app)?;
-
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in &bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x1000_0000_01b3);
-    }
-    let target = dir.join(format!("{hash:016x}-net.jpg"));
-
-    if target.exists() {
-        return Ok(target.to_string_lossy().into_owned());
-    }
-
-    let written = tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let decoded = image::load_from_memory(&bytes)
-            .map_err(|e| format!("the artwork could not be read: {e}"))?;
-        decoded
-            .thumbnail(THUMB_SIZE, THUMB_SIZE)
-            .to_rgb8()
-            .save_with_format(&target, image::ImageFormat::Jpeg)
-            .map_err(|e| format!("could not write the thumbnail: {e}"))?;
-        Ok(target.to_string_lossy().into_owned())
-    })
-    .await
-    .map_err(|e| format!("the thumbnail did not finish: {e}"))??;
-
-    Ok(written)
-}
-
 /// Trims the cache to [`CACHE_LIMIT`], oldest first.
 ///
 /// Least-recently-modified rather than least-recently-used: reading a file does

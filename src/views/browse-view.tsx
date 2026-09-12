@@ -16,6 +16,7 @@ import { fallbackCover } from '@/lib/library-model';
 import { toPlayerTrackRow } from '@/lib/player-track';
 import { store } from '@/lib/store';
 import type { TrackFilter } from '@/lib/store/types';
+import { ListenButton } from '@/components/catalogue/listen-button';
 import { ViewShell, ViewTitle } from '@/views/view-shell';
 
 /**
@@ -213,6 +214,13 @@ export function BrowseView({ onSearch }: { onSearch?: (q: string) => void }) {
           eyebrow="Library"
           title="Browse"
           subtitle="Your library, cut four ways."
+          /* The microphone lives here rather than beside the search field.
+             This is the page you land on with nothing typed — the moment the
+             question is "what *is* this" rather than "find me this" — and a
+             button that records the room should be somewhere deliberate rather
+             than one stray press from a text box. Draws nothing unless
+             recognition is configured. */
+          action={<ListenButton />}
         />
       }
     >

@@ -389,7 +389,6 @@ pub fn run() {
             import::import_file,
             waveform::waveform_generate,
             artwork::artwork_thumbnail,
-            artwork::artwork_thumbnail_bytes,
             artwork::motion_cover,
             artwork::artwork_sweep,
             artwork::artwork_clear,
