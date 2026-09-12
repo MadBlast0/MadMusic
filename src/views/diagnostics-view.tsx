@@ -13,6 +13,8 @@ import {
   type Startup,
 } from '@/lib/startup';
 import { clearCrashes, pendingCrashes, reportText } from '@/lib/telemetry';
+import { capabilities, type Capability } from '@/lib/capabilities';
+import { cn } from '@/lib/utils';
 import { ViewShell, ViewTitle } from '@/views/view-shell';
 
 /**
@@ -228,6 +230,8 @@ export function DiagnosticsView() {
         )}
 
         <StartupTimes />
+
+        <Capabilities />
 
         <section>
           <h2 className="mb-2 font-display text-lg font-semibold">
@@ -472,6 +476,84 @@ function StartupTimes() {
         {BUDGET.interactive} ms to interactive. Nothing enforces them — a budget
         that failed the launch would be worse than a slow launch.
       </p>
+    </section>
+  );
+}
+
+/**
+ * What this build can do, and what it cannot.
+ *
+ * Every optional integration degrades quietly by design, and Rust had been
+ * writing the sentence explaining each absence all along — `discogs_available`
+ * and its siblings return one. Nothing displayed them, so the features simply
+ * were not there and no screen said why. See `lib/capabilities.ts`.
+ *
+ * On the diagnostics screen rather than in settings because these are not
+ * preferences: nobody can switch them on from here, only find out whether they
+ * are on and what to do about it. That is the same question the rest of this
+ * page answers.
+ */
+function Capabilities() {
+  const [rows, setRows] = useState<Capability[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void capabilities().then((found) => {
+      if (!cancelled) setRows(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Nothing at all until the answers are in: a list that arrives saying
+  // "unavailable" and then corrects itself reads as a build with nothing in it.
+  if (!rows) return null;
+
+  return (
+    <section>
+      <h2 className="mb-2 font-display text-lg font-semibold">
+        Optional integrations
+      </h2>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Each of these needs a key this build was compiled with. Everything else
+        — your library, playback, playlists, lyrics — works without any of them.
+      </p>
+
+      <ul className="grid gap-2">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'mt-1.5 size-2 shrink-0 rounded-full',
+                row.available ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+              )}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-sm font-medium">{row.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {row.available ? 'On' : 'Off'}
+                </span>
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {row.adds}
+              </span>
+              {/* Rust's own words, where it had any. This is the whole point of
+                  the section: an absence that explains itself. */}
+              {!row.available && row.reason && (
+                <span className="mt-1 block text-xs text-muted-foreground/80">
+                  {row.reason}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
