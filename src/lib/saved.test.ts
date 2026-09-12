@@ -39,6 +39,7 @@ function saved(id: string, at = 0): SavedTrack {
     cover: ['#000', '#fff'],
     duration: 200,
     handle: `handle-${id}`,
+    artworkUrl: `https://img.example/${id}.jpg`,
     at,
   };
 }
@@ -131,6 +132,34 @@ describe('remember', () => {
 });
 
 describe('parseSaved', () => {
+  /**
+   * The cover a saved song always had.
+   *
+   * Library rows fall back to the video's thumbnail; saved lists read their own
+   * copies and did not, so one song had a cover in search and a gradient in
+   * Liked Songs.
+   */
+  it('gives a song saved without artwork its video thumbnail', () => {
+    const bare = { ...saved('dQw4w9WgXcQ'), handle: 'dQw4w9WgXcQ' };
+    delete bare.artworkUrl;
+
+    const [track] = parseSaved({ liked: [bare] }).liked;
+
+    expect(track.artworkUrl).toBe(
+      'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    );
+  });
+
+  /** A station's handle is its stream address, and has no thumbnail. */
+  it('leaves a song whose handle is an address alone', () => {
+    const station = { ...saved('s'), handle: 'https://radio.example/live' };
+    delete station.artworkUrl;
+
+    expect(
+      parseSaved({ liked: [station] }).liked[0].artworkUrl,
+    ).toBeUndefined();
+  });
+
   it('reads back what was written', () => {
     const state = {
       liked: [saved('a')],

@@ -1,5 +1,6 @@
 import type { PlayerTrack } from '@/components/player/player-context';
 import { fallbackCover } from '@/lib/library-model';
+import { videoThumbnail } from '@/lib/player-track';
 
 /**
  * The two things the app remembers about what you listened to: what you liked,
@@ -261,9 +262,26 @@ function parsePlaylists(value: unknown): Playlist[] {
   });
 }
 
+/**
+ * Validates stored entries, and gives an old one the cover it always had.
+ *
+ * Every saved song is a catalogue song, and a catalogue song saved without
+ * artwork — by an earlier build, or from a result that came back without any —
+ * still has the thumbnail its video keeps. The library rows already fall back
+ * to it (`coverUrlOf`); saved lists read their own copies and did not, so the
+ * same song had its cover in search and a gradient in Liked Songs, History and
+ * every playlist. Filled in here, at the one place every saved list is read.
+ */
 function parseTracks(value: unknown): SavedTrack[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isSavedTrack);
+  return value.filter(isSavedTrack).map((track) => {
+    if (track.artworkUrl) return track;
+    const thumbnail = videoThumbnail({
+      kind: 'catalogue',
+      handle: track.handle ?? '',
+    });
+    return thumbnail ? { ...track, artworkUrl: thumbnail } : track;
+  });
 }
 
 function isSavedTrack(value: unknown): value is SavedTrack {

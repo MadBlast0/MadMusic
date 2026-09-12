@@ -12,6 +12,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import type { CatalogueTrack } from '@/lib/catalogue';
+import { coverUrlOf } from '@/lib/player-track';
 import {
   downloadList,
   downloader,
@@ -253,8 +254,12 @@ function Section({
     id: item.track.id,
     title: item.track.title,
     artist: item.track.artist,
+    // The album and the cover rule every other list follows. This built its rows
+    // by hand and left both out, so a downloaded song had a gradient and a dash
+    // here while it had a cover and an album everywhere else.
+    album: item.track.album || undefined,
     cover: [item.track.coverA, item.track.coverB],
-    artworkUrl: item.track.artworkUrl,
+    artworkUrl: coverUrlOf(item.track) || undefined,
     duration: item.track.duration,
     handle: item.track.handle,
   }));
