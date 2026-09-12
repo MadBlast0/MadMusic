@@ -67,6 +67,21 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ### Changed
 
+- Cover art is served from the thumbnail cache that was already built for it.
+  `artwork.rs` decodes an embedded picture once, writes a 320px JPEG and hands
+  back its path for the webview to load — and `assetProtocol.scope` was an
+  empty list, which denies every path, so nothing could ever load one and every
+  cover came through as a two-megabyte base64 string instead. The scope is now
+  that one directory and nothing else; the music library is deliberately not in
+  it. The cache is swept to its limit once per launch, and "clear the cache"
+  clears it.
+- Global shortcuts can be bound to everything Rust will register. The settings
+  screen offered five actions against the twelve `hotkeys.rs` accepts, so mute,
+  volume, stop, shuffle, repeat and search were impossible to bind despite
+  working.
+- The audio device is released when the session ends rather than held open
+  until the app quits — an open device stays awake, which on some interfaces
+  means a fan.
 - Optional integrations now say whether they are on, and why not when they are
   off. Rust had been returning a sentence for each absence all along — "This
   build has no Discogs token, so credits come from MusicBrainz alone" — from
