@@ -47,6 +47,10 @@ pub enum Instance {
 /// Derived from the bundle identifier exactly as
 /// `tauri-plugin-single-instance` derives them. They have to match: the window
 /// this looks for is the one the plugin created.
+///
+/// Compiled for Windows, where `check` uses it, and for the test that pins the
+/// names, which runs everywhere. Elsewhere the plugin is left to do this alone.
+#[cfg(any(target_os = "windows", test))]
 fn names(identifier: &str) -> (String, String, String) {
     (
         format!("{identifier}-sic"),
