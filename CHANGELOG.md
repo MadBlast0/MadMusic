@@ -34,6 +34,18 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
   Escape closed nothing the user could see.
 - The A–B loop was offered twice in the same menu, as a lettered button and as
   an item saying the same thing.
+- The block at the top of Home listed local folders. With one untagged folder
+  it showed a tile called "Music" — the name of the directory, with the flat
+  fallback gradient, sitting among Liked Songs and the catalogue and looking
+  for all the world like a playlist somebody had made. Those records are still
+  on the page, under "From your library", where they have their own covers.
+- The library panel's header could not fit its own title: the heading was what
+  gave way when the row ran out of room, so the panel ended up called "Yo...".
+  Its floor is 240px rather than 200, it opens at 320 rather than 288, and
+  below 272 the Create button folds to its plus instead.
+- A stray rule across the very top edge of the library panel, left from a
+  layout where that panel was a column divided by hairlines rather than a card
+  floating on the window ground.
 - Released builds shipped with sign-in, cross-device sync, scrobbling, Discogs
   credits, AcoustID and Discord presence all absent. The release workflow
   passed only the signing secrets to the build, and every one of those features
