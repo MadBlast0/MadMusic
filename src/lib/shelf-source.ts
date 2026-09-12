@@ -39,6 +39,7 @@ import {
   genreMixes,
   onRepeat,
   repeatRewind,
+  thisIsMixes,
   topSongsOf,
 } from '@/lib/playlists';
 import type { PlayerTrack } from '@/components/player/player-context';
@@ -116,6 +117,7 @@ export const SHELF_KEYS = {
   madeListening: 'made:listening',
   madeDecades: 'made:decades',
   madeGenres: 'made:genres',
+  madeThisIs: 'made:this-is',
   radar: 'radar',
   featured: 'feed:featured',
 } as const;
@@ -137,6 +139,8 @@ export function shelfTitle(key: string): string {
       return 'By decade';
     case SHELF_KEYS.madeGenres:
       return 'By genre';
+    case SHELF_KEYS.madeThisIs:
+      return 'Artist essentials';
     case SHELF_KEYS.mixWeekly:
       return 'Discovery';
     case SHELF_KEYS.mixTimely:
@@ -378,6 +382,18 @@ export async function loadShelf(key: string): Promise<ShelfPage | null> {
         key,
         title: 'By decade',
         blurb: 'Your library, era by era',
+        kind: 'collections',
+        entries: mixes.map(fromMix),
+      };
+    }
+
+    case SHELF_KEYS.madeThisIs: {
+      const mixes = await thisIsMixes(20).catch(() => []);
+      if (mixes.length === 0) return null;
+      return {
+        key,
+        title: 'Artist essentials',
+        blurb: 'The artists you play most, at their best',
         kind: 'collections',
         entries: mixes.map(fromMix),
       };

@@ -19,7 +19,7 @@ import {
 } from '@/lib/recommend';
 import type { Route } from '@/lib/routes';
 import { listeningMixes, SHELF_KEYS } from '@/lib/shelf-source';
-import { decadeMixes, genreMixes } from '@/lib/playlists';
+import { decadeMixes, genreMixes, thisIsMixes } from '@/lib/playlists';
 import { useRefreshEpoch } from '@/hooks/use-refresh-epoch';
 import type { TrackRow } from '@/lib/store/types';
 import { Button } from '@/components/ui/button';
@@ -83,16 +83,25 @@ export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
     void (async () => {
       // `allSettled`, not `all`: one generator throwing — a missing table, a
       // library too small — must not take the rest down with it.
-      const [daily, weekly, timely, because, listening, decades, genres] =
-        await Promise.allSettled([
-          dailyMixes(6),
-          weeklyDiscovery(),
-          forThisTimeOfDay(),
-          becauseYouPlayed(3),
-          listeningMixes(),
-          decadeMixes(6),
-          genreMixes(8),
-        ]);
+      const [
+        daily,
+        weekly,
+        timely,
+        because,
+        listening,
+        decades,
+        genres,
+        essentials,
+      ] = await Promise.allSettled([
+        dailyMixes(6),
+        weeklyDiscovery(),
+        forThisTimeOfDay(),
+        becauseYouPlayed(3),
+        listeningMixes(),
+        decadeMixes(6),
+        genreMixes(8),
+        thisIsMixes(6),
+      ]);
       if (cancelled) return;
 
       const built: Section[] = [];
@@ -155,6 +164,18 @@ export function MixShelves({ onOpen }: { onOpen?: (route: Route) => void }) {
           blurb: 'Following on from what you played recently',
           mixes: becauseMixes,
           key: SHELF_KEYS.mixBecause,
+        });
+      }
+
+      const essentialMixes =
+        essentials.status === 'fulfilled' ? essentials.value : [];
+      if (essentialMixes.length > 0) {
+        built.push({
+          id: 'essentials',
+          title: 'Artist essentials',
+          blurb: 'The artists you play most, at their best',
+          mixes: essentialMixes,
+          key: SHELF_KEYS.madeThisIs,
         });
       }
 

@@ -172,6 +172,68 @@ export function genresOf(
     .sort((a, b) => b.count - a.count || a.genre.localeCompare(b.genre));
 }
 
+/** Whose song this is, for "This Is": the album artist keeps a compilation's guests out. */
+function ownerOf(row: TrackRow): string {
+  return (row.albumArtist || row.artist).trim();
+}
+
+/**
+ * How much a song means to you, for ordering an artist's essentials.
+ *
+ * A like is worth ten plays and a star four: both are things somebody chose to
+ * say, where a play can be the album running on while they did something else.
+ */
+function essentialScore(row: TrackRow): number {
+  return (row.liked ? 10 : 0) + row.stars * 4 + row.plays;
+}
+
+/**
+ * The artists worth a "This Is" playlist, most listened-to first.
+ *
+ * Two conditions. Enough songs, or the playlist is the album again in a
+ * different order. And some sign of listening — at least one play or like —
+ * because an artist who arrived with a folder and was never played is not
+ * somebody whose essentials you have an opinion on.
+ */
+export function selectThisIsArtists(
+  rows: TrackRow[],
+  min = MIN_TRACKS,
+): { artist: string; score: number }[] {
+  const totals = new Map<
+    string,
+    { artist: string; songs: number; score: number }
+  >();
+  for (const row of rows) {
+    const artist = ownerOf(row);
+    if (!artist) continue;
+    const key = artist.toLowerCase();
+    const entry = totals.get(key) ?? { artist, songs: 0, score: 0 };
+    entry.songs += 1;
+    entry.score += essentialScore(row);
+    totals.set(key, entry);
+  }
+  return [...totals.values()]
+    .filter((entry) => entry.songs >= min && entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.artist.localeCompare(b.artist))
+    .map(({ artist, score }) => ({ artist, score }));
+}
+
+/** One artist's songs, the ones you care about most first. */
+export function selectThisIs(
+  rows: TrackRow[],
+  artist: string,
+  limit = SIZE,
+): TrackRow[] {
+  const key = artist.toLowerCase();
+  return rows
+    .filter((row) => ownerOf(row).toLowerCase() === key)
+    .sort(
+      (a, b) =>
+        essentialScore(b) - essentialScore(a) || a.title.localeCompare(b.title),
+    )
+    .slice(0, limit);
+}
+
 /* ── the builders ────────────────────────────────────────────────────── */
 
 /** Everything, with play history. Read once and shared by the builders. */
@@ -314,4 +376,28 @@ export async function genreMixes(limit = 6): Promise<Mix[]> {
   }
 
   return mixes;
+}
+
+/**
+ * "This Is" playlists: an artist's essentials, as your library knows them.
+ *
+ * Built from how *you* listen to them rather than from anyone's charts — the
+ * liked, the rated, the played — so two people with the same records get two
+ * different playlists, which is the point of making one at all.
+ */
+export async function thisIsMixes(
+  limit = 6,
+  rows?: TrackRow[],
+): Promise<Mix[]> {
+  const all = rows ?? (await everything());
+  return selectThisIsArtists(all)
+    .slice(0, limit)
+    .map(({ artist }) =>
+      named(
+        `made:this-is-${artist.toLowerCase()}`,
+        `This Is ${artist}`,
+        `The essential ${artist}, by what you play and like`,
+        selectThisIs(all, artist),
+      ),
+    );
 }

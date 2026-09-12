@@ -8,6 +8,8 @@ import {
   selectForgottenFavourites,
   selectOnRepeat,
   selectRepeatRewind,
+  selectThisIs,
+  selectThisIsArtists,
 } from '@/lib/playlists';
 import { EMPTY_TRACK, type TopEntry, type TrackRow } from '@/lib/store/types';
 
@@ -198,5 +200,62 @@ describe('genre mixes', () => {
 
   it('ignores a blank genre', () => {
     expect(genresOf([['   ', 99]], 1)).toEqual([]);
+  });
+});
+
+describe('This Is', () => {
+  const song = (id: string, artist: string, over: Partial<TrackRow> = {}) =>
+    row(id, { artist, albumArtist: artist, ...over });
+  const catalogue = (
+    artist: string,
+    count: number,
+    over: Partial<TrackRow> = {},
+  ) =>
+    Array.from({ length: count }, (_, i) =>
+      song(`${artist}-${i}`, artist, over),
+    );
+
+  /** The album again in another order is not a playlist. */
+  it('needs enough songs by the artist', () => {
+    const rows = catalogue('Slint', MIN_TRACKS - 1, { plays: 20 });
+
+    expect(selectThisIsArtists(rows)).toEqual([]);
+  });
+
+  /** A folder nobody has played says nothing about what is essential. */
+  it('needs some sign of listening', () => {
+    expect(selectThisIsArtists(catalogue('Unplayed', 20))).toEqual([]);
+  });
+
+  it('ranks artists by how much they are listened to', () => {
+    const rows = [
+      ...catalogue('Often', MIN_TRACKS, { plays: 10 }),
+      ...catalogue('Sometimes', MIN_TRACKS, { plays: 1 }),
+    ];
+
+    expect(selectThisIsArtists(rows).map((a) => a.artist)).toEqual([
+      'Often',
+      'Sometimes',
+    ]);
+  });
+
+  /** A like is a statement; a play can be the album running in the background. */
+  it('puts a liked song above one that was merely played more', () => {
+    const rows = [
+      song('played', 'Slint', { plays: 8 }),
+      song('liked', 'Slint', { plays: 1, liked: true }),
+    ];
+
+    expect(ids(selectThisIs(rows, 'Slint'))).toEqual(['liked', 'played']);
+  });
+
+  /** A guest on a compilation is not the compilation's artist. */
+  it('files songs under the album artist', () => {
+    const rows = [
+      row('guest', { artist: 'Slint', albumArtist: 'Various' }),
+      song('own', 'Slint'),
+    ];
+
+    expect(ids(selectThisIs(rows, 'slint'))).toEqual(['own']);
   });
 });
