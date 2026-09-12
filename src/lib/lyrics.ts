@@ -88,9 +88,15 @@ const parsed = new Map<string, TrackLyrics>();
 /**
  * Parses LRC into timed lines.
  *
- * A TypeScript copy of `meta::lyrics::lyrics_parse`, which exists because the
- * browser build has no Rust. The two are checked against the same cases; the
- * grammar is small enough that this is cheaper than a bridge call per track.
+ * The only copy the app runs. Rust keeps the same grammar under `cfg(test)` —
+ * see `meta::lyrics::lyrics_parse` — purely as the oracle for a round-trip
+ * test: what Rust writes out as enhanced LRC has to be what this accepts. It
+ * used to be a Tauri command as well, registered and never once called, which
+ * is a parser shipped in the binary for nothing.
+ *
+ * Parsing here rather than over the bridge because the grammar is small enough
+ * that a call per track would cost more than it saves — and the browser build
+ * has no Rust at all.
  *
  * Handles the two real-world wrinkles: a line may carry several timestamps —
  * a chorus, tagged once and repeated — and the fractional part may be two or

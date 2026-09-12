@@ -14,40 +14,27 @@ use tauri::State;
 
 use super::{fail, now_ms, Db, DbResult};
 
-/// Keys the app itself uses.
+/// The one key Rust itself writes.
 ///
-/// Rust only reads one of these — the migration writes `SETTINGS`. The rest are
-/// written and read by the frontend through `db_kv_set` and `db_kv_get`, which
-/// take the key as an argument.
+/// Every other key in this table is written and read by the frontend through
+/// `db_kv_get` and `db_kv_set`, which take the key as an argument — so Rust
+/// never names them and does not need constants for them. `src/lib/store/keys.ts`
+/// is where they are declared, and it is the authoritative list precisely
+/// because it is the one the code uses.
 ///
-/// They are listed anyway, and `dead_code` is allowed rather than the list
-/// trimmed, because this is the authoritative record of what the table holds.
-/// `src/lib/store/keys.ts` mirrors it, and a reader who wants to know what is
-/// in `kv` should be able to find out from the file that defines `kv`.
-#[allow(dead_code)]
+/// This used to be a module of eleven constants with `#[allow(dead_code)]` over
+/// it, kept as "the authoritative record of what the table holds". Ten of them
+/// were never referenced. A list nobody reads, with the compiler told not to
+/// mention it, is documentation that has been given the shape of code — and it
+/// drifts, because nothing breaks when it does. For the record, the table also
+/// holds: the queue, the active profile, the sidebar arrangement, the first-run
+/// answers, a custom theme, rebound shortcuts, the last route, equaliser bands,
+/// per-device volumes and the sync cursor.
 pub mod keys {
-    /// The whole `Settings` object, as the frontend defines it.
+    /// The whole `Settings` object, as the frontend defines it. Written by the
+    /// migration in `db/migrate.rs`, which is the only reason Rust names a key
+    /// at all.
     pub const SETTINGS: &str = "settings";
-    /// The queue, so playback survives a restart.
-    pub const QUEUE: &str = "queue";
-    /// Which profile is in use.
-    pub const ACTIVE_PROFILE: &str = "active_profile";
-    /// The sidebar's order and which items are hidden.
-    pub const SIDEBAR: &str = "sidebar";
-    /// Answers from the first-run taste picker.
-    pub const ONBOARDING: &str = "onboarding";
-    /// The user's own colour scheme, if they wrote one.
-    pub const THEME: &str = "theme";
-    /// Rebound keyboard shortcuts.
-    pub const SHORTCUTS: &str = "shortcuts";
-    /// The last route, for "open on: where I left off".
-    pub const LAST_ROUTE: &str = "last_route";
-    /// Equaliser bands and the chosen preset.
-    pub const EQUALISER: &str = "equaliser";
-    /// Per-device volumes, keyed by output device id.
-    pub const DEVICE_VOLUMES: &str = "device_volumes";
-    /// When the backend was last drained successfully.
-    pub const SYNC_CURSOR: &str = "sync_cursor";
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

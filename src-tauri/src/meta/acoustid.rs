@@ -95,7 +95,11 @@ struct FpcalcOutput {
 }
 
 /// Fingerprints a file.
-#[tauri::command]
+///
+/// Not a command. It is one step of `acoustid_identify`, which is what the
+/// frontend calls, and it was registered as its own command without ever being
+/// invoked as one. Every registered command is reachable from any page the
+/// webview loads, so one that nothing calls is surface for no benefit.
 pub async fn acoustid_fingerprint(
     app: tauri::AppHandle,
     path: String,
@@ -199,7 +203,9 @@ pub struct Match {
 const MIN_SCORE: f64 = 0.75;
 
 /// Identifies a fingerprint.
-#[tauri::command]
+///
+/// Not a command, for the same reason as `acoustid_fingerprint`: the frontend
+/// calls `acoustid_identify`, which does both halves.
 pub async fn acoustid_lookup(fingerprint: Fingerprint) -> Result<Vec<Match>, String> {
     if api_key().is_empty() {
         return Ok(Vec::new());

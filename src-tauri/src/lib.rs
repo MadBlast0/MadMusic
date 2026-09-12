@@ -9,7 +9,6 @@ mod db;
 mod diagnostics;
 mod discord;
 mod engine;
-mod envfile;
 mod export;
 mod extractor;
 mod hotkeys;
@@ -355,8 +354,6 @@ pub fn run() {
             engine::engine_close,
             meta::lyrics::lyrics_fetch,
             meta::lyrics::lyrics_search,
-            meta::lyrics::lyrics_parse,
-            meta::lyrics::lyrics_line_at,
             meta::musicbrainz::mb_artist,
             meta::musicbrainz::mb_concerts,
             meta::musicbrainz::mb_release,
@@ -369,8 +366,6 @@ pub fn run() {
             meta::discogs::discogs_available,
             meta::discogs::discogs_release,
             meta::acoustid::acoustid_available,
-            meta::acoustid::acoustid_fingerprint,
-            meta::acoustid::acoustid_lookup,
             meta::acoustid::acoustid_identify,
             meta::acoustid::acoustid_listen,
             meta::radio::radio_search,

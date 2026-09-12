@@ -329,11 +329,13 @@ async fn bounded(name: &str, work: impl std::future::Future<Output = Vec<Hit>>) 
     }
 }
 
-/* ── the parsing commands ──────────────────────────────────────────────── */
+/* ── the grammar, as a test oracle ─────────────────────────────────────── */
 
 /// One line of a synced lyric.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+///
+/// `cfg(test)` along with [`lyrics_parse`] below — see the note there.
+#[cfg(test)]
+#[derive(Debug, Clone, Default)]
 pub struct Line {
     /// Seconds from the start of the track.
     pub at: f64,
@@ -342,9 +344,19 @@ pub struct Line {
 
 /// Parses LRC into lines.
 ///
-/// The frontend has its own copy of this grammar, in `lib/lyrics.ts`, because
-/// the browser build has no Rust. The two are checked against the same cases.
-#[tauri::command]
+/// # Why this is `cfg(test)` and not a command
+///
+/// The frontend has its own copy of this grammar in `lib/lyrics.ts`, because
+/// the browser build has no Rust — and *that* copy is the one the app uses. This
+/// one was registered as a Tauri command and never invoked once: a parser
+/// shipped in the binary, reachable from the webview, that nothing called.
+///
+/// It is not dead, though, which is why it is kept rather than deleted. It is
+/// the oracle for the round trip below: `the_chosen_sheet_is_written_as_enhanced_lrc`
+/// writes a sheet out as enhanced LRC and reads it back with this, which is the
+/// only check that what Rust emits is what the frontend's grammar accepts.
+/// Under `cfg(test)` it keeps that job and stops being surface.
+#[cfg(test)]
 pub fn lyrics_parse(lrc: String) -> Vec<Line> {
     match lrc::parse(&lrc) {
         model::Sheet::Synced(lines) => lines
@@ -356,24 +368,6 @@ pub fn lyrics_parse(lrc: String) -> Vec<Line> {
             .collect(),
         _ => Vec::new(),
     }
-}
-
-/// Which line is current at a given position.
-///
-/// Returns an index rather than the line, so the caller can highlight it and
-/// still see the ones around it. `-1` means the track has not reached the
-/// first line yet — an intro, which is common and is not an error.
-#[tauri::command]
-pub fn lyrics_line_at(lines: Vec<Line>, position: f64) -> i64 {
-    let mut current: i64 = -1;
-    for (index, line) in lines.iter().enumerate() {
-        if line.at <= position {
-            current = index as i64;
-        } else {
-            break;
-        }
-    }
-    current
 }
 
 #[cfg(test)]
@@ -438,18 +432,6 @@ mod tests {
     fn word_markers_do_not_reach_the_rendered_text() {
         let lines = lyrics_parse("[00:11.90]<00:11.92>Fall <00:12.17>in".into());
         assert_eq!(lines[0].text, "Fall in");
-    }
-
-    #[test]
-    fn before_the_first_line_there_is_no_current_line() {
-        let lines = lyrics_parse("[00:10.00]Words".into());
-        assert_eq!(lyrics_line_at(lines, 2.0), -1);
-    }
-
-    #[test]
-    fn the_current_line_is_the_last_one_reached() {
-        let lines = lyrics_parse("[00:00.00]One\n[00:10.00]Two\n[00:20.00]Three".into());
-        assert_eq!(lyrics_line_at(lines, 15.0), 1);
     }
 
     #[tokio::test]
