@@ -398,7 +398,6 @@ pub fn run() {
             nowplaying::now_playing_available,
             hotkeys::hotkeys_apply,
             hotkeys::hotkeys_clear,
-            hotkeys::hotkeys_current,
             hotkeys::hotkeys_actions,
             control::remote_start,
             control::remote_stop,

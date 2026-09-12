@@ -190,6 +190,37 @@ export type ApplyResult = {
  * The whole set at once, because releasing has to happen before registering —
  * otherwise swapping two shortcuts fails on the second and leaves one of each.
  */
+/**
+ * Which actions can be bound to a key that works anywhere on the machine.
+ *
+ * Rust decides this, because Rust is what registers them: `ACTIONS` in
+ * `hotkeys.rs` is the list it will accept, and `hotkeys_apply` rejects anything
+ * outside it. Asking rather than hardcoding matters because the two had already
+ * drifted — the settings screen offered five of the twelve, so a global shortcut
+ * for mute, the volume, shuffle, repeat, stop or search was impossible to set
+ * despite working perfectly well the moment it was registered.
+ *
+ * Filtered against the `Action` union rather than trusted whole: an id Rust
+ * knows and the frontend does not has no label to show, and a row with a blank
+ * name is worse than a row that is not there. The fallback is the five that
+ * were hardcoded, so a build where the command is missing is no worse than
+ * before.
+ */
+export async function globalActions(): Promise<Action[]> {
+  const fallback: Action[] = [
+    'play-pause',
+    'next',
+    'previous',
+    'like',
+    'show-window',
+  ];
+  if (!isNative()) return fallback;
+
+  const offered = await tryInvoke<string[]>('hotkeys_actions', undefined, []);
+  const known = offered.filter((id): id is Action => id in ACTION_LABELS);
+  return known.length > 0 ? known : fallback;
+}
+
 export async function applyGlobalKeys(
   bindings: GlobalBinding[],
 ): Promise<ApplyResult> {

@@ -156,20 +156,6 @@ pub fn hotkeys_clear(app: tauri::AppHandle) {
     held.clear();
 }
 
-/// What is bound right now.
-#[tauri::command]
-pub fn hotkeys_current(app: tauri::AppHandle) -> Vec<Binding> {
-    let state = app.state::<Hotkeys>();
-    let held = state.0.lock().unwrap_or_else(|p| p.into_inner());
-
-    held.iter()
-        .map(|(accelerator, action)| Binding {
-            accelerator: accelerator.clone(),
-            action: action.clone(),
-        })
-        .collect()
-}
-
 /// The actions a shortcut may be bound to, for the settings screen.
 #[tauri::command]
 pub fn hotkeys_actions() -> Vec<String> {

@@ -65,6 +65,7 @@ import {
   applyGlobalKeys,
   conflictFor,
   describeKey,
+  globalActions,
   loadGlobalKeys,
   loadKeyMap,
   saveGlobalKeys,
@@ -1103,10 +1104,20 @@ export function ShortcutSettings() {
   const [recording, setRecording] = useState<Action | null>(null);
   const [globals, setGlobals] = useState<GlobalBinding[]>([]);
   const [rejected, setRejected] = useState<[string, string][]>([]);
+  /**
+   * Which actions can be global, asked of the side that registers them.
+   *
+   * This was five hardcoded ids against Rust's twelve, so a global shortcut for
+   * mute, the volume, shuffle, repeat, stop or search could not be set at all —
+   * even though `hotkeys_apply` would have accepted every one. See
+   * `globalActions`.
+   */
+  const [bindable, setBindable] = useState<Action[]>([]);
 
   useEffect(() => {
     void loadKeyMap().then(setMap);
     void loadGlobalKeys().then(setGlobals);
+    void globalActions().then(setBindable);
   }, []);
 
   useEffect(() => {
@@ -1178,9 +1189,7 @@ export function ShortcutSettings() {
         title="Anywhere on the machine"
         description="Global shortcuts work whatever window has focus, which means they take that combination away from every other program. Nothing is bound by default."
       >
-        {(
-          ['play-pause', 'next', 'previous', 'like', 'show-window'] as const
-        ).map((action) => {
+        {bindable.map((action) => {
           const binding = globals.find((entry) => entry.action === action);
           const failure = rejected.find(
             ([accel]) => accel === binding?.accelerator,
