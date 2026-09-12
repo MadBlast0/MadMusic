@@ -320,10 +320,25 @@ export function AppSidebar({
   return (
     <aside
       aria-label="Your Library"
-      className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-sidebar"
+      /* `@container`, so the header below can lay itself out against *this
+         panel's* width rather than the window's. A media query is the wrong
+         instrument for a pane the user can drag: the window can be 3840px
+         wide while this is at its 240px floor. */
+      className="@container flex h-full w-full flex-col overflow-hidden rounded-xl bg-sidebar"
     >
-      <header className="flex shrink-0 items-center gap-2 border-t border-sidebar-border px-4 pt-3 pb-3">
-        <h2 className="flex-1 truncate font-display text-base font-bold tracking-tight">
+      {/* No `border-t`.
+
+          The panel is a rounded card floating on the window ground, and a rule
+          across its very top edge belonged to a layout where this was a column
+          divided by hairlines. Against the card it read as a stray line above
+          the heading with nothing above it to divide. The gaps between the
+          panels do that work now — see `App`. */}
+      <header className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-3">
+        {/* `min-w-0` as well as `flex-1`: a flex child's default minimum is
+            its content, so without it the heading refuses to shrink, pushes
+            the controls out of the panel, and truncates anyway — just after
+            having broken the row. */}
+        <h2 className="min-w-0 flex-1 truncate font-display text-base font-bold tracking-tight">
           Your Library
         </h2>
 
@@ -333,10 +348,18 @@ export function AppSidebar({
         <button
           type="button"
           onClick={() => onOpen({ name: 'playlist', id: createPlaylist() })}
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-sidebar-accent/60 py-1.5 pr-3.5 pl-2.5 text-xs font-semibold transition-colors duration-fast hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-sidebar-accent/60 py-1.5 pr-3.5 pl-2.5 text-xs font-semibold transition-colors duration-fast hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none @max-[272px]:gap-0 @max-[272px]:px-2"
         >
           <Plus className="size-3.5" />
-          Create
+          {/* The word goes before the heading does.
+
+              Dragged to its narrowest, this row has to hold a heading, a
+              labelled button and a collapse control, and something has to give
+              first. It used to be the heading — which is how the panel came to
+              be titled "Yo...", the one piece of text that says what the panel
+              *is*. The button keeps its plus, which is legible alone and
+              carries the same label to a screen reader either way. */}
+          <span className="@max-[272px]:sr-only">Create</span>
         </button>
 
         <IconButton

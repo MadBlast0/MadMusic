@@ -26,11 +26,28 @@ export type PaneLimits = {
   max: number;
 };
 
-export const SIDEBAR_LIMITS: PaneLimits = { min: 200, maxShare: 0.4, max: 480 };
+/**
+ * The library panel's floor is what its own header needs.
+ *
+ * 200px was a number, not a measurement: at that width the heading, the Create
+ * button and the collapse control did not fit on one row, so the heading
+ * truncated to "Yo..." — a panel whose title no longer said what it was. 240 is
+ * where the row still reads, with the button's label folding away below 272 to
+ * cover the last of it.
+ */
+export const SIDEBAR_LIMITS: PaneLimits = { min: 240, maxShare: 0.4, max: 480 };
 export const RIGHT_LIMITS: PaneLimits = { min: 260, maxShare: 0.45, max: 560 };
 
-/** The default widths, which are what the app shipped with before the handles. */
-export const SIDEBAR_DEFAULT = 288;
+/**
+ * The default widths.
+ *
+ * The library panel opens at 320 rather than the 288 it shipped with: 288 fits
+ * the header and nothing more, so the first playlist with a name of any length
+ * was already truncating on a fresh install. A default should be comfortable
+ * rather than exactly sufficient — the handle is there for people who want it
+ * tighter.
+ */
+export const SIDEBAR_DEFAULT = 320;
 export const RIGHT_DEFAULT = 304;
 
 /**
