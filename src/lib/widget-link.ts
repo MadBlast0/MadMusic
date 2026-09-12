@@ -31,9 +31,6 @@ import type { PlayerTrack } from '@/components/player/player-context';
 import type { RepeatMode } from '@/lib/queue';
 import { invoke, isNative } from '@/lib/native';
 
-/** The label the Rust side gives the widget window. */
-export const WIDGET_LABEL = 'widget';
-
 /**
  * The hash the widget window is opened with.
  *

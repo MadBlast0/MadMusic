@@ -371,8 +371,3 @@ export function getCatalogueSource(): Promise<CatalogueSource> {
   });
   return probe;
 }
-
-/** Everything the shelves reference, flattened — used for search and queues. */
-export function allCatalogueTracks(): CatalogueTrack[] {
-  return CATALOGUE_PREVIEW.tracks;
-}

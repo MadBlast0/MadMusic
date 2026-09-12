@@ -493,50 +493,6 @@ fn truncate(text: &str, limit: usize) -> String {
 // Desktop widget
 // ---------------------------------------------------------------------------
 
-/// Puts the window on the desktop, or takes it back off.
-///
-/// # How this differs from the mini player
-///
-/// The mini player is a small window that stays *above* everything, for
-/// somebody who wants the controls in reach while they work. A widget is the
-/// opposite arrangement: it sits on the desktop, below other windows, out of
-/// the taskbar, and is there when you clear the screen rather than always in
-/// the way.
-///
-/// macOS has a menu-bar item for this and Windows does not; what Windows has is
-/// a desktop, and this is the honest equivalent rather than a menu bar drawn
-/// somewhere it does not belong. The tray already carries the readout and the
-/// transport - see tray_now_playing.
-///
-/// Failures are reported rather than swallowed: always_on_bottom is not
-/// implemented on every platform, and a widget that silently stayed on top
-/// would look like the control did nothing.
-#[tauri::command]
-pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or("there is no main window")?;
-
-    window
-        .set_always_on_top(false)
-        .map_err(|e| format!("could not change the window: {e}"))?;
-    window
-        .set_always_on_bottom(on)
-        .map_err(|e| format!("this platform cannot pin a window to the desktop: {e}"))?;
-    window
-        .set_skip_taskbar(on)
-        .map_err(|e| format!("could not change the taskbar entry: {e}"))?;
-
-    // Decorations are deliberately untouched. The window is frameless for its
-    // whole life - `tauri.conf.json` sets `"decorations": false` and the app
-    // draws its own title bar - so there is nothing here to turn off. Turning
-    // them *on* when leaving widget mode was worse than a no-op: it gave the
-    // compact player an OS title bar it had never had, and left the main
-    // window with two title bars stacked once you went back to it.
-
-    Ok(())
-}
-
 /// Serialises everything that creates or destroys the widget window.
 ///
 /// # Why a lock rather than the existence check alone
@@ -565,8 +521,12 @@ pub fn widget_mode(app: AppHandle, on: bool) -> Result<(), String> {
 #[derive(Default)]
 pub struct Widget(Mutex<()>);
 
-/// The label Tauri knows the widget window by. Matches `WIDGET_LABEL` in
-/// `src/lib/widget-link.ts`, and `windows` in `capabilities/widget.json`.
+/// The label Tauri knows the widget window by.
+///
+/// Also the `windows` entry in `capabilities/widget.json`, which is what
+/// decides whether that window may listen for an event at all. The frontend
+/// used to keep a matching constant and never used it; the hash in
+/// `src/lib/widget-link.ts` is the only thing it actually needs.
 const WIDGET: &str = "widget";
 
 /// Opens the widget in a window of its own, or focuses the one already open.
@@ -675,8 +635,12 @@ pub async fn widget_close(app: AppHandle, widget: State<'_, Widget>) -> Result<(
 /// Floats the widget above other windows, or stops.
 ///
 /// Separate from `widget_open` because it is a setting the user changes while
-/// the widget is up, and it applies to the widget window rather than to this
-/// one — which is the whole difference from `widget_mode` above.
+/// the widget is up, and it applies to the widget window.
+///
+/// There used to be a `widget_mode` beside this that did the same thing to the
+/// *main* window, from the days when the compact player was this window shrunk
+/// rather than a window of its own. Its only caller was a frontend helper that
+/// nothing called, so it looked reachable while being unreachable twice over.
 #[tauri::command]
 pub async fn widget_on_top(app: AppHandle, on: bool) -> Result<(), String> {
     let window = app

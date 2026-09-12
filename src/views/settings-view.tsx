@@ -2023,7 +2023,7 @@ function About({ onOpenLegal }: { onOpenLegal: () => void }) {
  * default category renders. Left there, opening Settings pulled that whole
  * module in eagerly and the lazy boundary below bought nothing.
  */
-export function SidebarSettings() {
+function SidebarSettings() {
   const { layout, setLayout, reset, ready } = useSidebarLayout();
 
   const native = isNative();

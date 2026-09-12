@@ -11,7 +11,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StaticClock } from '@/components/icons';
+import { ArrowLeft, ArrowRight, StaticClock } from '@/components/icons';
+import { IconButton } from '@/components/icons/icon-button';
 import { store } from '@/lib/store';
 import type { Review, TopEntry } from '@/lib/store/types';
 import { formatNumber } from '@/lib/i18n';
@@ -48,6 +49,14 @@ type RangeId = (typeof RANGES)[number]['id'];
 
 export function StatisticsView() {
   const [rangeId, setRangeId] = useState<RangeId>('4w');
+  /**
+   * Which year the review below is about.
+   *
+   * Separate from the range above, and deliberately: a year in review is a
+   * fixed window, so the two controls answer different questions and sharing
+   * one would make the review a differently-shaped copy of the page.
+   */
+  const [year, setYear] = useState(() => new Date().getFullYear());
   // Stored with the range it was computed for, so "is this stale" is derived
   // rather than written — see `hooks/use-async-value.ts` for the same idea.
   const [state, setState] = useState<{ range: RangeId; review: Review | null }>(
@@ -252,6 +261,16 @@ export function StatisticsView() {
               )}
             </>
           )}
+
+          {/* The year, on its own terms.
+              
+              `YearInReview` was written, complete, and rendered by nothing —
+              which is why there was no way to see a year's listening despite
+              `statsReview` being able to answer for one. It takes a year rather
+              than the range above because a "year in review" is a fixed window
+              by definition: asking it to honour a four-week filter would make
+              it a differently-shaped copy of the page it sits under. */}
+          <YearInReview year={year} onChangeYear={setYear} />
         </div>
       )}
     </ViewShell>
@@ -396,7 +415,14 @@ function formatHours(seconds: number): string {
  * a different top artist from the statistics screen, and both would be right
  * according to their own query.
  */
-export function YearInReview({ year }: { year: number }) {
+function YearInReview({
+  year,
+  onChangeYear,
+}: {
+  year: number;
+  /** Given, the heading carries the years either side of this one. */
+  onChangeYear?: (year: number) => void;
+}) {
   const [review, setReview] = useState<Review | null>(null);
 
   useEffect(() => {
@@ -426,7 +452,30 @@ export function YearInReview({ year }: { year: number }) {
   return (
     <div className="space-y-8">
       <section className="rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 p-8">
-        <p className="text-xs font-medium tracking-wide uppercase">{year}</p>
+        {/* The year, and the way back to the ones before it. Without this the
+            review could only ever be about the year you are standing in, which
+            is the least interesting one until December. */}
+        <div className="flex items-center gap-2">
+          {onChangeYear && (
+            <IconButton
+              label={`Show ${year - 1}`}
+              size="sm"
+              onClick={() => onChangeYear(year - 1)}
+            >
+              <ArrowLeft className="size-4" />
+            </IconButton>
+          )}
+          <p className="text-xs font-medium tracking-wide uppercase">{year}</p>
+          {onChangeYear && year < new Date().getFullYear() && (
+            <IconButton
+              label={`Show ${year + 1}`}
+              size="sm"
+              onClick={() => onChangeYear(year + 1)}
+            >
+              <ArrowRight className="size-4" />
+            </IconButton>
+          )}
+        </div>
         <h2 className="mt-2 font-display text-4xl font-semibold">
           {formatHours(review.summary.seconds)} of music
         </h2>

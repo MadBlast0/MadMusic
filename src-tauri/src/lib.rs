@@ -417,7 +417,6 @@ pub fn run() {
             shell::shell_ready,
             shell::apply_shell_prefs,
             shell::tray_now_playing,
-            shell::widget_mode,
             shell::widget_open,
             shell::widget_close,
             shell::widget_on_top,

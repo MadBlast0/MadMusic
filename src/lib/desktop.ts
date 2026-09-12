@@ -84,25 +84,6 @@ export async function setTrayNowPlaying(
 }
 
 /**
- * Pins the window to the desktop, or takes it back off.
- *
- * Returns false where the platform cannot — `always_on_bottom` is not
- * implemented everywhere — so the caller can say so rather than leaving a
- * switch that appears to do nothing.
- */
-export async function setWidgetMode(on: boolean): Promise<boolean> {
-  if (!isDesktop()) return false;
-  try {
-    const core = await import('@tauri-apps/api/core');
-    await core.invoke('widget_mode', { on });
-    return true;
-  } catch (cause) {
-    console.warn('widget mode is unavailable in this build', cause);
-    return false;
-  }
-}
-
-/**
  * Brings the taskbar thumbnail buttons in line with the player.
  *
  * Windows only, and a no-op elsewhere. Called on every track change and every

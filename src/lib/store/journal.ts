@@ -73,11 +73,6 @@ export async function whileApplying<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Exposed for tests and diagnostics. Never branch on this in a screen. */
-export function isApplying(): boolean {
-  return applying;
-}
-
 /** Enough of a track for a device that has never seen it to draw a row. */
 function trackPayload(track: TrackRow) {
   return {
