@@ -78,9 +78,15 @@ export function QuickPicks({
   if (picks.length === 0) return null;
 
   return (
+    // Named, because it has no heading of its own and never should: the block
+    // is meant to read as a row of shortcuts rather than as a titled section.
+    // A screen reader still needs to be told what it has landed in, and it
+    // gives the one rule about this block - what belongs in it - something to
+    // assert on. See `home-view.tsx`.
+    //
     // The container is the wrapper, not the grid: an element cannot query its
     // own width, so the two have to be separate boxes.
-    <div className="@container/picks">
+    <section aria-label="Quick picks" className="@container/picks">
       <m.div
         variants={{
           hidden: {},
@@ -180,6 +186,6 @@ export function QuickPicks({
           );
         })}
       </m.div>
-    </div>
+    </section>
   );
 }

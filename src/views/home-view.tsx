@@ -185,21 +185,20 @@ export function HomeView({
       });
     }
 
-    for (const album of yourAlbums) {
-      if (out.length === 8) break;
-      out.push({
-        id: `local-album:${album.key}`,
-        title: album.title,
-        cover: ['#3f3f46', '#18181b'],
-        playingFrom: album.tracks.some((t) => t.id === current?.id),
-        onOpen: () =>
-          onOpen({ name: 'local-album', key: album.key, title: album.title }),
-        onPlay: () => {
-          const queue = album.tracks.map(toPlayerTrack);
-          play(queue[0], queue);
-        },
-      });
-    }
+    // Local albums are deliberately not here.
+    //
+    // They used to fill the block after the playlists, and on a library with
+    // one untagged folder that produced a tile called "Music" — the *name of
+    // the folder*, with the flat fallback gradient, sitting among Liked Songs
+    // and the catalogue. It looked like a playlist somebody had made and was
+    // in fact a directory listing.
+    //
+    // This block is the things you *chose*: the two lists everybody has, the
+    // playlists you keep, and what the catalogue is offering. A folder on this
+    // machine is none of those, and it already has two better homes — the
+    // "Your albums" shelf further down this page, which shows the same records
+    // with their real covers, and the library panel, which is what that panel
+    // is for.
 
     // Featured first, then whatever the shelves hold. Featured is four cards
     // on most days, and four is not eight — running out of it was why the
@@ -232,17 +231,7 @@ export function HomeView({
     // `playCollection` and `openCollection` are hoisted declarations in this
     // component and stable for its life, so they are deliberately not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    liked,
-    history,
-    playlists,
-    yourAlbums,
-    feed,
-    canOpen,
-    onOpen,
-    play,
-    current,
-  ]);
+  }, [liked, history, playlists, feed, canOpen, onOpen, play, current]);
 
   function playFrom(tracks: CatalogueTrack[], index: number) {
     const queue = tracks.map(toCatalogueTrack);
