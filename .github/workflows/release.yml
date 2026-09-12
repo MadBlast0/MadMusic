@@ -220,11 +220,57 @@ jobs:
           cargo clippy --all-targets -- -D warnings
           cargo test
 
+      # Everything the *product* needs, as opposed to everything the signing
+      # and notarising needs.
+      #
+      # This block was missing, and its absence was silent by design — which is
+      # what made it worth a comment rather than a one-line fix. Every one of
+      # these keys is optional on purpose: `auth-config.ts` leaves sign-in out
+      # when there is no Clerk key, `convex-client.ts` reports no backend when
+      # there is no URL, and the Rust side reads the rest through `option_env!`
+      # so a build without them compiles and simply does not offer the feature.
+      #
+      # That is the right behaviour for somebody building the project
+      # themselves. It is the wrong behaviour for the official release, and
+      # because each one degrades quietly the result was a shipped binary with
+      # **no sign-in, no cross-device sync, no scrobbling, no Discogs credits,
+      # no AcoustID and no Discord presence** — and nothing anywhere saying so.
+      #
+      # Unset secrets expand to the empty string, so this is safe to have here
+      # before the secrets exist: the build behaves exactly as it does today
+      # until one is added, and starts offering the feature the moment it is.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+          # Read by Vite at build time and compiled into the bundle. Both are
+          # public by design: the publishable key identifies a Clerk instance
+          # and the deployment URL identifies a Convex deployment, and every
+          # function behind the latter checks the caller's token before it does
+          # anything. The Clerk *secret* key belongs on the Convex deployment
+          # and nowhere near this file — `auth-config.ts` throws on boot if one
+          # ever reaches the bundle.
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          # Where the web build lives, so the desktop app can offer to sign in
+          # through the browser. Without it that button is not drawn at all.
+          VITE_WEB_ORIGIN: ${{ secrets.VITE_WEB_ORIGIN }}
+
+          # Read by Rust at compile time, through `option_env!`. Deliberately
+          # not VITE_-prefixed: Last.fm signs authenticated calls with a shared
+          # secret, and anything with that prefix is readable from the
+          # devtools console. In a desktop binary it can still be extracted by
+          # anyone determined — that is true of every desktop scrobbler, and
+          # why Last.fm issues keys per application rather than per user.
+          MADMUSIC_LASTFM_KEY: ${{ secrets.MADMUSIC_LASTFM_KEY }}
+          MADMUSIC_LASTFM_SECRET: ${{ secrets.MADMUSIC_LASTFM_SECRET }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+          ACOUSTID_API_KEY: ${{ secrets.ACOUSTID_API_KEY }}
+          DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
+
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}

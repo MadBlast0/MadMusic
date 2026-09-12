@@ -9,6 +9,53 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
+### Fixed
+
+- The lyrics came back on their own. The words sit *over* the canvas, and which
+  canvas they were opened over was compared rather than cleared — so navigating
+  away hid them and navigating back brought them up again. Opening the lyrics
+  on the library, going Home and clicking Library showed lyrics instead of the
+  library, which reads as the app refusing to navigate.
+- Four controls in the player's overflow menu could not be opened at all.
+  Speed, the sleep timer, the shuffle mode and casting each rendered a dropdown
+  of their own *inside* that menu's content; Radix reads the inner one opening
+  as an interaction outside the outer one, dismisses it, and unmounts the
+  trigger of the menu that was opening. They are branches of the one menu now.
+- Starting a listening session and then closing the menu ended it silently. The
+  panel held the session, the host's publish loop and the follower's heartbeat
+  in its own state, inside menu content that unmounts when the menu closes; it
+  is a dialog beside the bar now, mounted whether or not it is open.
+- The compact player opened two widget windows, one of them an orphan the app
+  no longer tracked — drawn on the desktop with no track in it, passing every
+  click through to the live one behind it. The window's lifetime was three
+  concurrent commands issued by an effect that mounts twice in development. The
+  app now asks for a *state* and reconciles towards it.
+- The equaliser opened with focus left on the button behind it, so the first
+  Escape closed nothing the user could see.
+- The A–B loop was offered twice in the same menu, as a lettered button and as
+  an item saying the same thing.
+- Released builds shipped with sign-in, cross-device sync, scrobbling, Discogs
+  credits, AcoustID and Discord presence all absent. The release workflow
+  passed only the signing secrets to the build, and every one of those features
+  is designed to disappear quietly when its key is missing — so nothing said
+  so. The build-time keys are wired through now, and remain optional.
+
+### Changed
+
+- The player's overflow menu is a menu, rather than a popover with three strips
+  of unlabelled icon buttons wedged between its labels. Each control is a row
+  carrying its own current value — `1.5×`, `28 min`, `Spread artists` — and the
+  ones with options are submenus. This is also the first time the menu can be
+  operated from the keyboard at all: Radix's roving focus only visits menu
+  items, and the icon strips were bare `div`s it stepped straight past.
+- Shuffle's mode list includes `Off`, so it is one list of five answers rather
+  than a row that disappeared whenever shuffle was off.
+- The lyrics button is a caption card rather than a microphone. A mic is what
+  you record with; this shows timed text, and on a podcast it is a transcript
+  rather than lyrics at all.
+- A cast that fails reports itself where the user is looking, instead of inside
+  a menu that has already closed.
+
 ## [0.1.0] - 2026-09-08
 
 The first build anybody else can install. Pre-alpha, and marked as a
