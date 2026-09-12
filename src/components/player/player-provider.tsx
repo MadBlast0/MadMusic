@@ -927,8 +927,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
    * nothing implemented one; the bar's ✕ is it.
    */
   const stop = useCallback(() => {
-    if (engineRef.current) void engine.stop().catch(() => {});
-    else deckRef.current?.suspend(settingsRef.current.playPauseFade);
+    if (engineRef.current) {
+      // Stop, then give the device back. `engine_close` existed from the start
+      // with a comment saying nothing had a reason to call it — but its own
+      // rationale is that an open device stays awake, and on some interfaces
+      // that means a fan. Stop is precisely the moment nothing needs it: the
+      // queue is empty and there is no position to resume from. Pausing
+      // deliberately does not, because the next press has to be instant.
+      void engine
+        .stop()
+        .catch(() => {})
+        .finally(() => void engine.close().catch(() => {}));
+    } else deckRef.current?.suspend(settingsRef.current.playPauseFade);
 
     setPlaying(false);
     setProgress(0);

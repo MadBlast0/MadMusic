@@ -516,8 +516,9 @@ function Capabilities() {
         Optional integrations
       </h2>
       <p className="mb-3 text-sm text-muted-foreground">
-        Each of these needs a key this build was compiled with. Everything else
-        — your library, playback, playlists, lyrics — works without any of them.
+        Some of these need a key this build was compiled with; the rest depend
+        on this machine. Everything else — your library, playback, playlists,
+        lyrics — works without any of them.
       </p>
 
       <ul className="grid gap-2">

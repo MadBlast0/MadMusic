@@ -81,6 +81,16 @@ export const engine = {
   pause: () => call<EngineState>('engine_pause'),
   resume: () => call<EngineState>('engine_resume'),
   stop: () => call<EngineState>('engine_stop'),
+  /**
+   * Gives the output device back.
+   *
+   * Distinct from `stop`, which stops the sound and keeps the device open so
+   * the next track starts instantly. This drops it — and holding a device open
+   * keeps it awake, which on some interfaces means a fan running for a session
+   * that ended an hour ago. So it belongs to *stop*, which is the one action
+   * that says there is nothing more to play, and nowhere else.
+   */
+  close: () => call<void>('engine_close'),
   volume: (level: number) =>
     call<EngineState>('engine_volume', { volume: level }),
   seek: (seconds: number) => call<EngineState>('engine_seek', { seconds }),

@@ -47,6 +47,8 @@ describe('what this build can do', () => {
       'discogs',
       'acoustid',
       'discord',
+      'osMedia',
+      'wakelock',
     ]);
     // Each says what it would add, whether or not it is on — otherwise an
     // absent integration is a name with no reason to care about it.
@@ -83,8 +85,44 @@ describe('what this build can do', () => {
     expect(rows[3].reason).toContain('DISCORD_APP_ID');
   });
 
+  /**
+   * Two probes predate the `Availability` shape and answer in their own terms:
+   * a bare boolean for the OS media controls, and `{ supported, held }` for the
+   * wake lock. A bare `true` carries no sentence, so the list supplies one —
+   * and a platform gate has no variable to name, so it must not be told to set
+   * one.
+   */
+  it('reads the two probes that answer in their own shape', async () => {
+    tryInvoke.mockImplementation((command) => {
+      if (command === 'now_playing_available') return Promise.resolve(true);
+      if (command === 'wakelock_state')
+        return Promise.resolve({ supported: false, held: false });
+      return Promise.resolve({ available: false, reason: '' });
+    });
+
+    const rows = await load();
+    const media = rows.find((row) => row.id === 'osMedia');
+    const wake = rows.find((row) => row.id === 'wakelock');
+
+    expect(media?.available).toBe(true);
+    expect(media?.reason).toBe('');
+    expect(media?.gate).toBe('platform');
+
+    expect(wake?.available).toBe(false);
+    expect(wake?.reason).toContain('platform');
+    // No variable to set, so it must not claim there is one.
+    expect(wake?.reason).not.toContain('rebuild');
+  });
+
   it('carries no reason for one that is on', async () => {
-    answer(true, '');
+    // Each probe in the shape it actually answers in — the two platform ones
+    // predate `Availability` and have their own.
+    tryInvoke.mockImplementation((command) => {
+      if (command === 'now_playing_available') return Promise.resolve(true);
+      if (command === 'wakelock_state')
+        return Promise.resolve({ supported: true, held: false });
+      return Promise.resolve({ available: true, reason: '' });
+    });
 
     const rows = await load();
 
@@ -104,7 +142,7 @@ describe('what this build can do', () => {
 
     const rows = await load();
 
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(6);
     expect(rows.every((row) => !row.available)).toBe(true);
     expect(rows.every((row) => row.reason.includes('desktop app'))).toBe(true);
     // And nothing is asked of a bridge that is not there.

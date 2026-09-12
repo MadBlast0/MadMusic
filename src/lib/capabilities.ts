@@ -33,9 +33,17 @@
 
 import { isNative, tryInvoke } from '@/lib/native';
 
-/** One optional integration, and whether this build has what it needs. */
+/** What decides whether something is available. */
+export type Gate =
+  /** A key this build was compiled with. */
+  | 'key'
+  /** This platform, or this machine. Nothing the user can set. */
+  | 'platform';
+
+/** One optional capability, and whether this build has what it needs. */
 export type Capability = {
   id: string;
+  gate: Gate;
   /** What it is, in the user's terms rather than the vendor's. */
   label: string;
   /** What it adds when it is on. Shown whether or not it is. */
@@ -57,13 +65,26 @@ type Availability = { available: boolean; reason: string };
  */
 const CAPABILITIES: {
   id: string;
+  gate: Gate;
   label: string;
   adds: string;
   probe: string;
+  /** The variable that switches it on. Empty for a platform gate. */
   key: string;
+  /**
+   * Reads a probe that does not return `{ available, reason }`.
+   *
+   * Two of these predate the `Availability` shape and answer in their own
+   * terms — a bare boolean, and a `{ supported, held }` record. Adapting them
+   * here rather than changing the commands keeps the change to the screen that
+   * was missing, and a bare `true` carries no sentence to show, so this
+   * supplies one.
+   */
+  read?: (answer: unknown) => Availability;
 }[] = [
   {
     id: 'lastfm',
+    gate: 'key',
     label: 'Last.fm recommendations',
     adds: 'Similar artists, charts and an artist’s top tracks.',
     probe: 'lastfm_api_available',
@@ -71,6 +92,7 @@ const CAPABILITIES: {
   },
   {
     id: 'discogs',
+    gate: 'key',
     label: 'Discogs credits',
     adds: 'Engineers, producers and pressing details MusicBrainz has no record of.',
     probe: 'discogs_available',
@@ -78,6 +100,7 @@ const CAPABILITIES: {
   },
   {
     id: 'acoustid',
+    gate: 'key',
     label: 'Audio recognition',
     adds: 'Identifies untagged files from the audio itself.',
     probe: 'acoustid_available',
@@ -85,10 +108,42 @@ const CAPABILITIES: {
   },
   {
     id: 'discord',
+    gate: 'key',
     label: 'Discord presence',
     adds: 'Shows what you are playing on your Discord profile.',
     probe: 'discord_available',
     key: 'DISCORD_APP_ID',
+  },
+  {
+    id: 'osMedia',
+    gate: 'platform',
+    label: 'System media controls',
+    adds: 'Play, pause and skip from the keyboard’s media keys and the OS overlay.',
+    probe: 'now_playing_available',
+    key: '',
+    read: (answer) => ({
+      available: answer === true,
+      reason:
+        answer === true
+          ? ''
+          : 'This desktop does not expose media controls to applications.',
+    }),
+  },
+  {
+    id: 'wakelock',
+    gate: 'platform',
+    label: 'Keeping the screen awake',
+    adds: 'Stops the display sleeping while something is playing.',
+    probe: 'wakelock_state',
+    key: '',
+    read: (answer) => {
+      const state = answer as { supported?: boolean } | null;
+      return {
+        available: state?.supported === true,
+        reason:
+          state?.supported === true ? '' : 'Not available on this platform.',
+      };
+    },
   },
 ];
 
@@ -105,27 +160,34 @@ export async function capabilities(): Promise<Capability[]> {
 
   return Promise.all(
     CAPABILITIES.map(async (entry) => {
-      const answer = browser
-        ? {
-            available: false,
-            reason: 'This needs the desktop app.',
-          }
-        : await tryInvoke<Availability>(entry.probe, undefined, {
-            available: false,
-            reason: '',
-          });
+      let answer: Availability;
+      if (browser) {
+        answer = { available: false, reason: 'This needs the desktop app.' };
+      } else if (entry.read) {
+        answer = entry.read(await tryInvoke(entry.probe, undefined, null));
+      } else {
+        answer = await tryInvoke<Availability>(entry.probe, undefined, {
+          available: false,
+          reason: '',
+        });
+      }
 
       return {
         id: entry.id,
+        gate: entry.gate,
         label: entry.label,
         adds: entry.adds,
         available: answer.available === true,
         // Rust's sentence where there is one, and a pointer at the variable
         // where there is not — a probe that answers `false` with no reason is
-        // a probe that has told us nothing the reader can act on.
+        // a probe that has told us nothing the reader can act on. A platform
+        // gate has no variable to name, so it keeps whatever it said.
         reason: answer.available
           ? ''
-          : answer.reason || `Set ${entry.key} and rebuild to switch this on.`,
+          : answer.reason ||
+            (entry.key
+              ? `Set ${entry.key} and rebuild to switch this on.`
+              : 'Not available here.'),
       };
     }),
   );
