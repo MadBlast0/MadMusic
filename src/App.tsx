@@ -166,7 +166,7 @@ const Onboarding = lazy(() =>
 import { migrateLegacyStorage, describeMigration } from '@/lib/store/migrate';
 import { needsOnboarding } from '@/lib/profiles';
 import { onShellEvent, signalReady } from '@/lib/desktop';
-import { EVENTS } from '@/lib/native';
+import { EVENTS, tryInvoke } from '@/lib/native';
 import { parseShareLink } from '@/lib/share-link';
 import { openPaths } from '@/lib/open-files';
 import { toPlayerTrack } from '@/lib/player-track';
@@ -505,6 +505,23 @@ function App() {
   /** The first run, for somebody with no library and no history. */
   useEffect(() => {
     void needsOnboarding().then(setOnboarding);
+  }, []);
+
+  /**
+   * Keeps the cover-thumbnail cache inside its size limit.
+   *
+   * Once per launch, after everything else: the cache is bounded by this and by
+   * nothing else, so without it the directory grows for the life of the install
+   * — 128 MB is about twenty thousand covers, and the sweep drops the
+   * least-recently-used past that. `artwork.rs` has always said the limit is
+   * "bounded by `sweep` rather than by hope"; nothing had ever called it.
+   *
+   * Deliberately not awaited and deliberately last. It reads a directory and
+   * may delete from it, which is worth nothing to the user in this moment and
+   * must not sit in front of anything that is.
+   */
+  useEffect(() => {
+    void tryInvoke('artwork_sweep', undefined, 0);
   }, []);
 
   /**

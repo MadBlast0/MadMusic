@@ -9,6 +9,7 @@ import {
 import { useSettings } from '@/components/common/settings-context';
 import * as offline from '@/lib/offline';
 import { isDesktop } from '@/lib/desktop';
+import { tryInvoke } from '@/lib/native';
 
 /**
  * Owns what is on disk.
@@ -134,6 +135,11 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const clearCache = useCallback(async () => {
     await offline.clearCache();
+    // The thumbnail cache goes with it. It is a derived copy of artwork that is
+    // still in the files, so "clear the cache" plainly includes it — and a
+    // maintenance control that leaves a hundred megabytes behind is one people
+    // stop believing. Regenerated on demand, so there is nothing to lose.
+    await tryInvoke('artwork_clear', undefined, null);
     await refresh();
     toast.success('Cleared the cache. Downloads were kept.');
   }, [refresh]);

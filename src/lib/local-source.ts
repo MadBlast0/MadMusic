@@ -194,9 +194,43 @@ function nativeSource(): LocalSource {
       }
     },
 
+    /**
+     * A cover, as a URL the webview can load.
+     *
+     * # Two paths, and why the first one matters
+     *
+     * `artwork_thumbnail` decodes the embedded picture once, writes a 320px
+     * JPEG to the cache, and returns **its file path** — which the webview
+     * loads through the asset protocol, so the image never crosses the bridge.
+     * `track_artwork` returns the picture as a base64 data URL instead, and
+     * embedded art is routinely a 1500×1500 JPEG: two megabytes of string per
+     * cover, held in memory for as long as the grid is mounted, to draw a
+     * 180-pixel square.
+     *
+     * The whole of `artwork.rs` exists to avoid that, and nothing called it.
+     * The cache, the size cap, the sweep and the modification-time cache key
+     * were all written, tested and shipped, and every cover in the app came
+     * through the slow path — because the asset protocol's scope was empty, so
+     * the path it handed back was not a path the webview was allowed to read.
+     *
+     * The data URL stays as the fallback rather than being deleted. A file
+     * whose picture `image` cannot decode still has a picture `lofty` can
+     * hand over, and one cover the slow way beats a gradient.
+     */
     async artwork(track) {
       if (!track.hasArtwork) return null;
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke, convertFileSrc } = await import('@tauri-apps/api/core');
+
+      try {
+        const file = await invoke<string>('artwork_thumbnail', {
+          path: track.path,
+        });
+        if (file) return convertFileSrc(file);
+      } catch {
+        // Falls through: no artwork, an image format `image` will not decode,
+        // or a cache directory that cannot be written.
+      }
+
       return await invoke<string | null>('track_artwork', { path: track.path });
     },
 

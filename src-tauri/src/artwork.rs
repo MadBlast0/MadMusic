@@ -42,6 +42,23 @@ pub const THUMB_SIZE: u32 = 320;
 pub const CACHE_LIMIT: u64 = 128 * 1024 * 1024;
 
 /// Where thumbnails live.
+///
+/// # This directory is the asset protocol's whole scope
+///
+/// The commands here return a *path* rather than bytes, so the webview loads
+/// the picture through `asset:` and it never crosses the bridge as base64. That
+/// only works if the path is one the webview is allowed to read, and
+/// `assetProtocol.scope` in `tauri.conf.json` is the gate — it was an empty
+/// list, which denies every path, which is why none of this was ever wired up.
+///
+/// The scope is `$APPCACHE/artwork/*`: this directory and nothing else. The
+/// music library is deliberately not in it. Files are played through the
+/// `stream:` protocol, which is scoped at runtime to the folder the user
+/// actually granted, and widening `asset:` to reach their music would hand
+/// every page the webview loads the ability to read all of it.
+///
+/// So if this path ever moves, the scope moves with it or every cover silently
+/// falls back to the slow base64 route.
 fn cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
