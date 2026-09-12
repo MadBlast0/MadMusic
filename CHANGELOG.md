@@ -67,6 +67,22 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ### Changed
 
+- Optional integrations now say whether they are on, and why not when they are
+  off. Rust had been returning a sentence for each absence all along — "This
+  build has no Discogs token, so credits come from MusicBrainz alone" — from
+  commands that were registered and never once called, so the features vanished
+  silently with nothing anywhere explaining it. There is a row per integration
+  on the diagnostics screen, and where a probe gives no reason the row names the
+  variable that switches it on.
+- The catalogue half of Home answers to the listener: blocked artists are gone
+  from it, and artists you actually play come first. Within a shelf only — the
+  shelves are charts and editorial, and nothing is dropped for being
+  unfamiliar.
+- Four Tauri commands nothing called are no longer registered. Two were the
+  internal halves of `acoustid_identify`; one was a second copy of the LRC
+  grammar shipped in the binary, now kept under `cfg(test)` as the oracle for a
+  round-trip check; one had no caller but its own tests. The crate also has no
+  `#[allow(dead_code)]` left in it.
 - The full-screen player's lyrics pane can be put away, from a control in a new
   top-left cluster, and says "No lyrics for this track" rather than opening
   empty. Closing it grows the artwork into the space. The visualiser picker
