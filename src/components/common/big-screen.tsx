@@ -154,8 +154,15 @@ export function BigScreen({ onClose }: { onClose: () => void }) {
       <header className="flex shrink-0 items-center gap-6 px-12 pt-10 pb-6">
         {player.current ? (
           <>
+            {/* `src` as well as `track`: this is the one surface that was
+                only ever given the *embedded* art, so a catalogue track showed
+                the gradient here however good a thumbnail we were holding —
+                on the largest screen the app has, which is the screen where a
+                missing cover is least forgivable. Every other player surface
+                passes both. */}
             <CoverArt
               track={player.current.local ?? null}
+              src={player.current.artworkUrl}
               seed={player.current.artist + player.current.title}
               rounded="rounded-2xl"
               className="size-28 shrink-0"

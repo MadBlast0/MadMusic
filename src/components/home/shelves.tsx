@@ -42,22 +42,69 @@ export function Art({
   /** Overlaid on top of the art — the hover play button. */
   children?: React.ReactNode;
 }) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /**
+   * Which url has been shown, and which has failed.
+   *
+   * Urls rather than booleans, and that is the whole of the fix.
+   *
+   * These are two flags on a component that is **reused**: a rail re-renders
+   * with a different feed, a card keeps its place in the tree, and only `src`
+   * changes. With booleans, whatever the previous picture did decided what the
+   * next one was allowed to do — a card that had once failed stayed empty for
+   * every later cover that landed on it, and a card that had loaded showed its
+   * successor at full opacity before it had arrived. Comparing against the url
+   * makes both answers belong to the picture they were about.
+   *
+   * `cover-art.tsx` already does this for the same reason; this component is
+   * where the catalogue rails get their covers and it was never given the
+   * same treatment.
+   */
+  const [shown, setShown] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const loaded = src !== undefined && shown === src;
+
+  /**
+   * Catches a picture that arrived before React was listening.
+   *
+   * `onLoad` is a subscription, and a cached image can be complete by the time
+   * anything subscribes — so the event that would have revealed it has already
+   * been and gone, and the image sits at `opacity-0` over its gradient
+   * *having successfully loaded*. That failure is invisible in the network
+   * panel, it only affects pictures the browser already had, and it therefore
+   * looks for all the world like a caching bug.
+   *
+   * A ref callback runs on the commit that attaches the element, which is the
+   * earliest point this can be asked, and `naturalWidth` distinguishes a
+   * decoded picture from a broken one — `complete` alone is true for both.
+   */
+  const settle = useCallback(
+    (node: HTMLImageElement | null) => {
+      if (!src || !node?.complete) return;
+      // `src`, not `node.src`: the DOM resolves its attribute against the
+      // document, so reading it back gives an absolute url that would never
+      // match the prop these two are compared against. The state has to be
+      // keyed on the same value the comparison uses.
+      if (node.naturalWidth > 0) setShown(src);
+      else setFailed(src);
+    },
+    [src],
+  );
 
   return (
     <span
       className={cn('relative block overflow-hidden', className)}
       style={{ backgroundImage: gradient(seedCover) }}
     >
-      {src && !failed && (
+      {src && src !== failed && (
         <img
+          ref={settle}
           src={src}
           alt={alt}
           loading="lazy"
           decoding="async"
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onLoad={() => setShown(src)}
+          onError={() => setFailed(src)}
           className={cn(
             'absolute inset-0 size-full object-cover transition-opacity duration-base',
             loaded ? 'opacity-100' : 'opacity-0',
