@@ -18,6 +18,7 @@ export function toPlayerTrack(track: LocalTrack): PlayerTrack {
     id: track.id,
     title: track.title,
     artist: trackArtist(track),
+    album: track.album || undefined,
     cover: fallbackCover(track.album ?? track.title),
     duration: track.duration,
     local: track,
@@ -36,6 +37,7 @@ export function toCatalogueTrack(track: CatalogueTrack): PlayerTrack {
     id: track.id,
     title: track.title,
     artist: track.artist,
+    album: track.album || undefined,
     cover: track.cover,
     artworkUrl: track.artworkUrl,
     duration: track.duration,
@@ -94,6 +96,7 @@ export function toPlayerTrackRow(row: TrackRow): PlayerTrack {
     id: row.id,
     title: row.title,
     artist: row.artist || row.albumArtist,
+    album: row.album || undefined,
     cover: fallbackCover(row.album || row.title),
     artworkUrl: coverUrlOf(row),
     duration: row.duration,
@@ -172,7 +175,9 @@ export function fadeCandidate(track: PlayerTrack | null): FadeCandidate {
 export function toTrackRowFromPlayer(track: PlayerTrack): TrackRow {
   const local = track.local;
   const albumArtist = local?.albumArtist ?? local?.artist ?? track.artist;
-  const album = local?.album ?? '';
+  // The catalogue's album too, which this used to drop: a song saved into a
+  // playlist from search then had no album anywhere it was listed.
+  const album = local?.album ?? track.album ?? '';
 
   return {
     ...EMPTY_TRACK,
@@ -182,7 +187,10 @@ export function toTrackRowFromPlayer(track: PlayerTrack): TrackRow {
     artist: track.artist,
     albumArtist,
     album,
-    albumKey: album ? albumKey(albumArtist, album) : '',
+    // Only a file gets an album key, as before. Home's Recently added folds
+    // rows sharing a key into one album card, and two songs saved from search
+    // would otherwise become a card for a record the library does not have.
+    albumKey: local && album ? albumKey(albumArtist, album) : '',
     trackNo: local?.trackNo ?? 0,
     discNo: local?.discNo ?? 0,
     year: local?.year ?? 0,

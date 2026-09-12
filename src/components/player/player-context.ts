@@ -35,6 +35,14 @@ export type PlayerTrack = {
   id: string;
   title: string;
   artist: string;
+  /**
+   * The album, where the source knows one.
+   *
+   * Carried because every copy of a track is taken from this shape — a like, a
+   * history entry, a playlist entry — and a field missing here is missing from
+   * all of them. Without it Liked Songs drew an Album column of dashes.
+   */
+  album?: string;
   cover: [string, string];
   /** Seconds. 0 until the audio element reports real metadata. */
   duration: number;

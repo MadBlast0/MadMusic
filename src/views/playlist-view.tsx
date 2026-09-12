@@ -9,6 +9,7 @@ import {
 import { PlaylistMenuItems } from '@/components/library/playlist-menu';
 import { CONTEXT_KIT, DROPDOWN_KIT } from '@/components/library/menu-kit';
 import { usePlaylistActions } from '@/hooks/use-playlist-actions';
+import { useWithAlbums } from '@/hooks/use-with-albums';
 import { PlaylistEditDialog } from '@/components/library/playlist-edit-dialog';
 import { useSaved } from '@/components/common/saved-context';
 import { Download, More, Play, Search, Shuffle } from '@/components/icons';
@@ -92,7 +93,9 @@ function PlaylistPage({
   const [view, setView] = useState<PlaylistView>('list');
 
   const { query: filter, setQuery: setFilter } = useFilterBox();
-  const tracks = playlist.tracks;
+  // Albums filled in from the library for entries saved before they carried
+  // one, so the Album column is not a column of dashes.
+  const tracks = useWithAlbums(playlist.tracks);
   // Filtering narrows what is shown without touching the playlist itself, so
   // reordering while a filter is on still addresses the real list.
   const visibleTracks = useFiltered(tracks, filter);

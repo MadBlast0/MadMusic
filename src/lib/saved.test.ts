@@ -5,6 +5,7 @@ import {
   EMPTY_SAVED,
   HISTORY_LIMIT,
   addToPlaylist,
+  fromSaved,
   newPlaylist,
   nextPlaylistName,
   removeFromPlaylist,
@@ -55,6 +56,25 @@ describe('toSaved', () => {
    */
   it('refuses a track with no catalogue handle', () => {
     expect(toSaved(track('a', { handle: undefined }), 0)).toBeNull();
+  });
+
+  /**
+   * Every like, history entry and playlist entry is one of these copies, so an
+   * album dropped here is an Album column of dashes on every one of those pages.
+   */
+  it('keeps the album, and gives it back to the player', () => {
+    const entry = toSaved(track('a', { album: 'Spiderland' }), 0);
+
+    expect(entry?.album).toBe('Spiderland');
+    expect(fromSaved(entry as SavedTrack).album).toBe('Spiderland');
+  });
+
+  /** Stored entries from before the field existed must still parse. */
+  it('reads an entry saved without an album', () => {
+    const state = parseSaved({ liked: [saved('old')] });
+
+    expect(state.liked).toHaveLength(1);
+    expect(state.liked[0].album).toBeUndefined();
   });
 });
 

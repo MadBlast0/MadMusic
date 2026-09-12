@@ -51,6 +51,7 @@ function slim(track: PlayerTrack): PlayerTrack {
     id: track.id,
     title: track.title,
     artist: track.artist,
+    album: track.album,
     cover: track.cover,
     duration: track.duration,
     artworkUrl: track.artworkUrl,

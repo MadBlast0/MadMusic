@@ -71,10 +71,14 @@ function addedOn(at: number): string {
  *
  * # The columns
  *
- * Index, title, date added, saved, length, and a menu — the shape every desktop
- * music player has converged on. There is no album column, which is the one
- * departure: a playlist entry does not store the album it came from, and a
- * column that is empty for every row is worse than no column.
+ * Index, title, album, date added, saved, length, and a menu — the shape every
+ * desktop music player has converged on. The album column used to be missing
+ * because an entry did not store the album it came from; entries carry it now,
+ * and older ones are filled in from the library by the page.
+ *
+ * On a narrower window the album goes first and the date second, leaving the
+ * title the room it needs: those two are the columns a reader can most easily
+ * do without.
  */
 export function PlaylistTrackList({
   tracks,
@@ -121,7 +125,7 @@ export function PlaylistTrackList({
   // the template, so the grid falls to five tracks and five children on its
   // own.
   const columns =
-    'grid items-center gap-3 grid-cols-[2rem_minmax(0,1fr)_2rem_3rem_2rem] md:grid-cols-[2rem_minmax(0,1fr)_9rem_2rem_3rem_2rem]';
+    'grid items-center gap-3 grid-cols-[2rem_minmax(0,1fr)_2rem_3rem_2rem] md:grid-cols-[2rem_minmax(0,1fr)_9rem_2rem_3rem_2rem] lg:grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_9rem_2rem_3rem_2rem]';
 
   return (
     <div className="flex flex-col">
@@ -133,6 +137,7 @@ export function PlaylistTrackList({
       >
         <span className="text-center">#</span>
         <span>Title</span>
+        <span className="hidden lg:block">Album</span>
         <span className="hidden md:block">Date added</span>
         {/* The saved column's header is deliberately blank: a heart above a
             column of hearts explains nothing that the hearts do not. */}
@@ -295,6 +300,10 @@ export function PlaylistTrackList({
                         </span>
                       </span>
 
+                      <span className="hidden truncate text-sm text-muted-foreground lg:block">
+                        {track.album || '—'}
+                      </span>
+
                       <span className="hidden truncate text-xs text-muted-foreground tabular-nums md:block">
                         {addedOn(track.at)}
                       </span>
@@ -323,6 +332,7 @@ export function PlaylistTrackList({
                     >
                       <span aria-hidden="true" />
                       <span aria-hidden="true" />
+                      <span aria-hidden="true" className="hidden lg:block" />
                       <span aria-hidden="true" className="hidden md:block" />
 
                       <button

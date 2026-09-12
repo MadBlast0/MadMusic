@@ -10,6 +10,8 @@ import { usePlayer } from '@/components/player/player-context';
 import { Button } from '@/components/ui/button';
 import type { CatalogueTrack } from '@/lib/catalogue';
 import { fromSaved, type SavedTrack } from '@/lib/saved';
+import { useWithAlbums } from '@/hooks/use-with-albums';
+import { formatTotal } from '@/lib/library-model';
 import { ViewShell, ViewTitle } from '@/views/view-shell';
 
 /** Saved tracks already hold everything a catalogue row needs to render. */
@@ -18,6 +20,7 @@ function asCatalogueTracks(tracks: SavedTrack[]): CatalogueTrack[] {
     id: track.id,
     title: track.title,
     artist: track.artist,
+    album: track.album,
     cover: track.cover,
     artworkUrl: track.artworkUrl,
     duration: track.duration,
@@ -37,7 +40,8 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
   const { settings } = useSettings();
   const { play } = usePlayer();
 
-  const tracks = kind === 'liked' ? liked : history;
+  const tracks = useWithAlbums(kind === 'liked' ? liked : history);
+  const runtime = tracks.reduce((total, track) => total + track.duration, 0);
   const queue = useMemo(() => tracks.map(fromSaved), [tracks]);
   const all = useMemo(() => asCatalogueTracks(tracks), [tracks]);
 
@@ -85,7 +89,12 @@ export function SavedView({ kind }: { kind: 'liked' | 'history' }) {
           subtitle={
             tracks.length === 0
               ? undefined
-              : `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'}`
+              : [
+                  `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'}`,
+                  formatTotal(runtime),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
           }
           action={
             <div className="flex items-center gap-2">

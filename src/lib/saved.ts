@@ -17,6 +17,8 @@ export type SavedTrack = {
   id: string;
   title: string;
   artist: string;
+  /** Absent on entries saved before the album travelled with the track. */
+  album?: string;
   cover: [string, string];
   artworkUrl?: string;
   duration: number;
@@ -165,6 +167,7 @@ export function toSaved(track: PlayerTrack, at: number): SavedTrack | null {
     id: track.id,
     title: track.title,
     artist: track.artist,
+    ...(track.album ? { album: track.album } : {}),
     cover: track.cover,
     artworkUrl: track.artworkUrl,
     duration: track.duration,
@@ -286,6 +289,7 @@ export function fromSaved(track: SavedTrack): PlayerTrack {
     id: track.id,
     title: track.title,
     artist: track.artist,
+    album: track.album,
     cover: track.cover,
     artworkUrl: track.artworkUrl,
     duration: track.duration,

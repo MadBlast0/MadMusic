@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { coverUrlOf, videoThumbnail } from '@/lib/player-track';
+import {
+  coverUrlOf,
+  toCatalogueTrack,
+  toPlayerTrack,
+  toPlayerTrackRow,
+  toTrackRowFromPlayer,
+  videoThumbnail,
+} from '@/lib/player-track';
 
 import {
   albumKey,
@@ -161,5 +168,64 @@ describe('coverUrlOf', () => {
   /** Local art is embedded, and only `CoverArt` can reach it. */
   it('has nothing for a local file', () => {
     expect(coverUrlOf({ kind: 'local', handle: '', artworkUrl: '' })).toBe('');
+  });
+});
+
+/**
+ * The album, on the way into the player.
+ *
+ * The player's track is what every saved copy is taken from, so all three ways
+ * in have to carry it.
+ */
+describe('the album on a player track', () => {
+  it('comes from a scanned file', () => {
+    expect(toPlayerTrack(scanned()).album).toBe('Spiderland');
+  });
+
+  it('comes from a library row', () => {
+    expect(toPlayerTrackRow(toTrackRow(scanned())).album).toBe('Spiderland');
+  });
+
+  it('comes from a catalogue result', () => {
+    expect(
+      toCatalogueTrack({
+        id: 'c',
+        title: 'Nosferatu Man',
+        artist: 'Slint',
+        album: 'Spiderland',
+        duration: 334,
+        cover: ['#000', '#fff'],
+      }).album,
+    ).toBe('Spiderland');
+  });
+
+  /** An empty tag is no album, not an album called "". */
+  it('is absent rather than empty when unknown', () => {
+    expect(toPlayerTrack(scanned({ album: null })).album).toBeUndefined();
+  });
+});
+
+describe('a player track back into a library row', () => {
+  /** A song saved from search keeps the album it was found on. */
+  it('keeps a catalogue album', () => {
+    const row = toTrackRowFromPlayer({
+      id: 'c',
+      title: 'Nosferatu Man',
+      artist: 'Slint',
+      album: 'Spiderland',
+      duration: 334,
+      cover: ['#000', '#fff'],
+      handle: 'abc',
+    });
+
+    expect(row.album).toBe('Spiderland');
+    // Not filed as an album on disk: that key groups the Music folder's shelf.
+    expect(row.albumKey).toBe('');
+  });
+
+  it('still keys a file by its album', () => {
+    expect(toTrackRowFromPlayer(toPlayerTrack(scanned())).albumKey).not.toBe(
+      '',
+    );
   });
 });
