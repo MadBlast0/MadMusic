@@ -19,7 +19,7 @@ const SIZE = 1080;
 /** Space around the text, as a fraction of the canvas. */
 const MARGIN = 0.1;
 
-export type LyricImage = {
+type LyricImage = {
   /** The image as a PNG data URL. */
   dataUrl: string;
   width: number;

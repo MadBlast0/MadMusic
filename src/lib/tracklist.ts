@@ -38,7 +38,7 @@
  * numbers is still wrong, just harder to notice.
  */
 
-export type Marker = {
+type Marker = {
   /** Seconds from the start. */
   start: number;
   /** What to show. The rest of the line, tidied. */

@@ -81,7 +81,7 @@ const FADE_STEP_MS = 16;
  */
 const MIN_AUDIBLE_FADE = 0.03;
 
-export type DeckSide = 0 | 1;
+type DeckSide = 0 | 1;
 
 export class AudioDeck {
   private readonly elements: [HTMLAudioElement, HTMLAudioElement];

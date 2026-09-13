@@ -32,7 +32,7 @@
 import { store } from '@/lib/store';
 import { keys } from '@/lib/store/keys';
 
-export type Mark = 'paint' | 'interactive' | 'library';
+type Mark = 'paint' | 'interactive' | 'library';
 
 /** What one launch measured. Milliseconds from navigation start. */
 export type Startup = {

@@ -27,7 +27,7 @@ import { tryInvoke } from '@/lib/native';
 /** The user's answer. Unset is not consent. */
 export type TelemetryChoice = 'unset' | 'on' | 'off';
 
-export type TelemetrySettings = {
+type TelemetrySettings = {
   choice: TelemetryChoice;
   /** When they were asked, so they are not asked twice in a week. */
   askedAt: number;
@@ -60,7 +60,7 @@ export async function saveTelemetry(
 }
 
 /** One thing that went wrong. */
-export type CrashReport = {
+type CrashReport = {
   /** The error's own message, with anything path-shaped removed. */
   message: string;
   /** Where it happened, as a stack with paths reduced to file names. */
@@ -251,7 +251,7 @@ export function watchForCrashes(route: () => string): () => void {
 /* ── feedback ────────────────────────────────────────────────────────────── */
 
 /** What the feedback form produces. */
-export type Feedback = {
+type Feedback = {
   kind: 'bug' | 'idea' | 'other';
   body: string;
   /** Whether to attach the diagnostics report. Off by default. */

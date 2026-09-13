@@ -35,7 +35,7 @@ export type SidebarItemId =
   | 'uploads'
   | 'settings';
 
-export type SidebarItem = {
+type SidebarItem = {
   id: SidebarItemId;
   label: string;
   /** Whether it can be hidden. Home and search cannot — see below. */

@@ -48,7 +48,7 @@ type BlendTrack = {
   plays: number;
 };
 
-export type BlendEntry = {
+type BlendEntry = {
   track: BlendTrack;
   /** Why it is here, which the screen shows against each row. */
   reason: 'both' | 'theirs' | 'yours';

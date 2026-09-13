@@ -68,7 +68,7 @@ function describe(violation: Result): string {
  * and so a test can allow a known, documented exception without turning the
  * whole check off.
  */
-export async function audit(element: HTMLElement): Promise<string[]> {
+async function audit(element: HTMLElement): Promise<string[]> {
   const results = await axe.run(element, OPTIONS);
   return results.violations.map(describe);
 }

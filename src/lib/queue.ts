@@ -393,7 +393,7 @@ function byAlbum(
  * else — the moment it carries denormalised metadata it has to be invalidated
  * when a track is retagged.
  */
-export type TrackLookup = {
+type TrackLookup = {
   artist: (trackId: string) => string;
   album: (trackId: string) => string;
 };

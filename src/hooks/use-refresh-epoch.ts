@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
  * late night, morning, afternoon, evening — so Home rebuilds at exactly the
  * moments its own titles would change.
  */
-export const PART_BOUNDARIES = [5, 12, 18] as const;
+const PART_BOUNDARIES = [5, 12, 18] as const;
 
 /** Which part of the day an hour falls in: 0 late night … 3 evening. */
 export function partOfDay(hour: number): number {

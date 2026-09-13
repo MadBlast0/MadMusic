@@ -141,7 +141,6 @@ src/                   frontend (React) — imported as @/*
 src-tauri/             the Rust shell — commands, the SQLite index, audio, OS integration
 convex/                the account backend: auth tickets, devices, sync, uploads
 scripts/               sidecar fetching, attribution generation, packaging
-design/                design canvases for the interface
 docs/                  planning and engineering notes
 .github/               workflows, issue and PR templates, ownership
 ```

@@ -40,7 +40,7 @@ export type WidgetTransport = {
 };
 
 /** What a widget shows before any state has arrived, and in a test. */
-export const SILENT: WidgetTransport = {
+const SILENT: WidgetTransport = {
   track: null,
   playing: false,
   shuffle: false,

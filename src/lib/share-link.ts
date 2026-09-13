@@ -13,7 +13,7 @@
  * clicking it.
  */
 
-export type ShareTarget =
+type ShareTarget =
   | { kind: 'track'; id: string; title?: string; artist?: string }
   | { kind: 'album'; id: string; title?: string }
   | { kind: 'artist'; id: string; title?: string }

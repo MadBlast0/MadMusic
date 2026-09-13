@@ -33,7 +33,7 @@ import {
  */
 
 /** What any of the outside channels can ask for. */
-export type OutsideAction =
+type OutsideAction =
   | 'play'
   | 'pause'
   | 'play-pause'

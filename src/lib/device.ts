@@ -87,7 +87,7 @@ export function deviceName(): string {
   return isNative() ? 'This computer' : 'Browser';
 }
 
-export type DeviceKind = 'desktop' | 'web' | 'mobile';
+type DeviceKind = 'desktop' | 'web' | 'mobile';
 
 /**
  * Which sort of device this is.

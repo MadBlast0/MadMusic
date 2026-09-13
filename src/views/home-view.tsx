@@ -39,10 +39,9 @@ import { ViewShell } from '@/views/view-shell';
  * The front door.
  *
  * Built on the catalogue rather than the local folder, because that is what
- * MadMusic is: `docs/kickoff-questions.md` Q9 settles it as "a streaming player
- * over a free, mainstream catalogue", and marks the library-scanning questions
- * superseded on the grounds that there is no local library to scan. The folder
- * feature still exists and still works — it is simply not what Home is for.
+ * MadMusic is: a streaming player over a free, mainstream catalogue — see
+ * `docs/roadmap.md`. The folder feature exists and works; it is simply not what
+ * Home is for.
  *
  * So this screen never asks the user to choose a folder before it will show
  * them anything. It shows the catalogue, and folds their own library in

@@ -30,7 +30,7 @@ import { useAppearance } from '@/components/common/appearance-context';
 /** How far the pointer may travel before a hold becomes a drag, in pixels. */
 const SLOP = 10;
 
-export type LongPressHandlers = {
+type LongPressHandlers = {
   onPointerDown: (event: React.PointerEvent) => void;
   onPointerMove: (event: React.PointerEvent) => void;
   onPointerUp: () => void;

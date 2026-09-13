@@ -12,7 +12,7 @@ export type Downloadable = {
 };
 
 /** Where one track stands, for a button to draw. */
-export type DownloadStatus = 'none' | 'downloading' | 'downloaded' | 'failed';
+type DownloadStatus = 'none' | 'downloading' | 'downloaded' | 'failed';
 
 /**
  * One download action, identical wherever it is offered.

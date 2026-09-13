@@ -5,7 +5,6 @@ pnpm-lock.yaml
 CHANGELOG.md
 src-tauri/target
 src-tauri/gen
-design
 
 # Runtime cache, not source. Left unignored it fails `format:check` for anyone
 # who has launched the app, which is a verify gate that punishes running it.

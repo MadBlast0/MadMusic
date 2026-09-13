@@ -26,7 +26,7 @@
  * screen says "still trying, attempt two" instead of nothing.
  */
 
-export type RetryOptions = {
+type RetryOptions = {
   /** How many attempts in total, including the first. */
   attempts?: number;
   /** The first delay, in milliseconds. Doubles from there. */

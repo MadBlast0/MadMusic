@@ -14,7 +14,7 @@
 
 import { BANDS } from '@/lib/audio/graph';
 
-export type Preset = {
+type Preset = {
   id: string;
   name: string;
   /** One gain in dB per [`BANDS`] entry. */

@@ -46,7 +46,7 @@ export type TagEdit = {
 export type Change = { path: string; field: string; from: string; to: string };
 
 /** What happened to one file. */
-export type WriteResult = { path: string; written: boolean; error: string };
+type WriteResult = { path: string; written: boolean; error: string };
 
 /** What would change, without changing it. */
 export async function previewEdit(

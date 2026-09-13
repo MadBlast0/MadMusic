@@ -50,7 +50,7 @@ const SHOULDER_ANGLE = (40 * Math.PI) / 180;
 const INSET_RATIO = 16 / 58;
 const DROP_RATIO = 34 / 58;
 
-export type Silhouette = {
+type Silhouette = {
   /** The full width of the shape. */
   width: number;
   /** The full height: the field, plus however much panel is showing. */

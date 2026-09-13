@@ -19,7 +19,7 @@
 /** Where the cursor is. */
 export type Cursor = { row: number; column: number };
 
-export type Direction = 'up' | 'down' | 'left' | 'right';
+type Direction = 'up' | 'down' | 'left' | 'right';
 
 /**
  * Moves the cursor, given how long each row is.

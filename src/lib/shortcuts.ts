@@ -178,7 +178,7 @@ export function conflictFor(
 export type GlobalBinding = { accelerator: string; action: string };
 
 /** What `hotkeys_apply` reported. */
-export type ApplyResult = {
+type ApplyResult = {
   registered: string[];
   /** Accelerator and why, for the ones that did not take. */
   rejected: [string, string][];

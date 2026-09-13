@@ -104,7 +104,7 @@ export const engine = {
   devices: () => call<EngineDevice[]>('engine_devices'),
 };
 
-export type EngineDevice = {
+type EngineDevice = {
   name: string;
   isDefault: boolean;
   /** Sample rates the device accepts without resampling. */
@@ -142,7 +142,7 @@ export function describeEngine(state: EngineState): string {
 
 /* ── keeping the machine awake ────────────────────────────────────────── */
 
-export type WakeLockState = {
+type WakeLockState = {
   /** Whether this build can make the request on this platform. */
   supported: boolean;
   /** Whether a request is in force right now. */

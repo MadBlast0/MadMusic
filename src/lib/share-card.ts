@@ -34,7 +34,7 @@ import { ellipsise, wrap } from '@/lib/lyric-image';
 const SIZE = 1080;
 const MARGIN = 0.1;
 
-export type ShareCard = {
+type ShareCard = {
   dataUrl: string;
   width: number;
   height: number;

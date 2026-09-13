@@ -12,7 +12,7 @@
 import { isNative, invoke, tryInvoke } from '@/lib/native';
 
 /** What the OS displays. Mirrors `NowPlaying` in `nowplaying.rs`. */
-export type NowPlaying = {
+type NowPlaying = {
   title: string;
   artist: string;
   album: string;

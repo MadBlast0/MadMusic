@@ -80,7 +80,7 @@ Adopt melofy's architecture: **mode** and **accent** are independent.
   `--primary`, `--primary-foreground`, `--ring`. See melofy's
   `apps/web/src/app/globals.css` `[data-essence='…']` blocks.
 
-This is what makes the `design/` canvas question dissolve. Monochrome — today's
+This is what settled the early design-canvas question. Monochrome — today's
 look — becomes `--primary: var(--foreground)`, one line, and stays the
 **default**. Coloured essences exist for anyone who wants signal colour, and
 artwork-derived tinting can plug into the same axis later without touching a

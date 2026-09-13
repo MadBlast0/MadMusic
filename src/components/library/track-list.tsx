@@ -41,7 +41,7 @@ const ROW_HEIGHT = 52;
  *
  * # Why this is a separate, memoised component
  *
- * Measured, not assumed. `virtualised.bench.test.tsx` re-renders a virtualised
+ * Measured, not assumed. A benchmark re-rendered a virtualised
  * parent twenty times without changing any row's data and compares React's own
  * `actualDuration`: an inline row costs 559 ms, a memoised one 52 ms —
  * **25 ms saved per parent re-render**, against a 16 ms frame budget.

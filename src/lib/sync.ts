@@ -79,8 +79,8 @@ type PlaylistItemPayload = {
   trackId: string;
   addedAt: number;
 };
-export type PlayPayload = { at: number; msPlayed: number; source: string };
-export type TrackPayload = {
+type PlayPayload = { at: number; msPlayed: number; source: string };
+type TrackPayload = {
   /** Enough to render a row on a device that has never seen this track. */
   title: string;
   artist: string;

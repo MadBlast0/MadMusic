@@ -305,7 +305,7 @@ do with scrolling. It is: _when the parent re-renders and a row's data has not
 changed, does `memo` skip enough work to be worth the refactor?_ That is
 reconciliation, which jsdom measures perfectly well.
 
-`virtualised.bench.test.tsx` renders the real `Virtualised` over 2,000 rows
+A one-off benchmark (since removed) rendered the real `Virtualised` over 2,000 rows
 twice — inline row against memoised row — and re-renders the parent twenty
 times without changing any row's data:
 
@@ -422,7 +422,7 @@ comment describes an intent the component defeats — a toggle unmounts every
 playlist row and mounts a rail of new ones, each wrapped in its own Radix
 `Tooltip`, and it lands on the first frame of the animation.
 
-Measured in `src/components/layout/sidebar-collapse.bench.test.tsx` at sixty
+Measured with a one-off benchmark (since removed) at sixty
 playlists, React work only:
 
 |                           | before   | after   |
@@ -444,8 +444,8 @@ again.
 
 **The now-playing panel.** `queue-panel.tsx` says "this list can be as long as
 the library, so it is not a place for per-row Motion components" and then wraps
-every row in `Reorder.Item`, which is one. Measured in
-`src/components/player/queue-open.bench.test.tsx` at 200 tracks: **747.9 ms in a
+every row in `Reorder.Item`, which is one. Measured with
+a one-off benchmark (since removed) at 200 tracks: **747.9 ms in a
 single blocking commit** to open the panel.
 
 Swapping `Reorder` for plain list elements — as an experiment, then reverted —
@@ -747,8 +747,7 @@ runtime ternary, so both are referenced and neither can be shaken out.
 
 Aliasing `store/web` to a stub for the production build would remove it without
 touching the API. **Do not.** `dist` is not exclusively loaded by Tauri:
-`pnpm preview` serves it in a browser, and `preview.bat` exists to launch the
-app both ways. In a browser `isNative()` is false and the aliased-away store is
+`pnpm preview` serves it in a browser. In a browser `isNative()` is false and the aliased-away store is
 the one that would be selected — turning a preview into an app with no library
 at all. 7.2 kB is the price of `pnpm preview` working, and that is a fair
 price.

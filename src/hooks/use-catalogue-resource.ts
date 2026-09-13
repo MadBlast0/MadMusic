@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getCatalogueSource, type CatalogueSource } from '@/lib/catalogue';
 import { withRetry } from '@/lib/retry';
 
-export type Resource<T> =
+type Resource<T> =
   | { state: 'loading' }
   /**
    * A first attempt failed and another is coming.

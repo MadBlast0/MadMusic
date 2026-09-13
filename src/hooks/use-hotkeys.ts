@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export type Hotkey = {
+type Hotkey = {
   /** `event.key`, matched case-insensitively. Use `' '` for the space bar. */
   key: string;
   ctrl?: boolean;

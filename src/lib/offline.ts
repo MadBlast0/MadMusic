@@ -30,7 +30,7 @@ export type CacheEntry = {
   artist: string;
 };
 
-export type CacheUsage = {
+type CacheUsage = {
   /** Bytes the limit governs. */
   cached: number;
   /** Bytes it does not. */

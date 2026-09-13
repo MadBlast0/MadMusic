@@ -26,7 +26,7 @@ import { coverUrlOf } from '@/lib/player-track';
 export type ExportFormat = 'm3u' | 'csv' | 'json';
 
 /** A file to hand to the save dialog. */
-export type ExportFile = {
+type ExportFile = {
   name: string;
   contents: string;
   /** What a browser download or the native save dialog should call it. */

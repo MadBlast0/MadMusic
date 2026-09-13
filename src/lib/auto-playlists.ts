@@ -11,7 +11,7 @@ import type { TrackRow } from '@/lib/store/types';
  * Everything here is pure. The queries live in the view.
  */
 
-export type AutoPlaylist = {
+type AutoPlaylist = {
   id: string;
   title: string;
   /** How it was built, shown under the title. */

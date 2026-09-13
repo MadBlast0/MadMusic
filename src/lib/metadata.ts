@@ -449,7 +449,7 @@ export async function lookupCover(
 }
 
 /** What writing artwork into one file reports back. */
-export type ArtworkWrite = {
+type ArtworkWrite = {
   path: string;
   written: boolean;
   error: string;

@@ -104,7 +104,7 @@ const GREEK: Record<string, string> = {
 };
 
 /** Scripts a table can honestly handle. */
-export type Script = 'latin' | 'cyrillic' | 'greek' | 'cjk' | 'other';
+type Script = 'latin' | 'cyrillic' | 'greek' | 'cjk' | 'other';
 
 /**
  * Identifies the dominant script of a text.

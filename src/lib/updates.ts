@@ -88,7 +88,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 }
 
 /** How a download is going, for the progress bar. */
-export type DownloadProgress = {
+type DownloadProgress = {
   /** Bytes so far. */
   received: number;
   /** Total, or zero when the server did not say. */

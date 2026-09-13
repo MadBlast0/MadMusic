@@ -94,7 +94,7 @@ export function periodStart(period: GoalPeriod, now: number): number {
   return date.getTime();
 }
 
-export type GoalProgress = {
+type GoalProgress = {
   /** What has been done so far, in the metric's own unit. */
   done: number;
   target: number;

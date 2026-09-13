@@ -160,7 +160,7 @@ export function AppSidebar({
    *
    * The rail and the full panel are different trees, so a toggle unmounts
    * every playlist row and mounts a new one for each — 224 ms of React work at
-   * sixty playlists, measured in `sidebar-collapse.bench.test.tsx`. That landed
+   * sixty playlists, measured with React's Profiler. That landed
    * on the first frame of the 300 ms width transition in `App.tsx`, which is
    * why the animation stuttered at exactly the moment it started.
    *
@@ -625,7 +625,7 @@ function RowMenu({
  * whole sidebar while every entry is identical, and so does every track
  * change, because `entries` depends on `current` to work out `playingFrom`.
  *
- * Measured in `sidebar-collapse.bench.test.tsx`: it is the difference between
+ * Measured with React's Profiler: it is the difference between
  * re-rendering sixty rows and re-rendering none of them.
  *
  * `entry` is a stable object from the `visible` memo, so the default shallow

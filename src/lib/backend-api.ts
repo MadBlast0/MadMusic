@@ -36,72 +36,6 @@ export type PublicProfile = {
   imageUrl: string;
 };
 
-export type OwnProfile = PublicProfile & {
-  discoverable: boolean;
-  shareActivity: boolean;
-};
-
-export type ActivityEntry = {
-  id: string;
-  kind: string;
-  trackHandle: string;
-  title: string;
-  artist: string;
-  artworkUrl: string;
-  createdAt: number;
-  by: PublicProfile | null;
-};
-
-export type Repost = {
-  id: string;
-  trackHandle: string;
-  title: string;
-  artist: string;
-  artworkUrl: string;
-  note: string;
-  createdAt: number;
-  by: PublicProfile | null;
-};
-
-export type TimedComment = {
-  id: string;
-  atSeconds: number;
-  body: string;
-  createdAt: number;
-  editedAt: number | null;
-  mine: boolean;
-  by: PublicProfile | null;
-};
-
-export type SharedPlaylist = {
-  id: string;
-  localId: string;
-  name: string;
-  description: string;
-  coverA: string;
-  coverB: string;
-  collaborative: boolean;
-  linkVisible: boolean;
-  updatedAt: number;
-  createdAt: number;
-  owner: PublicProfile | null;
-  canEdit: boolean;
-  isOwner: boolean;
-};
-
-export type SharedItem = {
-  id: string;
-  trackHandle: string;
-  title: string;
-  artist: string;
-  artworkUrl: string;
-  duration: number;
-  position: number;
-  note: string;
-  addedAt: number;
-  addedBy: PublicProfile | null;
-};
-
 export type Session = {
   id: string;
   code: string;
@@ -140,30 +74,14 @@ export type Upload = {
   mine: boolean;
 };
 
-export type FollowState = {
-  following: boolean;
-  followers: number;
-  followingCount: number;
-};
-
-export type SyncEventWire = {
-  seq: number;
-  entity: string;
-  entityId: string;
-  op: 'put' | 'delete';
-  payload: string;
-  deviceId: string;
-  createdAt: number;
-};
-
 /* ── the function references ─────────────────────────────────────────────── */
 
 /**
  * Every backend function the frontend calls, in one place.
  *
  * Grouped by module so the shape mirrors `convex/`. `anyApi` builds a reference
- * from the property path, so `backend.profiles.mine` is exactly
- * `convex/profiles.ts`'s `mine` export — the same string the generated module
+ * from the property path, so `backend.sync.pull` is exactly
+ * `convex/sync.ts`'s `pull` export — the same string the generated module
  * would produce.
  */
 export const backend = {
@@ -210,13 +128,3 @@ export const backend = {
     quota: anyApi.uploads.quota,
   },
 } as const;
-
-/**
- * The argument `useQuery` takes to mean "do not run this yet".
- *
- * Convex's own sentinel. Named here because `'skip'` scattered through
- * components reads like a string constant somebody forgot to extract, and
- * because it is the mechanism that keeps a query from firing before the thing
- * it depends on exists.
- */
-export const SKIP = 'skip' as const;

@@ -79,7 +79,7 @@ export async function beginBrowserSignIn(): Promise<void> {
   await openUrl(url);
 }
 
-export type TicketHandoff = { ticket: string };
+type TicketHandoff = { ticket: string };
 
 /**
  * Reads a `madmusic://auth` deep link, if that is what this is.

@@ -10,7 +10,7 @@
  * settings screen that asked for it.
  */
 
-export type ShellPrefs = {
+type ShellPrefs = {
   mediaKeys: boolean;
   minimiseToTray: boolean;
   confirmOnQuitWhilePlaying: boolean;

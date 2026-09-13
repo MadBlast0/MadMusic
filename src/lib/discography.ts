@@ -21,9 +21,9 @@
 
 import type { Collection } from '@/lib/catalogue';
 
-export type ReleaseGroup = 'albums' | 'singles' | 'appears';
+type ReleaseGroup = 'albums' | 'singles' | 'appears';
 
-export type Discography = {
+type Discography = {
   albums: Collection[];
   singles: Collection[];
   appears: Collection[];

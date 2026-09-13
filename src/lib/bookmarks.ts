@@ -27,7 +27,7 @@ import { store } from '@/lib/store';
 import { keys } from '@/lib/store/keys';
 
 /** Bookmarks by episode id, each a sorted list of seconds. */
-export type Bookmarks = Record<string, number[]>;
+type Bookmarks = Record<string, number[]>;
 
 /**
  * How close two bookmarks may be before they are the same one.

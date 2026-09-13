@@ -6,9 +6,6 @@
  * reload.
  */
 
-/** Surfaces. `amoled` applies alongside `dark`, deepening it to true black. */
-export type Mode = 'light' | 'dark' | 'amoled' | 'system';
-
 /** The accent, and nothing else. `monochrome` is the default: today's look. */
 export type Essence =
   'monochrome' | 'amber' | 'emerald' | 'cyan' | 'violet' | 'rose' | 'custom';

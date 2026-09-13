@@ -24,7 +24,7 @@
 import type { TrackFilter, TrackKind } from '@/lib/store/types';
 
 /** What a query means, once parsed. */
-export type ParsedQuery = {
+type ParsedQuery = {
   /** Everything that was not an operator. */
   text: string;
   /** Words that must not appear, from `-word`. */

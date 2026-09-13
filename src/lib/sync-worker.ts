@@ -44,7 +44,7 @@ const MAX_INTERVAL_MS = 10 * 60_000;
 /** How many outbox entries go up in one push. */
 const BATCH = 100;
 
-export type SyncRunner = {
+type SyncRunner = {
   /** Runs a round now, whatever the schedule says. */
   runNow: () => Promise<void>;
   stop: () => void;
@@ -73,7 +73,7 @@ export type WireEvent = {
   payload: string;
 };
 
-export function toWireEvent(op: SyncOp): WireEvent {
+function toWireEvent(op: SyncOp): WireEvent {
   return {
     entity: op.entity,
     entityId: op.entityId,
