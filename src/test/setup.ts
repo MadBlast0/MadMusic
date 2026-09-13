@@ -35,8 +35,16 @@ configure({ asyncUtilTimeout: 5_000 });
  * So the key is cleared globally and auth is exercised deliberately instead:
  * `auth-config.test.ts` stubs the variable itself with `vi.stubEnv`, and
  * `account-menu.test.tsx` supplies the context directly. Both are hermetic.
+ *
+ * The backend's addresses are cleared for the same reason. Once `pnpm convex`
+ * had written a deployment URL, every test that rendered the real providers
+ * mounted Convex against a live deployment - 123 of them failed on a machine
+ * with a backend and passed on one without.
  */
 vi.stubEnv('VITE_CLERK_PUBLISHABLE_KEY', '');
+vi.stubEnv('VITE_CONVEX_URL', '');
+vi.stubEnv('VITE_CONVEX_SITE_URL', '');
+vi.stubEnv('VITE_WEB_ORIGIN', '');
 
 // jsdom doesn't implement these browser APIs that some UI primitives
 // (sonner/next-themes, Radix popper-based overlays) touch on mount.

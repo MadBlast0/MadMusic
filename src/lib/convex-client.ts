@@ -24,6 +24,8 @@
 
 import { ConvexReactClient } from 'convex/react';
 
+import { authConfigured } from '@/lib/auth-config';
+
 /** The deployment URL, or an empty string when this build has no backend. */
 const url =
   (import.meta.env.VITE_CONVEX_URL as string | undefined)?.trim() ?? '';
@@ -34,8 +36,13 @@ const url =
  * Read by every surface that offers a social feature, so the whole section is
  * absent rather than present and failing. Same principle as the scrobbling row:
  * a control that can never work is worse than its absence.
+ *
+ * Needs a Clerk key as well as the URL. Every call is made as a signed-in user
+ * through `ConvexProviderWithClerk`, which cannot mount without Clerk - a build
+ * with the address and no key used to fail on its first render rather than
+ * simply having no backend.
  */
-export const backendAvailable = url.length > 0;
+export const backendAvailable = url.length > 0 && authConfigured;
 
 /**
  * Whether the URL looks like a Convex deployment.
@@ -91,6 +98,13 @@ export function deviceIdFrom(stored: string | null): string {
 
 /** What the settings screen says about the backend. */
 export function backendStatus(): { available: boolean; reason: string } {
+  if (url.length > 0 && !authConfigured) {
+    return {
+      available: false,
+      reason:
+        'This build has a backend address but no Clerk key. The backend only accepts signed-in calls, so it is switched off until VITE_CLERK_PUBLISHABLE_KEY is set.',
+    };
+  }
   if (!backendAvailable) {
     return {
       available: false,
