@@ -108,3 +108,30 @@ describe('the asset protocol and the thumbnail cache', () => {
     expect(images).toContain('http://asset.localhost');
   });
 });
+
+/**
+ * What the webview may talk to for signing in and syncing.
+ *
+ * The policy listed only Clerk's development hosts and nothing for Convex. A
+ * production build pointed at `clerk.music.veyl.in` would have had its sign-in
+ * script refused, and sync's socket to Convex blocked, with nothing on screen
+ * but a sign-in button that did nothing.
+ */
+describe('the content security policy for accounts and sync', () => {
+  const directive = (name: string) =>
+    conf.app.security.csp
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name} `)) ?? '';
+
+  it('loads and talks to the production sign-in domain', () => {
+    for (const name of ['script-src', 'connect-src', 'frame-src']) {
+      expect(directive(name), name).toContain('https://clerk.music.veyl.in');
+    }
+  });
+
+  it('reaches Convex over https and its websocket', () => {
+    expect(directive('connect-src')).toContain('https://*.convex.cloud');
+    expect(directive('connect-src')).toContain('wss://*.convex.cloud');
+  });
+});
