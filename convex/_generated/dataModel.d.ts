@@ -2,23 +2,12 @@
 /**
  * Generated data model types.
  *
- * # Why this is written by hand
+ * THIS CODE IS AUTOMATICALLY GENERATED.
  *
- * `npx convex codegen` normally writes this, and it refuses to run without a
- * configured deployment. That left `convex/` importing a directory that did not
- * exist, so the backend — sixty-four functions over eighteen tables — had never
- * been compiled even once. Nothing in the repository checked it: the root
- * `tsconfig.json` references only the app and node projects, and the frontend
- * deliberately avoids the generated API so that it can build with no backend.
- *
- * These are not stand-ins. They are the same construction the real codegen
- * emits, derived from `schema.ts` itself through Convex's own public generic
- * types — so a query against a table that does not exist, or a field that is
- * not on it, is a type error here exactly as it would be after a deploy.
- *
- * `npx convex dev` will overwrite this file, which is the intended outcome: it
- * regenerates from the same schema and should produce the same thing.
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
+
 import type {
   DataModelFromSchemaDefinition,
   DocumentByName,
@@ -26,14 +15,46 @@ import type {
   SystemTableNames,
 } from 'convex/server';
 import type { GenericId } from 'convex/values';
-
 import schema from '../schema.js';
 
-export type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+/**
+ * The names of all of your Convex tables.
+ */
 export type TableNames = TableNamesInDataModel<DataModel>;
+
+/**
+ * The type of a document stored in Convex.
+ *
+ * @typeParam TableName - A string literal type of the table name (like "users").
+ */
 export type Doc<TableName extends TableNames> = DocumentByName<
   DataModel,
   TableName
 >;
+
+/**
+ * An identifier for a document in Convex.
+ *
+ * Convex documents are uniquely identified by their `Id`, which is accessible
+ * on the `_id` field. To learn more, see [Document IDs](https://docs.convex.dev/using/document-ids).
+ *
+ * Documents can be loaded using `db.get(tableName, id)` in query and mutation functions.
+ *
+ * IDs are just strings at runtime, but this type can be used to distinguish them from other
+ * strings when type checking.
+ *
+ * @typeParam TableName - A string literal type of the table name (like "users").
+ */
 export type Id<TableName extends TableNames | SystemTableNames> =
   GenericId<TableName>;
+
+/**
+ * A type describing your Convex data model.
+ *
+ * This type includes information about what tables you have, the type of
+ * documents stored in those tables, and the indexes defined on them.
+ *
+ * This type is used to parameterize methods like `queryGeneric` and
+ * `mutationGeneric` to make them type-safe.
+ */
+export type DataModel = DataModelFromSchemaDefinition<typeof schema>;
