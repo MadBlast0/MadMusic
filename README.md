@@ -113,6 +113,7 @@ secret in one.
 | `pnpm typecheck`                    | TypeScript, no emit                                                |
 | `pnpm extractor`                    | Fetch or check the pinned `yt-dlp` sidecar                         |
 | `pnpm attributions`                 | Regenerate the shipped licence list after a dependency change      |
+| `pnpm release <version>`            | Set every version file, date the changelog, commit and tag         |
 | **`pnpm verify`**                   | **All of the checks, in order — run before every commit**          |
 
 ### `pnpm verify` is the gate
@@ -121,6 +122,12 @@ Format, lint, types, tests, build, Clippy, Rust tests: one command, and if it
 passes locally the change is mergeable. GitHub Actions runs the same command on
 every push, and the [release workflow](.github/workflows/release.yml) builds
 installers for Windows, macOS, and Linux from a version tag.
+
+To release, run `pnpm release 0.2.0` on a clean `main`. It sets the version in
+`package.json`, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`, moves the
+changelog's Unreleased section under `## [0.2.0]`, commits, and makes the tag —
+and pushes nothing. `git push origin main v0.2.0` is what publishes. A tag whose
+version the files disagree with stops the workflow before anything is built.
 
 ## Layout
 

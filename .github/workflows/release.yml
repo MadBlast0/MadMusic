@@ -96,6 +96,32 @@ jobs:
             *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
+      # The tag names the release; the files decide what the installers say
+      # they are — `tauri.conf.json` names the artefacts and the updater
+      # manifest, `Cargo.toml` is what the binary reports. A tag pushed without
+      # bumping them would publish "v0.2.0" full of 0.1.0 installers, and every
+      # copy would then offer itself the update it already has. `pnpm release`
+      # sets all of them together; this is what catches a tag made by hand.
+      - name: Check the version files match
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          package=$(node -p "require('./package.json').version")
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo=$(awk '/^\[package\]/{p=1;next} /^\[/{p=0} p && /^version *=/{gsub(/.*= *"|"/,""); print; exit}' src-tauri/Cargo.toml)
+
+          mismatch=0
+          for pair in "package.json:$package" "src-tauri/tauri.conf.json:$conf" "src-tauri/Cargo.toml:$cargo"; do
+            file="${pair%%:*}"
+            found="${pair#*:}"
+            if [ "$found" != "$VERSION" ]; then
+              echo "::error file=$file::$file says $found, but this release is $VERSION. Cut releases with 'pnpm release $VERSION', which sets every version file and the changelog together."
+              mismatch=1
+            fi
+          done
+          [ "$mismatch" = 0 ] && echo "all version files say $VERSION"
+          exit $mismatch
+
       # `tauri-action`'s `releaseBody` is the body itself, not a path to one.
       # Passing it a filename put the literal string
       # "/home/runner/work/MadMusic/MadMusic/CHANGELOG.md" on the release page,
