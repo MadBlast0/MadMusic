@@ -288,7 +288,7 @@ impl Restricted {
 }
 
 /// What one token stands for.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Target {
     /// A file on disk to serve directly.
     ///
@@ -422,6 +422,28 @@ impl Streams {
         token
     }
 
+    /// Points a token at a URL that serves past the cap.
+    ///
+    /// Without this every chunk after the first mebibyte began with a request
+    /// to a URL already known to refuse it: a guaranteed 403, a wait, and a
+    /// second request, once per mebibyte for the rest of the track. Each of
+    /// those refusals is also a chance to fail outright, since a retry that is
+    /// itself refused ends the track.
+    ///
+    /// Safe for the same reason the swap is: the sidecar is pinned to the itag
+    /// already playing and its length must match, so byte offsets mean the same
+    /// thing on both URLs — see `catalogue::upgrade_in_background`.
+    fn upgrade(&self, token: &str, url: &str) {
+        if let Some(target) = self
+            .urls
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(token)
+        {
+            target.url = url.to_owned();
+        }
+    }
+
     fn get(&self, token: &str) -> Option<Target> {
         self.urls
             .lock()
@@ -475,7 +497,7 @@ pub fn serve<R: tauri::Runtime>(
     request: http::Request<Vec<u8>>,
     responder: tauri::UriSchemeResponder,
 ) {
-    use tauri::{Emitter, Manager};
+    use tauri::Manager;
 
     let token = request
         .uri()
@@ -560,7 +582,9 @@ pub fn serve<R: tauri::Runtime>(
             // and re-issuing is invisible — the element is holding a minute of
             // audio — where failing here ends the track about a second in,
             // because Chromium treats a refused range as fatal.
-            match app.state::<Upgrades>().get(&token).await {
+            let better = worth_retrying(app.state::<Upgrades>().get(&token).await, &target.url);
+
+            match better {
                 Some(better) => {
                     log::info!("stream {token}: retrying byte {start} on the uncapped URL");
                     match client
@@ -569,7 +593,25 @@ pub fn serve<R: tauri::Runtime>(
                         .send()
                         .await
                     {
-                        Ok(second) => upstream = second,
+                        Ok(second) if second.status().is_success() => {
+                            // Kept, so the rest of the track goes straight
+                            // here rather than being refused once per
+                            // mebibyte on the way.
+                            app.state::<Streams>().upgrade(&token, &better);
+                            upstream = second;
+                        }
+                        // The better URL refused it too. Falling through with
+                        // that response would hand the element a 403, which
+                        // Chromium treats as fatal — the track stops mid-note.
+                        // Saying the track is capped is both true and
+                        // survivable: the player reports it rather than
+                        // dying, and the next play resolves afresh.
+                        Ok(_) => {
+                            log::info!(
+                                "stream {token}: the uncapped URL refused byte {start} as well"
+                            );
+                            capped(&app, &token, &target.handle, start);
+                        }
                         Err(_) => {
                             responder.respond(empty(http::StatusCode::BAD_GATEWAY));
                             return;
@@ -579,14 +621,7 @@ pub fn serve<R: tauri::Runtime>(
                 // Nothing better exists. The truth is sent alongside the
                 // refusal so the player names the real reason rather than
                 // sending somebody to check their wifi.
-                None => {
-                    let _ = app.emit(CAPPED_EVENT, start);
-                    if app.state::<Restricted>().remember(&target.handle) {
-                        log::info!("stream {token}: {} needs the sidecar", target.handle);
-                        app.state::<crate::catalogue::Resolved>()
-                            .forget(&target.handle);
-                    }
-                }
+                None => capped(&app, &token, &target.handle, start),
             }
         }
 
@@ -644,6 +679,32 @@ pub fn serve<R: tauri::Runtime>(
             }
         }
     });
+}
+
+/// Whether a known-better URL is worth a second request.
+///
+/// `None` when there is no better URL, and also when it is the one that has
+/// just been refused — a token already pointed at the better URL has nothing
+/// left to try, and asking it again spends the wait to be refused twice.
+fn worth_retrying(candidate: Option<String>, current: &str) -> Option<String> {
+    candidate.filter(|url| url != current)
+}
+
+/// Reports a track that cannot be served past the cap.
+///
+/// Both refusal paths end here — no better URL, and a better URL that was
+/// refused as well — because the consequences are the same: tell the player,
+/// so it names the real reason instead of sending somebody to check their
+/// wifi, and forget the resolved URL so the next play goes through the sidecar
+/// from the start rather than repeating this.
+fn capped<R: tauri::Runtime>(app: &tauri::AppHandle<R>, token: &str, handle: &str, start: u64) {
+    use tauri::{Emitter, Manager};
+
+    let _ = app.emit(CAPPED_EVENT, start);
+    if app.state::<Restricted>().remember(handle) {
+        log::info!("stream {token}: {handle} needs the sidecar");
+        app.state::<crate::catalogue::Resolved>().forget(handle);
+    }
 }
 
 /// The inclusive byte window a range header asks for, or `None` for a 416.
@@ -1013,5 +1074,68 @@ mod tests {
             None,
             "the oldest token is the one that should have gone"
         );
+    }
+
+    /// What happens after the first mebibyte.
+    ///
+    /// YouTube's fast URL refuses everything past one mebibyte, so a long
+    /// track is a series of refusals and retries. Two of them used to be
+    /// wrong: every chunk asked the dead URL first, and a retry that was also
+    /// refused was handed to the element, which treats a 403 as fatal and
+    /// stops mid-note.
+    #[test]
+    fn a_token_points_at_the_better_url_once_it_is_known() {
+        let streams = Streams::default();
+        let token = streams.put(Target {
+            url: "https://capped.example/audio".into(),
+            handle: "abc".into(),
+            ..Target::default()
+        });
+
+        streams.upgrade(&token, "https://uncapped.example/audio");
+
+        assert_eq!(
+            streams.get(&token).expect("token still exists").url,
+            "https://uncapped.example/audio",
+            "later chunks must go straight to the URL that serves them"
+        );
+    }
+
+    /// An unknown token is not a reason to panic, or to invent one.
+    #[test]
+    fn upgrading_a_token_that_is_gone_does_nothing() {
+        let streams = Streams::default();
+        streams.upgrade("404", "https://uncapped.example/audio");
+
+        assert!(streams.get("404").is_none());
+    }
+
+    #[test]
+    fn a_refusal_retries_on_a_url_that_is_actually_different() {
+        assert_eq!(
+            worth_retrying(
+                Some("https://uncapped.example/audio".into()),
+                "https://capped.example/audio"
+            ),
+            Some("https://uncapped.example/audio".into())
+        );
+    }
+
+    /// The token is already on the better URL: there is nothing left to try,
+    /// and asking it again only spends the twenty-second wait.
+    #[test]
+    fn a_refusal_from_the_better_url_is_not_retried_against_itself() {
+        assert_eq!(
+            worth_retrying(
+                Some("https://uncapped.example/audio".into()),
+                "https://uncapped.example/audio"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn no_better_url_means_no_retry() {
+        assert_eq!(worth_retrying(None, "https://capped.example/audio"), None);
     }
 }
