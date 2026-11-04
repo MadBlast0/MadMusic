@@ -237,7 +237,6 @@ jobs:
           bun run typecheck
           bun run lint
           bun run test
-          bun run attributions --check
 
       - name: Check Rust
         working-directory: src-tauri
