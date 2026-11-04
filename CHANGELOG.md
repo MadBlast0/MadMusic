@@ -160,7 +160,7 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
   is designed to disappear quietly when its key is missing — so nothing said
   so. The build-time keys are wired through now, and remain optional.
 
-## [0.1.0] - 2026-09-08
+## [0.1.0] - 2026-11-05
 
 The first build anybody else can install. Pre-alpha, and marked as a
 pre-release: the desktop app runs end to end on Windows, and the macOS and
@@ -180,6 +180,16 @@ exercised by hand.
   conventions and command trust-boundary rules that go with it.
 - `docs/ci-plan.md` recording the deferred CI and multi-platform release
   pipeline, so switching it on later is a lookup rather than a redesign.
+- The updater is wired end to end: a signing key pair, the public half in the
+  Tauri config, and signed updater artefacts produced by the release build.
+
+### Changed
+
+- Target platforms narrowed to the five native ones; the browser is no longer
+  treated as a shipping target.
+- Project renamed to MadMusic and detached from the third-party starter template
+  it was bootstrapped from; all prior branding, authorship, and repository
+  references removed.
 
 ### Fixed
 
@@ -213,16 +223,3 @@ exercised by hand.
   one. And radio station and podcast artwork from hosts the content security
   policy did not name was blocked outright; images may now come from any
   `https:` host.
-
-### Added
-
-- The updater is wired end to end: a signing key pair, the public half in the
-  Tauri config, and signed updater artefacts produced by the release build.
-
-### Changed
-
-- Target platforms narrowed to the five native ones; the browser is no longer
-  treated as a shipping target.
-- Project renamed to MadMusic and detached from the third-party starter template
-  it was bootstrapped from; all prior branding, authorship, and repository
-  references removed.
