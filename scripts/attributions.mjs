@@ -91,7 +91,7 @@ function run(command, args, cwd = ROOT) {
  * exist only on this machine.
  */
 function npmPackages() {
-  const raw = run('pnpm', ['licenses', 'list', '--prod', '--json']);
+  const raw = run('bun', ['pm', 'licenses', '--prod', '--json']);
   if (!raw) return [];
 
   let parsed;
@@ -102,7 +102,7 @@ function npmPackages() {
   }
 
   const out = [];
-  // pnpm groups by licence: `{ "MIT": [ {name, versions, homepage}, ... ] }`.
+  // bun groups by licence: `{ "MIT": [ {name, versions, homepage}, ... ] }`.
   for (const [licence, packages] of Object.entries(parsed)) {
     for (const entry of packages) {
       out.push({
@@ -189,7 +189,7 @@ const counts = {
 for (const [source, count] of Object.entries(counts)) {
   if (count === 0) {
     console.error(
-      `Found no ${source} packages. Are pnpm and cargo on PATH, and have dependencies been installed?`,
+      `Found no ${source} packages. Are bun and cargo on PATH, and have dependencies been installed?`,
     );
     process.exit(1);
   }
@@ -211,7 +211,7 @@ if (process.argv.includes('--check')) {
   const existing = await readFile(OUT, 'utf8').catch(() => '');
   if (existing !== contents) {
     console.error(
-      'The attributions list is out of date. Run `pnpm attributions`.',
+      'The attributions list is out of date. Run `bun run attributions`.',
     );
     process.exit(1);
   }

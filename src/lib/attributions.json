@@ -4303,7 +4303,7 @@
       "name": "@borewit/text-codec",
       "version": "0.2.2",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/text-codec#readme",
+      "url": "git+https://github.com/Borewit/text-codec.git",
       "from": "npm"
     },
     {
@@ -4317,14 +4317,14 @@
       "name": "@clerk/shared",
       "version": "4.28.1",
       "licence": "MIT",
-      "url": "https://github.com/clerk/javascript#readme",
+      "url": "git+https://github.com/clerk/javascript.git",
       "from": "npm"
     },
     {
       "name": "@esbuild/win32-x64",
       "version": "0.27.0",
       "licence": "MIT",
-      "url": "https://github.com/evanw/esbuild#readme",
+      "url": "git+https://github.com/evanw/esbuild.git",
       "from": "npm"
     },
     {
@@ -4814,56 +4814,56 @@
       "name": "@tauri-apps/plugin-autostart",
       "version": "2.5.1",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tauri-apps/plugin-dialog",
       "version": "2.7.2",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tauri-apps/plugin-notification",
       "version": "2.3.3",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tauri-apps/plugin-opener",
       "version": "2.5.4",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tauri-apps/plugin-process",
       "version": "2.3.1",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tauri-apps/plugin-updater",
       "version": "2.10.1",
       "licence": "MIT OR Apache-2.0",
-      "url": "https://github.com/tauri-apps/plugins-workspace#readme",
+      "url": "https://github.com/tauri-apps/plugins-workspace",
       "from": "npm"
     },
     {
       "name": "@tokenizer/inflate",
       "version": "0.4.1",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/tokenizer-inflate#readme",
+      "url": "https://github.com/Borewit/tokenizer-inflate.git",
       "from": "npm"
     },
     {
       "name": "@tokenizer/token",
       "version": "0.3.0",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/tokenizer-token#readme",
+      "url": "https://github.com/Borewit/tokenizer-token.git",
       "from": "npm"
     },
     {
@@ -4905,14 +4905,14 @@
       "name": "clsx",
       "version": "2.1.1",
       "licence": "MIT",
-      "url": "https://github.com/lukeed/clsx#readme",
+      "url": "lukeed/clsx",
       "from": "npm"
     },
     {
       "name": "content-type",
       "version": "2.0.0",
       "licence": "MIT",
-      "url": "https://github.com/jshttp/content-type#readme",
+      "url": "jshttp/content-type",
       "from": "npm"
     },
     {
@@ -4926,21 +4926,21 @@
       "name": "csstype",
       "version": "3.2.3",
       "licence": "MIT",
-      "url": "https://github.com/frenic/csstype#readme",
+      "url": "https://github.com/frenic/csstype",
       "from": "npm"
     },
     {
       "name": "debug",
       "version": "4.4.3",
       "licence": "MIT",
-      "url": "https://github.com/debug-js/debug#readme",
+      "url": "git://github.com/debug-js/debug.git",
       "from": "npm"
     },
     {
       "name": "dequal",
       "version": "2.0.3",
       "licence": "MIT",
-      "url": "https://github.com/lukeed/dequal#readme",
+      "url": "lukeed/dequal",
       "from": "npm"
     },
     {
@@ -4954,21 +4954,21 @@
       "name": "esbuild",
       "version": "0.27.0",
       "licence": "MIT",
-      "url": "https://github.com/evanw/esbuild#readme",
+      "url": "git+https://github.com/evanw/esbuild.git",
       "from": "npm"
     },
     {
       "name": "file-type",
       "version": "21.3.4",
       "licence": "MIT",
-      "url": "https://github.com/sindresorhus/file-type#readme",
+      "url": "sindresorhus/file-type",
       "from": "npm"
     },
     {
       "name": "framer-motion",
       "version": "13.1.0",
       "licence": "MIT",
-      "url": "https://github.com/motiondivision/motion#readme",
+      "url": "https://github.com/motiondivision/motion/",
       "from": "npm"
     },
     {
@@ -4982,21 +4982,21 @@
       "name": "glob-to-regexp",
       "version": "0.4.1",
       "licence": "BSD-2-Clause",
-      "url": "https://github.com/fitzgen/glob-to-regexp#readme",
+      "url": "https://github.com/fitzgen/glob-to-regexp.git",
       "from": "npm"
     },
     {
       "name": "ieee754",
       "version": "1.2.1",
       "licence": "BSD-3-Clause",
-      "url": "https://github.com/feross/ieee754#readme",
+      "url": "git://github.com/feross/ieee754.git",
       "from": "npm"
     },
     {
       "name": "js-cookie",
       "version": "3.0.7",
       "licence": "MIT",
-      "url": "https://github.com/js-cookie/js-cookie#readme",
+      "url": "git://github.com/js-cookie/js-cookie.git",
       "from": "npm"
     },
     {
@@ -5010,49 +5010,49 @@
       "name": "media-typer",
       "version": "2.0.0",
       "licence": "MIT",
-      "url": "https://github.com/jshttp/media-typer#readme",
+      "url": "jshttp/media-typer",
       "from": "npm"
     },
     {
       "name": "motion",
       "version": "13.1.0",
       "licence": "MIT",
-      "url": "https://github.com/motiondivision/motion#readme",
+      "url": "https://github.com/motiondivision/motion",
       "from": "npm"
     },
     {
       "name": "motion-dom",
       "version": "13.0.0",
       "licence": "MIT",
-      "url": "https://github.com/motiondivision/motion#readme",
+      "url": "https://github.com/motiondivision/motion",
       "from": "npm"
     },
     {
       "name": "motion-utils",
       "version": "13.0.0",
       "licence": "MIT",
-      "url": "https://github.com/motiondivision/motion#readme",
+      "url": "https://github.com/motiondivision/motion",
       "from": "npm"
     },
     {
       "name": "ms",
       "version": "2.1.3",
       "licence": "MIT",
-      "url": "https://github.com/vercel/ms#readme",
+      "url": "vercel/ms",
       "from": "npm"
     },
     {
       "name": "music-metadata",
       "version": "11.14.0",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/music-metadata#readme",
+      "url": "github:Borewit/music-metadata",
       "from": "npm"
     },
     {
       "name": "next-themes",
       "version": "0.4.6",
       "licence": "MIT",
-      "url": "https://github.com/pacocoursey/next-themes#readme",
+      "url": "https://github.com/pacocoursey/next-themes.git",
       "from": "npm"
     },
     {
@@ -5087,14 +5087,14 @@
       "name": "react-remove-scroll",
       "version": "2.7.2",
       "licence": "MIT",
-      "url": "https://github.com/theKashey/react-remove-scroll#readme",
+      "url": "https://github.com/theKashey/react-remove-scroll",
       "from": "npm"
     },
     {
       "name": "react-remove-scroll-bar",
       "version": "2.3.8",
       "licence": "MIT",
-      "url": "https://github.com/theKashey/react-remove-scroll-bar#readme",
+      "url": "https://github.com/theKashey/react-remove-scroll-bar",
       "from": "npm"
     },
     {
@@ -5122,7 +5122,7 @@
       "name": "strtok3",
       "version": "10.3.5",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/strtok3#readme",
+      "url": "git+https://github.com/Borewit/strtok3.git",
       "from": "npm"
     },
     {
@@ -5136,7 +5136,7 @@
       "name": "token-types",
       "version": "6.1.2",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/token-types#readme",
+      "url": "git+https://github.com/Borewit/token-types.git",
       "from": "npm"
     },
     {
@@ -5150,14 +5150,14 @@
       "name": "uint8array-extras",
       "version": "1.5.0",
       "licence": "MIT",
-      "url": "https://github.com/sindresorhus/uint8array-extras#readme",
+      "url": "sindresorhus/uint8array-extras",
       "from": "npm"
     },
     {
       "name": "use-callback-ref",
       "version": "1.3.3",
       "licence": "MIT",
-      "url": "https://github.com/theKashey/use-callback-ref#readme",
+      "url": "https://github.com/theKashey/use-callback-ref/",
       "from": "npm"
     },
     {
@@ -5171,7 +5171,7 @@
       "name": "win-guid",
       "version": "0.2.1",
       "licence": "MIT",
-      "url": "https://github.com/Borewit/win-guid#readme",
+      "url": "git+https://github.com/Borewit/win-guid.git",
       "from": "npm"
     },
     {
