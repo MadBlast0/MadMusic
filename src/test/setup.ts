@@ -77,6 +77,58 @@ if (typeof g.ResizeObserver !== 'function') {
   };
 }
 
+// Node 26 ships an experimental, file-backed `localStorage` that is undefined
+// unless `--localstorage-file` is passed, and it shadows jsdom's own. Tests in
+// this repo reach for the global directly, so make sure jsdom's instance is
+// the one they see. This keeps the suite hermetic on any Node version.
+// jsdom 29 (under Node 26) exposes `sessionStorage` but not `localStorage` for
+// the default origin, and Node 26's own experimental global is unavailable
+// without `--localstorage-file`. Tests in this repo reach for `localStorage`
+// (and `window.localStorage`) directly and spy on `Storage.prototype`, so
+// provide an in-memory implementation that matches that contract.
+if (typeof window !== 'undefined' && !window.localStorage) {
+  class MemoryStorage {
+    private data = new Map<string, string>();
+
+    get length(): number {
+      return this.data.size;
+    }
+
+    clear(): void {
+      this.data.clear();
+    }
+
+    getItem(key: string): string | null {
+      return this.data.has(key) ? this.data.get(key)! : null;
+    }
+
+    setItem(key: string, value: string): void {
+      this.data.set(String(key), String(value));
+    }
+
+    removeItem(key: string): void {
+      this.data.delete(String(key));
+    }
+
+    key(index: number): string | null {
+      return Array.from(this.data.keys())[index] ?? null;
+    }
+  }
+
+  const storage = new MemoryStorage();
+  Object.defineProperty(window, 'localStorage', {
+    value: storage,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: storage,
+    writable: true,
+    configurable: true,
+  });
+  (globalThis as unknown as { Storage: unknown }).Storage = MemoryStorage;
+}
+
 // jsdom implements no scrolling at all, so these are missing entirely. The
 // lyrics and transcript panels call scrollIntoView on the active line as soon
 // as they mount, which throws and takes the whole render down.

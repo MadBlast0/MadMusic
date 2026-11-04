@@ -1,7 +1,7 @@
 dist
 node_modules
 coverage
-pnpm-lock.yaml
+bun.lock
 CHANGELOG.md
 src-tauri/target
 src-tauri/gen

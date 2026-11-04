@@ -42,4 +42,4 @@
 *.webm binary
 
 # Lockfiles: mark generated so GitHub collapses diffs
-pnpm-lock.yaml    linguist-generated=true -diff
+

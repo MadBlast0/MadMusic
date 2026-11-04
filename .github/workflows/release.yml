@@ -198,12 +198,13 @@ jobs:
       # `packageManager`, and naming a second one made this action refuse to
       # install anything at all — which is what failed every run of these
       # workflows before the first release was ever attempted.
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'pnpm'
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -215,14 +216,14 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
 
       # The sidecar is not in the repository — it is fetched against a pinned
       # checksum. Without this step the build produces an app that stops after
       # about a minute on many catalogue tracks.
       - name: Fetch the extractor
         shell: bash
-        run: pnpm extractor ${{ matrix.extractor }}
+        run: bun run extractor ${{ matrix.extractor }}
 
       # The gates, before anything is published. A release that fails its own
       # test suite is a release nobody should be able to make by accident.
@@ -233,10 +234,10 @@ jobs:
       - name: Check
         shell: bash
         run: |
-          pnpm typecheck
-          pnpm lint
-          pnpm test
-          pnpm attributions --check
+          bun run typecheck
+          bun run lint
+          bun run test
+          bun run attributions --check
 
       - name: Check Rust
         working-directory: src-tauri
@@ -330,7 +331,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
       - uses: actions/setup-node@v5
         with:
           node-version: 22

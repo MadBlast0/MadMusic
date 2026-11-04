@@ -16,8 +16,7 @@
 
 # Build, tooling, and supply-chain surface.
 /package.json           @MadBlast0
-/pnpm-lock.yaml         @MadBlast0
-/pnpm-workspace.yaml    @MadBlast0
+/bun.lock               @MadBlast0
 /vite.config.ts         @MadBlast0
 /eslint.config.js       @MadBlast0
 /tsconfig*.json         @MadBlast0

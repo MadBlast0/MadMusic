@@ -6,6 +6,14 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    // The Rust build writes and locks files under src-tauri/target while it runs.
+    // Vite's default watcher walks the whole project and crashes on those locked
+    // files (EBUSY), so ignore that tree entirely.
+    watch: {
+      ignored: ['**/src-tauri/target/**', '**/src-tauri/**/target/**'],
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -106,6 +114,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost:3000',
+      },
+    },
     setupFiles: './src/test/setup.ts',
     css: true,
     // Threads, not the default `forks`. On Windows the fork pool intermittently
