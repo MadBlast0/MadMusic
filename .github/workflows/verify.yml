@@ -36,8 +36,8 @@ name: verify
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    tags:
+      - 'v*'
 
 # A second push to the same branch makes the first run irrelevant. Cancelling
 # it keeps the queue short and the feedback fast.
