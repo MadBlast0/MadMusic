@@ -9,6 +9,8 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2026-11-05
+
 ### Added
 
 - Playlists that build themselves from how you listen, on Home and each with a
@@ -29,6 +31,59 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 - The Music folder can be filtered by genre, decade, format and whether a song
   has a cover, and its Albums and Artists tabs can be sorted — by year, size,
   length and more — and shown as a list as well as a grid.
+
+### Changed
+
+- Cover art is served from the thumbnail cache that was already built for it.
+  `artwork.rs` decodes an embedded picture once, writes a 320px JPEG and hands
+  back its path for the webview to load — and `assetProtocol.scope` was an
+  empty list, which denies every path, so nothing could ever load one and every
+  cover came through as a two-megabyte base64 string instead. The scope is now
+  that one directory and nothing else; the music library is deliberately not in
+  it. The cache is swept to its limit once per launch, and "clear the cache"
+  clears it.
+- Global shortcuts can be bound to everything Rust will register. The settings
+  screen offered five actions against the twelve `hotkeys.rs` accepts, so mute,
+  volume, stop, shuffle, repeat and search were impossible to bind despite
+  working.
+- The audio device is released when the session ends rather than held open
+  until the app quits — an open device stays awake, which on some interfaces
+  means a fan.
+- Optional integrations now say whether they are on, and why not when they are
+  off. Rust had been returning a sentence for each absence all along — "This
+  build has no Discogs token, so credits come from MusicBrainz alone" — from
+  commands that were registered and never once called, so the features vanished
+  silently with nothing anywhere explaining it. There is a row per integration
+  on the diagnostics screen, and where a probe gives no reason the row names the
+  variable that switches it on.
+- The catalogue half of Home answers to the listener: blocked artists are gone
+  from it, and artists you actually play come first. Within a shelf only — the
+  shelves are charts and editorial, and nothing is dropped for being
+  unfamiliar.
+- Four Tauri commands nothing called are no longer registered. Two were the
+  internal halves of `acoustid_identify`; one was a second copy of the LRC
+  grammar shipped in the binary, now kept under `cfg(test)` as the oracle for a
+  round-trip check; one had no caller but its own tests. The crate also has no
+  `#[allow(dead_code)]` left in it.
+- The full-screen player's lyrics pane can be put away, from a control in a new
+  top-left cluster, and says "No lyrics for this track" rather than opening
+  empty. Closing it grows the artwork into the space. The visualiser picker
+  moved into the same cluster as a menu, out from under the play button. The
+  background is three layers from the track's own colour rather than one flat
+  sweep.
+- The player's overflow menu is a menu, rather than a popover with three strips
+  of unlabelled icon buttons wedged between its labels. Each control is a row
+  carrying its own current value — `1.5×`, `28 min`, `Spread artists` — and the
+  ones with options are submenus. This is also the first time the menu can be
+  operated from the keyboard at all: Radix's roving focus only visits menu
+  items, and the icon strips were bare `div`s it stepped straight past.
+- Shuffle's mode list includes `Off`, so it is one list of five answers rather
+  than a row that disappeared whenever shuffle was off.
+- The lyrics button is a caption card rather than a microphone. A mic is what
+  you record with; this shows timed text, and on a podcast it is a transcript
+  rather than lyrics at all.
+- A cast that fails reports itself where the user is looking, instead of inside
+  a menu that has already closed.
 
 ### Fixed
 
@@ -104,59 +159,6 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
   passed only the signing secrets to the build, and every one of those features
   is designed to disappear quietly when its key is missing — so nothing said
   so. The build-time keys are wired through now, and remain optional.
-
-### Changed
-
-- Cover art is served from the thumbnail cache that was already built for it.
-  `artwork.rs` decodes an embedded picture once, writes a 320px JPEG and hands
-  back its path for the webview to load — and `assetProtocol.scope` was an
-  empty list, which denies every path, so nothing could ever load one and every
-  cover came through as a two-megabyte base64 string instead. The scope is now
-  that one directory and nothing else; the music library is deliberately not in
-  it. The cache is swept to its limit once per launch, and "clear the cache"
-  clears it.
-- Global shortcuts can be bound to everything Rust will register. The settings
-  screen offered five actions against the twelve `hotkeys.rs` accepts, so mute,
-  volume, stop, shuffle, repeat and search were impossible to bind despite
-  working.
-- The audio device is released when the session ends rather than held open
-  until the app quits — an open device stays awake, which on some interfaces
-  means a fan.
-- Optional integrations now say whether they are on, and why not when they are
-  off. Rust had been returning a sentence for each absence all along — "This
-  build has no Discogs token, so credits come from MusicBrainz alone" — from
-  commands that were registered and never once called, so the features vanished
-  silently with nothing anywhere explaining it. There is a row per integration
-  on the diagnostics screen, and where a probe gives no reason the row names the
-  variable that switches it on.
-- The catalogue half of Home answers to the listener: blocked artists are gone
-  from it, and artists you actually play come first. Within a shelf only — the
-  shelves are charts and editorial, and nothing is dropped for being
-  unfamiliar.
-- Four Tauri commands nothing called are no longer registered. Two were the
-  internal halves of `acoustid_identify`; one was a second copy of the LRC
-  grammar shipped in the binary, now kept under `cfg(test)` as the oracle for a
-  round-trip check; one had no caller but its own tests. The crate also has no
-  `#[allow(dead_code)]` left in it.
-- The full-screen player's lyrics pane can be put away, from a control in a new
-  top-left cluster, and says "No lyrics for this track" rather than opening
-  empty. Closing it grows the artwork into the space. The visualiser picker
-  moved into the same cluster as a menu, out from under the play button. The
-  background is three layers from the track's own colour rather than one flat
-  sweep.
-- The player's overflow menu is a menu, rather than a popover with three strips
-  of unlabelled icon buttons wedged between its labels. Each control is a row
-  carrying its own current value — `1.5×`, `28 min`, `Spread artists` — and the
-  ones with options are submenus. This is also the first time the menu can be
-  operated from the keyboard at all: Radix's roving focus only visits menu
-  items, and the icon strips were bare `div`s it stepped straight past.
-- Shuffle's mode list includes `Off`, so it is one list of five answers rather
-  than a row that disappeared whenever shuffle was off.
-- The lyrics button is a caption card rather than a microphone. A mic is what
-  you record with; this shows timed text, and on a podcast it is a transcript
-  rather than lyrics at all.
-- A cast that fails reports itself where the user is looking, instead of inside
-  a menu that has already closed.
 
 ## [0.1.0] - 2026-09-08
 
