@@ -46,6 +46,13 @@ on:
       version:
         description: 'Version to build, without the leading v'
         required: true
+      platform:
+        description: 'Platform to build (macOS is useful for adding a missing DMG to an existing release)'
+        type: choice
+        options:
+          - all
+          - macos
+        default: all
 
 permissions:
   contents: read
@@ -158,23 +165,10 @@ jobs:
       # One platform failing must not cancel the others. A macOS runner that
       # ran out of disk should not cost a perfectly good Windows installer.
       fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-            # Both, because a universal build compiles each architecture
-            # separately and lipos the results — so the build script looks for
-            # a sidecar named after each arch, never for "universal".
-            extractor: '--target universal-apple-darwin'
-            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-            extractor: '--target x86_64-unknown-linux-gnu'
-            rust-targets: ''
-          - platform: 'windows-latest'
-            args: ''
-            extractor: '--target x86_64-pc-windows-msvc'
-            rust-targets: ''
+      # A focused macOS rerun is useful when an existing release has every
+      # other installer but its universal DMG.  Keep the normal all-platform
+      # matrix for deliberate full releases.
+      matrix: ${{ fromJSON(inputs.platform == 'macos' && '{"include":[{"platform":"macos-latest","args":"--target universal-apple-darwin","extractor":"--target universal-apple-darwin","rust-targets":"aarch64-apple-darwin,x86_64-apple-darwin"}]}' || '{"include":[{"platform":"macos-latest","args":"--target universal-apple-darwin","extractor":"--target universal-apple-darwin","rust-targets":"aarch64-apple-darwin,x86_64-apple-darwin"},{"platform":"ubuntu-22.04","args":"","extractor":"--target x86_64-unknown-linux-gnu","rust-targets":""},{"platform":"windows-latest","args":"","extractor":"--target x86_64-pc-windows-msvc","rust-targets":""}]}') }}
 
     runs-on: ${{ matrix.platform }}
 
@@ -309,7 +303,9 @@ jobs:
           # notes somebody reads in the app and the notes on the release page
           # are one text.
           releaseBody: ${{ needs.guard.outputs.notes }}
-          releaseDraft: true
+          # A manual macOS-only rerun may add its DMG to an already published
+          # release, so do not turn that release back into a draft.
+          releaseDraft: false
           prerelease: ${{ needs.guard.outputs.prerelease }}
           # This is what the updater reads. Without it the endpoint in
           # `tauri.conf.json` resolves to nothing and the app correctly reports
