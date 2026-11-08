@@ -9,14 +9,6 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
-## [0.1.1-beta.1] - 2026-11-08
-
-### Fixed
-
-- The desktop widget builds on macOS again. Its native transparent-window
-  setting is only available on Windows, so the macOS release build stopped
-  before it could produce an installer.
-
 ## [0.1.0-beta.1] - 2026-11-05
 
 ### Added
@@ -174,6 +166,12 @@ The first build anybody else can install. Pre-alpha, and marked as a
 pre-release: the desktop app runs end to end on Windows, and the macOS and
 Linux installers are produced by the release workflow but have not been
 exercised by hand.
+
+### Fixed
+
+- The desktop widget builds on macOS again. Its native transparent-window
+  setting is only available on Windows, so the macOS release build stopped
+  before it could produce an installer.
 
 ### Added
 
