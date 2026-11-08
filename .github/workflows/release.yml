@@ -37,11 +37,10 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-  # Deliberately available by hand as well: a release that can only be made by
-  # pushing a tag is a release nobody can test the pipeline for.
+  # Desktop installers are built and signed on the maintainer's release
+  # machine, then uploaded to the tagged draft release.  Keeping the workflow
+  # manual avoids spending hosted runners on every tag push and prevents a
+  # cloud-only build failure from blocking that local release path.
   workflow_dispatch:
     inputs:
       version:
