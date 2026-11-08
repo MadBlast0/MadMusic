@@ -582,12 +582,20 @@ pub async fn widget_open(app: AppHandle, widget: State<'_, Widget>) -> Result<()
     log::info!("opening the widget window");
     let url = WebviewUrl::App("index.html#widget".into());
 
-    WebviewWindowBuilder::new(&app, WIDGET, url)
+    let builder = WebviewWindowBuilder::new(&app, WIDGET, url)
         .title("MadMusic")
         .inner_size(304.0, 212.0)
         .resizable(false)
-        .decorations(false)
-        .transparent(true)
+        .decorations(false);
+
+    // Tauri only exposes native transparent webview windows on Windows.  The
+    // widget remains frameless on the other desktop targets, but asking their
+    // builders for transparency prevents the macOS release build from
+    // compiling at all.
+    #[cfg(target_os = "windows")]
+    let builder = builder.transparent(true);
+
+    builder
         .shadow(false)
         .skip_taskbar(true)
         .visible(true)
