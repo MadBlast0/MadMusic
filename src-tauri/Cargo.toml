@@ -1,6 +1,6 @@
 [package]
 name = "madmusic"
-version = "0.1.0"
+version = "0.1.1-beta.1"
 description = "MadMusic — one music library, every device"
 authors = ["Mad Blast <81722794+MadBlast0@users.noreply.github.com>"]
 license = "LicenseRef-Proprietary"
