@@ -9,6 +9,12 @@ Until `0.1.0`, `main` is the only supported state and anything may change.
 
 ## [Unreleased]
 
+### Fixed
+
+- The desktop widget builds on macOS again. Its native transparent-window
+  setting is only available on Windows, so the macOS release build stopped
+  before it could produce an installer.
+
 ## [0.1.0-beta.1] - 2026-11-05
 
 ### Added
